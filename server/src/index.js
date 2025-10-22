@@ -1,9 +1,11 @@
 import express from 'express';
+import dotenv from 'dotenv';
 import cors from 'cors';
 import connectDB from './config/db.js'; // importando o BD
 import Teste from './models/Teste.js'; // importando o teste do BD
+import authRoutes from './auth/authRoutes.js';
 
-
+dotenv.config();
 connectDB(); // BD
 
 const app = express();
@@ -11,6 +13,8 @@ const PORT = 5000;
 
 app.use(cors());
 app.use(express.json());
+
+app.use('/api/auth', authRoutes);
 
 // ROTA DO TESTE DO BD
 
