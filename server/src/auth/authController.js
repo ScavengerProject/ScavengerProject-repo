@@ -1,8 +1,9 @@
 import bcrypt from 'bcryptjs';
 import Usuario from '../models/Usuario.js';
+import jwt from 'jsonwebtoken';
 
 /**
- * Função que valida as credenciais de login.
+ * Função que valida as credenciais de login e retorna token de acesso.
  */
 export const login = async (req, res) => {
   const { email, senha } = req.body;
@@ -24,7 +25,29 @@ export const login = async (req, res) => {
       return res.status(401).json({ message: 'Credenciais inválidas.' });
     }
 
-    res.status(200).json({ message: 'Dados ok, logado' });
+    // os dados que vão dentro do token
+    const payload = {
+      id: usuario._id,
+      nome: usuario.nome,
+      tipo: usuario.tipo,
+    };
+
+    // Gera o token de autenticação
+    const token = jwt.sign(payload, process.env.JWT_SECRET, {
+      expiresIn: '2h',
+    });
+
+    // Envia a resposta de sucesso com o token e dados do usuário
+    res.status(200).json({
+      message: 'Login realizado com sucesso!',
+      token: token,
+      usuario: { 
+        id: usuario._id,
+        nome: usuario.nome,
+        email: usuario.email,
+        tipo: usuario.tipo
+      }
+    });
 
   } catch (error) {
     console.error('Erro no login:', error);

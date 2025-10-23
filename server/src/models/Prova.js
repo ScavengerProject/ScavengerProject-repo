@@ -36,6 +36,6 @@ const ProvaSchema = new mongoose.Schema({
   }
 });
 
-const Prova = mongoose.model('Prova', ProvaSchema);
+const Prova = mongoose.model('Prova', ProvaSchema, 'Provas');
 
 export default Prova;
