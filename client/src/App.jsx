@@ -1,6 +1,6 @@
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { useAuth } from './hooks/useAuth';
+import { useAuth } from './hooks/useAuth.jsx';
 import Login from './pages/Login';
 import Home from './pages/Home';
 import Dashboard from './pages/Dashboard';
@@ -30,22 +30,39 @@ function App() {
   return (
     <>
       <Routes>
-        {/* Rota de Login */}
-        <Route 
-          path="/login" 
-          element={isAuthenticated ? <Navigate to="/" /> : <Login />} 
+        {/* Login: se autenticado, manda para home */}
+        <Route
+          path="/login"
+          element={isAuthenticated ? <Navigate to="/" replace /> : <Login />}
         />
-        
-        {/* Rotas Protegidas */}
-        {isAuthenticated ? (
-          <>
-            <Route path="/" element={<Home usuario={usuario} onLogout={handleLogout} />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/admin/provas" element={<AdminProvas />} />
-          </>
-        ) : (
-          <Route path="*" element={<Navigate to="/login" />} />
-        )}
+
+        {/* Home protegida */}
+        <Route
+          path="/"
+          element={isAuthenticated ? (
+            <Home usuario={usuario} onLogout={handleLogout} />
+          ) : (
+            <Navigate to="/login" replace />
+          )}
+        />
+
+        {/* Dashboard protegida */}
+        <Route
+          path="/dashboard"
+          element={isAuthenticated ? <Dashboard /> : <Navigate to="/login" replace />}
+        />
+
+        {/* Admin Provas protegida */}
+        <Route
+          path="/admin/provas"
+          element={isAuthenticated ? <AdminProvas /> : <Navigate to="/login" replace />}
+        />
+
+        {/* Fallback */}
+        <Route
+          path="*"
+          element={<Navigate to={isAuthenticated ? "/" : "/login"} replace />}
+        />
       </Routes>
       <ToastContainer toasts={toasts} />
     </>

@@ -65,9 +65,10 @@ export default function Home({ usuario, onLogout }) {
             </div>
             <h3 className="text-xl font-bold text-gray-900 mb-2">Minhas Provas</h3>
             <p className="text-gray-600 mb-4">Acesse todas as suas provas e acompanhe seu progresso.</p>
-            <Button 
+            <Button
+              variant="outline" 
               onClick={() => navigate('/dashboard')}
-              className="w-full bg-linear-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold py-2 rounded-lg transition shadow-md"
+              className="w-full border-gray-300 hover:bg-gray-100 text-gray-900 font-semibold py-2 rounded-lg transition shadow-md"
             >
               Ver Provas
             </Button>
@@ -97,7 +98,7 @@ export default function Home({ usuario, onLogout }) {
             <p className="text-gray-600 mb-4">Ajuste suas preferências e dados de perfil.</p>
             <Button 
               variant="outline"
-              className="w-full border-gray-300 hover:bg-gray-100 text-gray-900 font-semibold py-2 rounded-lg transition shadow-md"
+              className="w-full border-gray-300 hover:bg-gray-100 text-gray-900 font-semibold py-2 rounded-lg transition shadow-md mt-6"
             >
               Configurar
             </Button>

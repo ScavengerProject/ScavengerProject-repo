@@ -5,12 +5,10 @@ import { Input } from "../components/ui/Input";
 import { Label } from "../components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { toast } from "../components/ui/toast";
-import { useAuth } from "../hooks/useAuth";
-import { useNavigate } from "react-router-dom";
+import { useAuth } from "../hooks/useAuth.jsx";
 
 const Login = () => {
   const { login } = useAuth();
-  const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -25,10 +23,8 @@ const Login = () => {
 
     setLoading(true);
     try {
-      const success = await login(email, password);
-      if (success) {
-        navigate("/");
-      }
+      await login(email, password);
+      // Redirecionamento fica por conta das rotas (App.jsx)
     } finally {
       setLoading(false);
     }
