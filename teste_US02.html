@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste US02 - Criar Prova com Checkboxes</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .container { max-width: 600px; margin: 0 auto; }
+        label { display: block; margin-top: 10px; font-weight: bold; }
+        input[type="text"], textarea, select { width: 100%; padding: 8px; margin-top: 5px; box-sizing: border-box; }
+        button { margin-top: 20px; padding: 10px 15px; background-color: #4CAF50; color: white; border: none; cursor: pointer; }
+        button:hover { background-color: #45a049; }
+        #output { margin-top: 30px; padding: 15px; border: 1px solid #ccc; white-space: pre-wrap; background-color: #f9f9f9; }
+        .success { border-color: green !important; background-color: #e6ffe6; }
+        .error { border-color: red !important; background-color: #ffe6e6; }
+        .checkbox-group { margin-top: 5px; border: 1px solid #ddd; padding: 10px; }
+        .checkbox-group label { display: inline-block; font-weight: normal; margin-right: 15px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Teste Rápido: Criação de Prova (US02) com Checkboxes</h1>
+    <p>Este script fará login automaticamente como `ADMIN`.</p>
+    
+    <hr>
+    
+    <label for="titulo">Título da Prova:</label>
+    <input type="text" id="titulo" value="Desafio de Múltiplos Quesitos (Teste Array)" required>
+    
+    <label for="descricao">Descrição:</label>
+    <textarea id="descricao" rows="3" required>Uma prova criada para testar a seleção de quesitos de avaliação via array.</textarea>
+
+    <label for="formato">Formato:</label>
+    <select id="formato" required>
+        <option value="CRIATIVA">CRIATIVA</option>
+        <option value="QUIZ">QUIZ</option>
+        <option value="PERFOMANCE">PERFOMANCE</option>
+        <option value="ESPORTE">ESPORTE</option>
+    </select>
+    
+    <label>Quesitos de Avaliação (Selecione os múltiplos):</label>
+    <div class="checkbox-group" id="quesitos-container">
+        </div>
+
+    <button onclick="handleCreation()">Criar Prova</button>
+
+    <div id="output">Aguardando execução...</div>
+</div>
+
+<script>
+    // URL base do seu backend (ajuste se necessário)
+    const API_BASE_URL = 'http://localhost:5000/api';
+
+    // Lista de quesitos predefinidos (deve coincidir com o enum no Prova.js)
+    const PREDEFINED_QUESITOS = ['TEMPO', 'PRODUTIVIDADE'];
+
+    // --- Configuração Inicial ---
+    document.addEventListener('DOMContentLoaded', () => {
+        const container = document.getElementById('quesitos-container');
+        
+        // Cria os checkboxes dinamicamente
+        PREDEFINED_QUESITOS.forEach(quesito => {
+            const id = `quesito-${quesito}`;
+            
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.id = id;
+            checkbox.name = 'quesito';
+            checkbox.value = quesito;
+
+            const label = document.createElement('label');
+            label.htmlFor = id;
+            label.textContent = quesito;
+            
+            container.appendChild(checkbox);
+            container.appendChild(label);
+            
+            // Quebra de linha para melhor visualização
+            container.appendChild(document.createElement('br'));
+        });
+        
+        // Marca alguns por padrão para facilitar o teste
+        document.getElementById('quesito-TEMPO').checked = true;
+        document.getElementById('quesito-PRODUTIVIDADE').checked = false;
+    });
+    // ----------------------------
+
+
+    /**
+     * Tenta fazer login com credenciais de Administrador e retorna o token JWT.
+     */
+    async function loginAndGetToken() {
+        const loginData = {
+            email: 'admin@gincana.com',
+            senha: 'admin123' 
+        };
+
+        const response = await fetch(`${API_BASE_URL}/auth/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(loginData)
+        });
+
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({ message: 'Resposta não é JSON.' }));
+            throw new Error(`Falha no Login (${response.status}): ${error.message || response.statusText}`);
+        }
+
+        const data = await response.json();
+        return data.token;
+    }
+
+    /**
+     * Envia a requisição para criar a prova com o token.
+     */
+    async function createProva(token, provaData) {
+        const response = await fetch(`${API_BASE_URL}/provas`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}` 
+            },
+            body: JSON.stringify(provaData)
+        });
+
+        const data = await response.json().catch(() => ({ message: 'Erro: Servidor não retornou JSON válido' }));
+
+        if (!response.ok) {
+            throw new Error(`Erro ao criar Prova (${response.status}): ${data.message || JSON.stringify(data)}`);
+        }
+        
+        return data;
+    }
+
+    /**
+     * Função principal que orquestra o login e a criação da prova.
+     */
+    async function handleCreation() {
+        const outputDiv = document.getElementById('output');
+        outputDiv.className = '';
+        outputDiv.textContent = 'Iniciando teste: Tentando Login...';
+
+        try {
+            // 1. LOGIN
+            const token = await loginAndGetToken();
+            outputDiv.textContent = 'Login bem-sucedido! Obtendo dados do formulário...';
+            
+            // 2. EXTRAIR DADOS DOS CHECKBOXES (A PARTE CRUCIAL)
+            
+            // Seleciona todos os checkboxes com o nome 'quesito' que estão marcados
+            const selectedCheckboxes = document.querySelectorAll('input[name="quesito"]:checked');
+            
+            // Mapeia os valores dos checkboxes selecionados para um Array de Strings
+            const quesitosArray = Array.from(selectedCheckboxes).map(cb => cb.value);
+
+            if (quesitosArray.length === 0) {
+                outputDiv.className = 'error';
+                outputDiv.textContent = 'Por favor, selecione pelo menos um quesito de avaliação.';
+                return;
+            }
+
+            const provaData = {
+                titulo: document.getElementById('titulo').value,
+                descricao: document.getElementById('descricao').value,
+                formato: document.getElementById('formato').value,
+                quesitos_de_avaliacao: quesitosArray, // O Array correto é enviado
+                requisito_usuario: "ALUNOS_MEDIO", 
+            };
+
+            outputDiv.textContent = `Dados prontos. Tentando criar Prova com quesitos: ${quesitosArray.join(', ')}`;
+
+            // 3. CRIAR PROVA
+            const result = await createProva(token, provaData);
+
+            // 4. SUCESSO
+            outputDiv.className = 'success';
+            outputDiv.textContent = `
+                ✅ Prova Criada com Sucesso! (Status 201)
+
+                Título: ${result.titulo}
+                ID: ${result._id}
+                Formato: ${result.formato}
+                Quesito: ${result.quesitos_de_avaliacao} // usar esse invés do outro nomeado array
+                
+                Quesitos de Avaliação (Teste US02):
+                ${JSON.stringify(result.quesitos_de_avaliacao, null, 2)}
+            `;
+
+        } catch (error) {
+            // 5. ERRO
+            outputDiv.className = 'error';
+            outputDiv.textContent = `
+                ❌ Erro na Criação da Prova:
+                ${error.message}
+            `;
+            console.error('Erro detalhado:', error);
+        }
+    }
+</script>
+</body>
+</html>
