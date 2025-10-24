@@ -17,10 +17,13 @@ const ProvaSchema = new mongoose.Schema({
     enum: ['NAO_INICIADA', 'EM_ANDAMENTO', 'CONCLUIDA'],
     default: 'NAO_INICIADA'
   },
-  quesito_de_avalicao: {
-    type: String,
-    enum: ['TEMPO', 'PRODUTIVIDADE']
-  },
+  // Parte do US02, já havido sido criada com o formato correto. 
+  // Apenas modifiquei o nome para o plural e mudei o tipo para Array String, para garantir multiplos quesitos de avaliação.
+  quesitos_de_avaliacao: {
+    type: [String],
+    enum: ['TEMPO', 'PRODUTIVIDADE'],
+    default: []
+},
   requisito_usuario: {
     type: String,
     enum: ['ALUNOS_FUNDAMENTAL', 'ALUNOS_MEDIO', 'PROFESSORES', 'PAI/MÃE']
