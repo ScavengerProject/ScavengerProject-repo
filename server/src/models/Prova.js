@@ -3,14 +3,14 @@ import mongoose from 'mongoose';
 const ProvaSchema = new mongoose.Schema({
   titulo: { type: String, required: [true, 'O título é obrigatório.'] },
   descricao: { type: String, required: [true, 'A descrição é obrigatória.'] },
-  data_inicio: { type: Date },
+  data_inicio: { type: Date, required: [true, 'A data de início é obrigatória.'] },
   data_fim: { type: Date },
-  pontuacao: { type: mongoose.Schema.Types.Mixed }, 
+  pontuacao: { type: mongoose.Schema.Types.Mixed, required: [true, 'A pontuação é obrigatória.'] }, 
   anexos: { type: mongoose.Schema.Types.Mixed },    
   formato: {
     type: String,
-    enum: ['QUIZ', 'PERFOMANCE', 'ESPORTE', 'CRIATIVA'],
-    required: [true, 'O formato da prova é obrigatório.'],
+    enum: ['QUESTIONARIO_ONLINE', 'PROVA_PRATICA', 'PROVA_ESCRITA'],
+    default: 'PROVA_PRATICA',
   },
   status: {
     type: String,
