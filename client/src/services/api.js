@@ -86,7 +86,8 @@ export const provasService = {
       body: JSON.stringify({ 
         titulo: dados.titulo,
         descricao: dados.descricao,
-        formato: dados.formato 
+        formato: dados.formato,
+        quesitos_de_avaliacao: dados.quesitos_de_avaliacao 
       }),
     }),
 
@@ -97,7 +98,8 @@ export const provasService = {
       body: JSON.stringify({ 
         titulo: dados.titulo,
         descricao: dados.descricao,
-        formato: dados.formato 
+        formato: dados.formato,
+        quesitos_de_avaliacao: dados.quesitos_de_avaliacao
       }),
     }),
 

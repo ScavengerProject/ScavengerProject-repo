@@ -24,6 +24,12 @@ import {
 } from "../components/ui/dialog";
 import { toast } from "../components/ui/toast";
 import { Plus, Edit, Trash2, ArrowLeft } from "lucide-react";
+import { Checkbox } from "../components/ui/checkbox";
+
+const QUESITOS_OPCOES = [
+  { value: 'TEMPO', label: 'Tempo de Execução' },
+  { value: 'PRODUTIVIDADE', label: 'Produtividade/Volume' },
+];
 
 const AdminProvas = () => {
   const navigate = useNavigate();
@@ -33,6 +39,7 @@ const AdminProvas = () => {
       titulo: "Prova de Conhecimento",
       formato: "Quiz",
       descricao: "Perguntas de cultura geral",
+      quesitos_de_avaliacao: ['TEMPO'],
     },
     {
       id: "2",
@@ -48,6 +55,7 @@ const AdminProvas = () => {
     titulo: "",
     formato: "",
     descricao: "",
+    quesitos_de_avaliacao: [],
   });
 
   const resetForm = () => {
@@ -55,8 +63,30 @@ const AdminProvas = () => {
       titulo: "",
       formato: "",
       descricao: "",
+      quesitos_de_avaliacao: [],
     });
     setEditingProva(null);
+  };
+
+  // função para manipular o array de quesitos
+  const handleQuesitoChange = (quesitoValue, isChecked) => {
+    setFormData((prev) => {
+      const currentQuesitos = prev.quesitos_de_avaliacao;
+      
+      if (isChecked) {
+        // adiciona o quesito se marcado
+        return { 
+          ...prev, 
+          quesitos_de_avaliacao: [...currentQuesitos, quesitoValue] 
+        };
+      } else {
+        // Remove o quesito se desmarcado
+        return { 
+          ...prev, 
+          quesitos_de_avaliacao: currentQuesitos.filter((q) => q !== quesitoValue) 
+        };
+      }
+    });
   };
 
   const handleSubmit = (e) => {
@@ -95,6 +125,7 @@ const AdminProvas = () => {
       titulo: prova.titulo,
       formato: prova.formato,
       descricao: prova.descricao,
+      quesitos_de_avaliacao: prova.quesitos_de_avaliacao || [],
     });
     setIsDialogOpen(true);
   };
@@ -193,6 +224,28 @@ const AdminProvas = () => {
                       rows={3}
                     />
                   </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="quesitos" className="text-gray-900 font-medium">
+                      Quesitos de Avaliação (Pontuação)
+                    </Label>
+                    <div className="flex flex-wrap gap-4 p-3 border border-gray-300 rounded-md bg-gray-50">
+                      {QUESITOS_OPCOES.map((quesito) => (
+                        <div key={quesito.value} className="flex items-center space-x-2">
+                          
+                          <Checkbox
+                            id={quesito.value}
+                            // Checa se o quesito está no array atual do formData
+                            checked={formData.quesitos_de_avaliacao.includes(quesito.value)}
+                            // Chama a função que adiciona/remove o quesito do array
+                            onCheckedChange={(isChecked) => handleQuesitoChange(quesito.value, isChecked)}
+                          />
+                          <Label htmlFor={quesito.value} className="text-gray-700 font-normal select-none">
+                            {quesito.label}
+                          </Label>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </div>
                 <DialogFooter>
                   <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white">
@@ -203,7 +256,6 @@ const AdminProvas = () => {
             </DialogContent>
           </Dialog>
         </div>
-
         {/* Provas List */}
         <div className="grid gap-4">
           {provas.length === 0 ? (
