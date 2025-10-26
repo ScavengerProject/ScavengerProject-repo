@@ -68,13 +68,16 @@ export const inscreverUsuarioNaProva = async (req, res) => {
     const solicitanteId = req.usuario.id;
     const solicitanteTipo = req.usuario.tipo;
 
-    // self-service: ALUNO/PROFESSOR/PAI/MÃE podem inscrever a si mesmos
     if (['ALUNO','PROFESSOR','PAI/MÃE'].includes(solicitanteTipo)) {
       if (usuario_id && usuario_id !== solicitanteId) {
-        return res.status(403).json({ message: 'Você só pode inscrever a si mesmo.' });
+        return res.status(403).json({
+          ok: false,
+          code: 'NAO_AUTORIZADO',
+          message: 'Você só pode inscrever a si mesmo.'
+        });
       }
       usuario_id = solicitanteId;
-    } else {
+    }else {
       // ADMIN/COORDENADOR precisam informar "usuario_id"
       if (!usuario_id) return res.status(400).json({ message: 'usuario_id é obrigatório.' });
     }
