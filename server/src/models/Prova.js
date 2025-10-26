@@ -1,5 +1,12 @@
 import mongoose from 'mongoose';
 
+const RequisitoUsuarioSchema = new mongoose.Schema({
+  ALUNOS_FUNDAMENTAL: { type: Number, min: 0, default: 0 },
+  ALUNOS_MEDIO:       { type: Number, min: 0, default: 0 },
+  PROFESSORES:        { type: Number, min: 0, default: 0 },
+  'PAI/MÃE':          { type: Number, min: 0, default: 0 }
+}, { _id: false });
+
 const ProvaSchema = new mongoose.Schema({
   titulo: { type: String, required: [true, 'O título é obrigatório.'] },
   descricao: { type: String, required: [true, 'A descrição é obrigatória.'] },
@@ -24,10 +31,7 @@ const ProvaSchema = new mongoose.Schema({
     enum: ['TEMPO', 'PRODUTIVIDADE'],
     default: []
 },
-  requisito_usuario: {
-    type: String,
-    enum: ['ALUNOS_FUNDAMENTAL', 'ALUNOS_MEDIO', 'PROFESSORES', 'PAI/MÃE']
-  },
+  requisito_usuario: { type: RequisitoUsuarioSchema, default: () => ({}) },
   criado_por_usuario_id: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Usuario', // cria uma referência ao model 'Usuario'
