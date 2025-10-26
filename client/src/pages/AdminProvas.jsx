@@ -23,6 +23,7 @@ import {
   DialogTrigger,
 } from "../components/ui/dialog";
 import { toast } from "../components/ui/toast";
+<<<<<<< HEAD
 import { Plus, Edit, Trash2, ArrowLeft, Loader } from "lucide-react";
 import { provasService } from "../services/api";
 
@@ -30,6 +31,34 @@ const AdminProvas = () => {
   const navigate = useNavigate();
   const [provas, setProvas] = useState([]);
   const [loading, setLoading] = useState(true);
+=======
+import { Plus, Edit, Trash2, ArrowLeft } from "lucide-react";
+import { Checkbox } from "../components/ui/checkbox";
+
+const QUESITOS_OPCOES = [
+  { value: 'TEMPO', label: 'Tempo de Execução' },
+  { value: 'PRODUTIVIDADE', label: 'Produtividade/Volume' },
+];
+
+const AdminProvas = () => {
+  const navigate = useNavigate();
+  const [provas, setProvas] = useState([
+    {
+      id: "1",
+      titulo: "Prova de Conhecimento",
+      formato: "Quiz",
+      descricao: "Perguntas de cultura geral",
+      quesitos_de_avaliacao: ['TEMPO'],
+    },
+    {
+      id: "2",
+      titulo: "Gincana Esportiva",
+      formato: "Esportiva",
+      descricao: "Competição de corrida e arremesso",
+    },
+  ]);
+
+>>>>>>> d90d7d959f77460bd7089948bca9429a807f9d99
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingProva, setEditingProva] = useState(null);
   const [submitting, setSubmitting] = useState(false);
@@ -37,12 +66,16 @@ const AdminProvas = () => {
   const [formData, setFormData] = useState({
     titulo: "",
     descricao: "",
+<<<<<<< HEAD
     formato: "",
     data_inicio: "",
     data_fim: "",
     status: "NAO_INICIADA",
     quesito_de_avalicao: "",
     requisito_usuario: "",
+=======
+    quesitos_de_avaliacao: [],
+>>>>>>> d90d7d959f77460bd7089948bca9429a807f9d99
   });
 
   // Carregar provas ao montar o componente
@@ -67,17 +100,46 @@ const AdminProvas = () => {
     setFormData({
       titulo: "",
       descricao: "",
+<<<<<<< HEAD
       formato: "",
       data_inicio: "",
       data_fim: "",
       status: "NAO_INICIADA",
       quesito_de_avalicao: "",
       requisito_usuario: "",
+=======
+      quesitos_de_avaliacao: [],
+>>>>>>> d90d7d959f77460bd7089948bca9429a807f9d99
     });
     setEditingProva(null);
   };
 
+<<<<<<< HEAD
   const handleSubmit = async (e) => {
+=======
+  // função para manipular o array de quesitos
+  const handleQuesitoChange = (quesitoValue, isChecked) => {
+    setFormData((prev) => {
+      const currentQuesitos = prev.quesitos_de_avaliacao;
+      
+      if (isChecked) {
+        // adiciona o quesito se marcado
+        return { 
+          ...prev, 
+          quesitos_de_avaliacao: [...currentQuesitos, quesitoValue] 
+        };
+      } else {
+        // Remove o quesito se desmarcado
+        return { 
+          ...prev, 
+          quesitos_de_avaliacao: currentQuesitos.filter((q) => q !== quesitoValue) 
+        };
+      }
+    });
+  };
+
+  const handleSubmit = (e) => {
+>>>>>>> d90d7d959f77460bd7089948bca9429a807f9d99
     e.preventDefault();
 
     if (!formData.titulo || !formData.formato || !formData.descricao) {
@@ -125,12 +187,16 @@ const AdminProvas = () => {
     setFormData({
       titulo: prova.titulo,
       descricao: prova.descricao,
+<<<<<<< HEAD
       formato: prova.formato,
       data_inicio: prova.data_inicio ? new Date(prova.data_inicio).toISOString().split('T')[0] : "",
       data_fim: prova.data_fim ? new Date(prova.data_fim).toISOString().split('T')[0] : "",
       status: prova.status || "NAO_INICIADA",
       quesito_de_avalicao: prova.quesito_de_avalicao || "",
       requisito_usuario: prova.requisito_usuario || "",
+=======
+      quesitos_de_avaliacao: prova.quesitos_de_avaliacao || [],
+>>>>>>> d90d7d959f77460bd7089948bca9429a807f9d99
     });
     setIsDialogOpen(true);
   };
@@ -253,6 +319,7 @@ const AdminProvas = () => {
                       disabled={submitting}
                     />
                   </div>
+<<<<<<< HEAD
 
                   {/* Formato */}
                   <div className="grid gap-2">
@@ -351,6 +418,29 @@ const AdminProvas = () => {
                         <SelectItem value="PAI/MÃE">Pai/Mãe</SelectItem>
                       </SelectContent>
                     </Select>
+=======
+                  <div className="grid gap-2">
+                    <Label htmlFor="quesitos" className="text-gray-900 font-medium">
+                      Quesitos de Avaliação (Pontuação)
+                    </Label>
+                    <div className="flex flex-wrap gap-4 p-3 border border-gray-300 rounded-md bg-gray-50">
+                      {QUESITOS_OPCOES.map((quesito) => (
+                        <div key={quesito.value} className="flex items-center space-x-2">
+                          
+                          <Checkbox
+                            id={quesito.value}
+                            // Checa se o quesito está no array atual do formData
+                            checked={formData.quesitos_de_avaliacao.includes(quesito.value)}
+                            // Chama a função que adiciona/remove o quesito do array
+                            onCheckedChange={(isChecked) => handleQuesitoChange(quesito.value, isChecked)}
+                          />
+                          <Label htmlFor={quesito.value} className="text-gray-700 font-normal select-none">
+                            {quesito.label}
+                          </Label>
+                        </div>
+                      ))}
+                    </div>
+>>>>>>> d90d7d959f77460bd7089948bca9429a807f9d99
                   </div>
                 </div>
                 <DialogFooter>
@@ -373,6 +463,7 @@ const AdminProvas = () => {
             </DialogContent>
           </Dialog>
         </div>
+<<<<<<< HEAD
 
         {/* Loading State */}
         {loading && (
@@ -384,6 +475,8 @@ const AdminProvas = () => {
           </Card>
         )}
 
+=======
+>>>>>>> d90d7d959f77460bd7089948bca9429a807f9d99
         {/* Provas List */}
         {!loading && (
           <div className="grid gap-4">

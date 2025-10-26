@@ -112,11 +112,15 @@ export const provasService = {
         titulo: dados.titulo,
         descricao: dados.descricao,
         formato: dados.formato,
+<<<<<<< HEAD
         data_inicio: dados.data_inicio || null,
         data_fim: dados.data_fim || null,
         status: dados.status || 'NAO_INICIADA',
         quesito_de_avalicao: dados.quesito_de_avalicao || null,
         requisito_usuario: dados.requisito_usuario || null,
+=======
+        quesitos_de_avaliacao: dados.quesitos_de_avaliacao 
+>>>>>>> d90d7d959f77460bd7089948bca9429a807f9d99
       }),
     }),
 
@@ -128,11 +132,15 @@ export const provasService = {
         titulo: dados.titulo,
         descricao: dados.descricao,
         formato: dados.formato,
+<<<<<<< HEAD
         data_inicio: dados.data_inicio || null,
         data_fim: dados.data_fim || null,
         status: dados.status || 'NAO_INICIADA',
         quesito_de_avalicao: dados.quesito_de_avalicao || null,
         requisito_usuario: dados.requisito_usuario || null,
+=======
+        quesitos_de_avaliacao: dados.quesitos_de_avaliacao
+>>>>>>> d90d7d959f77460bd7089948bca9429a807f9d99
       }),
     }),
 

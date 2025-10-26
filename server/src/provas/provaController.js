@@ -8,10 +8,6 @@ export const criarProva = async (req, res) => {
   try {
     const { titulo, descricao, formato, data_inicio, data_fim, status, quesito_de_avalicao, requisito_usuario } = req.body;
 
-    if (!titulo || !descricao || !formato) {
-      return res.status(400).json({ message: 'Campos título, descrição e formato são obrigatórios.' });
-    }
-
     const novaProva = new Prova({
       titulo,
       descricao,
@@ -32,6 +28,10 @@ export const criarProva = async (req, res) => {
     });
 
   } catch (error) {
+    if (error.name === 'ValidationError') {
+      // Se for um erro de validação do Mongoose, retorna status 400 (Bad Request).
+      return res.status(400).json({ message: 'Dados inválidos.', errors: error.errors });
+    }
     res.status(500).json({ message: 'Erro ao criar a prova.', error: error.message });
   }
 };

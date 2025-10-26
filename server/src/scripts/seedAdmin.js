@@ -13,6 +13,15 @@ const createAdmin = async () => {
   await connectDB();
 
   try {
+    // 1. LER CREDENCIAIS DAS VARIÁVEIS DE AMBIENTE
+    const emailAdmin = process.env.ADMIN_EMAIL;
+    const senhaAdmin = process.env.ADMIN_PASSWORD;
+
+    if (!emailAdmin || !senhaAdmin) {
+        console.error('ERRO: As variáveis ADMIN_EMAIL e ADMIN_PASSWORD não estão definidas no .env');
+        return;
+    }
+
     // Verifica se um usuário do tipo 'ADMIN' já existe
     const adminExists = await Usuario.findOne({ tipo: 'ADMIN' });
     
@@ -24,8 +33,8 @@ const createAdmin = async () => {
     // Se não existir, cria a instância do novo usuário administrador
     const adminUser = new Usuario({
       nome: 'Administrador Gincana',
-      email: 'admin@gincana.com',
-      senha: 'admin123', // A senha será criptografada automaticamente pelo Model 'Usuario.js'
+      email: emailAdmin, // .ENV
+      senha: senhaAdmin, // .ENV
       tipo: 'ADMIN',
       status: 'ATIVO',
     });
@@ -34,8 +43,8 @@ const createAdmin = async () => {
     await adminUser.save();
 
     console.log('Usuário ADMIN criado com sucesso!');
-    console.log('- Email: admin@gincana.com');
-    console.log('- Senha: admin123');
+    console.log(`- Email: ${emailAdmin}`);
+    console.log(`- Senha: ${senhaAdmin}`);
     console.log('Use estas credenciais para fazer login na API.');
 
   } catch (error) {
