@@ -11,7 +11,7 @@ const router = express.Router();
 
 router.post('/', proteger, autorizar('ADMIN'), criarProva);
 router.patch('/:id/requisito-usuario', proteger, autorizar('ADMIN'), atualizarRequisitoUsuario);
-router.post('/:id/inscricoes', proteger, autorizar('ADMIN','COORDENADOR','ALUNO','PROFESSOR'), inscreverUsuarioNaProva);
+router.post('/:id/inscricoes', proteger, autorizar('ADMIN','COORDENADOR','ALUNO','PROFESSOR','PAI/MÃE'), inscreverUsuarioNaProva);
 router.get('/:id/participantes', proteger, autorizar('ADMIN','COORDENADOR','PROFESSOR'), listarParticipantes);
 
 export default router;
