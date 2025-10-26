@@ -23,8 +23,10 @@
     "@babel/core": "^7.28.5",
     "@babel/preset-env": "^7.28.5",
     "babel-jest": "^30.2.0",
+    "cross-env": "^10.1.0",
     "jest": "^30.2.0",
     "mockingoose": "^2.16.2",
-    "mongodb-memory-server": "^10.2.3"
+    "mongodb-memory-server": "^10.2.3",
+    "supertest": "^7.1.4"
   }
 }
