@@ -6,17 +6,22 @@ import Prova from '../models/Prova.js';
  */
 export const criarProva = async (req, res) => {
   try {
-    const { titulo, descricao, formato, data_inicio, data_fim, status, quesito_de_avalicao, requisito_usuario } = req.body;
+    const { titulo, descricao, formato, data_inicio, data_fim, status, quesitos_de_avaliacao, requisito_usuario, pontuacao } = req.body;
+
+    if (!titulo || !descricao || !formato) {
+      return res.status(400).json({ message: 'Campos título, descrição e formato são obrigatórios.' });
+    }
 
     const novaProva = new Prova({
       titulo,
       descricao,
       formato,
-      data_inicio: data_inicio || null,
+      data_inicio: data_inicio || new Date(),
       data_fim: data_fim || null,
       status: status || 'NAO_INICIADA',
-      quesito_de_avalicao: quesito_de_avalicao || null,
+      quesitos_de_avaliacao: quesitos_de_avaliacao || [],
       requisito_usuario: requisito_usuario || null,
+      pontuacao: pontuacao || {},
       criado_por_usuario_id: req.usuario.id,
     });
 
@@ -28,10 +33,6 @@ export const criarProva = async (req, res) => {
     });
 
   } catch (error) {
-    if (error.name === 'ValidationError') {
-      // Se for um erro de validação do Mongoose, retorna status 400 (Bad Request).
-      return res.status(400).json({ message: 'Dados inválidos.', errors: error.errors });
-    }
     res.status(500).json({ message: 'Erro ao criar a prova.', error: error.message });
   }
 };
@@ -84,7 +85,7 @@ export const obterProva = async (req, res) => {
 export const atualizarProva = async (req, res) => {
   try {
     const { id } = req.params;
-    const { titulo, descricao, formato, data_inicio, data_fim, status, quesito_de_avalicao, requisito_usuario } = req.body;
+    const { titulo, descricao, formato, data_inicio, data_fim, status, quesitos_de_avaliacao, requisito_usuario, pontuacao } = req.body;
 
     // Verificar se a prova existe
     const provaExistente = await Prova.findById(id);
@@ -105,8 +106,9 @@ export const atualizarProva = async (req, res) => {
     if (data_inicio) provaExistente.data_inicio = data_inicio;
     if (data_fim) provaExistente.data_fim = data_fim;
     if (status) provaExistente.status = status;
-    if (quesito_de_avalicao) provaExistente.quesito_de_avalicao = quesito_de_avalicao;
+    if (quesitos_de_avaliacao) provaExistente.quesitos_de_avaliacao = quesitos_de_avaliacao;
     if (requisito_usuario) provaExistente.requisito_usuario = requisito_usuario;
+    if (pontuacao) provaExistente.pontuacao = pontuacao;
 
     const provaAtualizada = await provaExistente.save();
 
