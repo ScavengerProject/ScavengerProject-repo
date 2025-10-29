@@ -47,6 +47,100 @@ export const criarProva = async (req, res) => {
 };
 
 /**
+ * Controller para listar todas as provas.
+ * Acessível a todos os usuários autenticados (ou filtrado por perfil).
+ */
+export const listarProvas = async (req, res) => {
+    try {
+        // Encontra todas as provas
+        const provas = await Prova.find({}); 
+
+        res.status(200).json(provas);
+
+    } catch (error) {
+        console.error('Erro ao listar provas:', error);
+        res.status(500).json({ message: 'Erro interno ao buscar provas.', error: error.message });
+    }
+};
+
+/**
+ * Controller para obter uma prova por ID.
+ * Acessível a todos os usuários autenticados.
+ */
+export const obterProva = async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        const prova = await Prova.findById(id);
+
+        if (!prova) {
+            return res.status(404).json({ message: 'Prova não encontrada.' });
+        }
+
+        res.status(200).json(prova);
+
+    } catch (error) {
+        console.error('Erro ao obter prova:', error);
+        res.status(500).json({ message: 'Erro interno ao buscar a prova.', error: error.message });
+    }
+};
+
+/**
+ * Controller para atualizar uma prova existente.
+ * Acessível apenas por administradores.
+ */
+export const atualizarProva = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const dadosAtualizados = req.body;
+        
+        const prova = await Prova.findByIdAndUpdate(id, dadosAtualizados, { 
+            new: true, 
+            runValidators: true
+        });
+
+        if (!prova) {
+            return res.status(404).json({ message: 'Prova não encontrada.' });
+        }
+
+        res.status(200).json(prova);
+
+    } catch (error) {
+        if (error.name === 'ValidationError') {
+            return res.status(400).json({ 
+                message: 'Erro de validação ao atualizar a prova. Verifique os campos.', 
+                details: error.message 
+            });
+        }
+        console.error('Erro ao atualizar a prova:', error);
+        res.status(500).json({ message: 'Erro interno no servidor ao atualizar prova.' });
+    }
+};
+
+/**
+ * Controller para deletar uma prova.
+ * Acessível apenas por administradores.
+ */
+export const deletarProva = async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        const prova = await Prova.findByIdAndDelete(id);
+
+        if (!prova) {
+            return res.status(404).json({ message: 'Prova não encontrada.' });
+        }
+
+        // adicionar a lógica para deletar inscrições relacionadas aqui (ProvaUsuario)
+        res.status(200).json({ message: 'Prova excluída com sucesso.' });
+
+    } catch (error) {
+        console.error('Erro ao deletar prova:', error);
+        res.status(500).json({ message: 'Erro interno no servidor ao deletar prova.' });
+    }
+};
+
+/**
  * NOVO: atualizar regra de elegibilidade (requisito_usuario) de uma prova
  * PATCH /api/provas/:id/requisito-usuario
  * body: { requisito_usuario: 'ALUNOS_MEDIO' | 'ALUNOS_FUNDAMENTAL' | 'PROFESSORES' | 'PAI/MÃE' }

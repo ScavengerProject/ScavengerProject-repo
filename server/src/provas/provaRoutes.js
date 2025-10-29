@@ -3,7 +3,11 @@ import {
   criarProva,
   atualizarRequisitoUsuario,
   inscreverUsuarioNaProva,
-  listarParticipantes
+  listarParticipantes,
+  listarProvas,     
+  obterProva,    
+  atualizarProva,   
+  deletarProva     
 } from './provaController.js';
 import { proteger, autorizar } from '../auth/authPermissions.js';
 
