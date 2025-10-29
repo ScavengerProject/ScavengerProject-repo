@@ -11,6 +11,7 @@ const UsuarioSchema = new mongoose.Schema({
     enum: ['ADMIN', 'PROFESSOR', 'ALUNO', 'COORDENADOR', 'PAI/MÃE'],
     required: true,
   },
+
   turma: {
     type: String,
     enum: [
@@ -20,9 +21,19 @@ const UsuarioSchema = new mongoose.Schema({
     ],
     default: null
   },
+
   matricula: { type: String },
   status: { type: String, enum: ['ATIVO', 'INATIVO'], default: 'ATIVO' },
   criado_em: { type: Date, default: Date.now },
+
+  // equipe que o usuário pertence (Equipe.js)
+  equipe_id: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Equipe',
+      default: null, // o participante pode não ter equipe?!
+      index: true,
+  },
+
 });
 
 UsuarioSchema.pre('save', async function (next) {
