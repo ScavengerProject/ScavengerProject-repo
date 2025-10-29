@@ -6,6 +6,20 @@ const API_BASE_URL = 'http://localhost:5000/api';
 const request = async (endpoint, options = {}) => {
   const url = `${API_BASE_URL}${endpoint}`;
   
+  // Verificar se a sessão expirou
+  const expiryTime = localStorage.getItem('sessionExpiryTime');
+  if (expiryTime) {
+    const currentTime = new Date().getTime();
+    if (currentTime > parseInt(expiryTime)) {
+      // Sessão expirada, remover dados
+      localStorage.removeItem('token');
+      localStorage.removeItem('usuario');
+      localStorage.removeItem('sessionStartTime');
+      localStorage.removeItem('sessionExpiryTime');
+      throw new Error('Sua sessão expirou. Por favor, faça login novamente.');
+    }
+  }
+  
   // Adicionar token à requisição se disponível
   const token = localStorage.getItem('token');
   const headers = {
@@ -22,6 +36,15 @@ const request = async (endpoint, options = {}) => {
       ...options,
       headers,
     });
+
+    // Se a resposta for 401 (não autorizado), limpar dados de sessão
+    if (response.status === 401) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('usuario');
+      localStorage.removeItem('sessionStartTime');
+      localStorage.removeItem('sessionExpiryTime');
+      throw new Error('Sua sessão expirou. Por favor, faça login novamente.');
+    }
 
     // Se a resposta não for ok, lançar erro
     if (!response.ok) {
@@ -51,6 +74,8 @@ export const authService = {
   logout: () => {
     localStorage.removeItem('token');
     localStorage.removeItem('usuario');
+    localStorage.removeItem('sessionStartTime');
+    localStorage.removeItem('sessionExpiryTime');
   },
 
   // Obter token atual
@@ -87,7 +112,11 @@ export const provasService = {
         titulo: dados.titulo,
         descricao: dados.descricao,
         formato: dados.formato,
-        quesitos_de_avaliacao: dados.quesitos_de_avaliacao 
+        data_inicio: dados.data_inicio || null,
+        data_fim: dados.data_fim || null,
+        status: dados.status || 'NAO_INICIADA',
+        quesitos_de_avaliacao: dados.quesitos_de_avaliacao || [],
+        requisito_usuario: dados.requisito_usuario || null,
       }),
     }),
 
@@ -99,7 +128,11 @@ export const provasService = {
         titulo: dados.titulo,
         descricao: dados.descricao,
         formato: dados.formato,
-        quesitos_de_avaliacao: dados.quesitos_de_avaliacao
+        data_inicio: dados.data_inicio || null,
+        data_fim: dados.data_fim || null,
+        status: dados.status || 'NAO_INICIADA',
+        quesitos_de_avaliacao: dados.quesitos_de_avaliacao || [],
+        requisito_usuario: dados.requisito_usuario || null,
       }),
     }),
 

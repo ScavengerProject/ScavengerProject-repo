@@ -15,22 +15,33 @@ const GRUPO_LABEL = {
  */
 export const criarProva = async (req, res) => {
   try {
-    const { titulo, descricao, formato } = req.body;
+    const { titulo, descricao, formato, data_inicio, data_fim, status, quesitos_de_avaliacao, requisito_usuario, pontuacao } = req.body;
+
+    if (!titulo || !descricao || !formato) {
+      return res.status(400).json({ message: 'Campos título, descrição e formato são obrigatórios.' });
+    }
 
     const novaProva = new Prova({
-      ...req.body,
+      titulo,
+      descricao,
+      formato,
+      data_inicio: data_inicio || new Date(),
+      data_fim: data_fim || null,
+      status: status || 'NAO_INICIADA',
+      quesitos_de_avaliacao: quesitos_de_avaliacao || [],
+      requisito_usuario: requisito_usuario || null,
+      pontuacao: pontuacao || {},
       criado_por_usuario_id: req.usuario.id,
     });
 
     const provaSalva = await novaProva.save();
 
-    res.status(201).json(provaSalva);
+    res.status(201).json({
+      message: 'Prova criada com sucesso.',
+      prova: provaSalva,
+    });
 
   } catch (error) {
-    if (error.name === 'ValidationError') {
-      // Se for um erro de validação do Mongoose, retorna status 400 (Bad Request).
-      return res.status(400).json({ message: 'Dados inválidos.', errors: error.errors });
-    }
     res.status(500).json({ message: 'Erro ao criar a prova.', error: error.message });
   }
 };
