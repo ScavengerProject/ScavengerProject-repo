@@ -54,13 +54,31 @@ export const criarEquipe = async (req, res) => {
         // Liga a equipe ao coordenador (pelo Usuario.js)
         coordenador.equipe_id = equipeSalva._id;
         await coordenador.save();
+        
+        // Busca o registro recém-criado, populando os dados do Coordenador e da Equipe Mestre
+        const equipeCriadaPop = await EquipeGincana.findOne({ equipe_id: equipeSalva._id })
+            .populate('equipe_id', 'nome cor membros') 
+            .populate('coordenador_usuario_id', 'nome email'); 
 
+        if (!equipeCriadaPop) {
+            return res.status(500).json({ message: 'Erro interno: Falha ao recuperar dados populados da equipe.' });
+        }
+
+        // Mapeia o objeto no formato que o frontend já espera do listarEquipes
+        const equipeFormatada = {
+            id: equipeCriadaPop.equipe_id._id,
+            nome: equipeCriadaPop.equipe_id.nome,
+            cor: equipeCriadaPop.equipe_id.cor,
+            pontos_acumulados: equipeCriadaPop.pontos_acumulados,
+            coordenador: equipeCriadaPop.coordenador_usuario_id, // Objeto de usuário populado
+            membros: equipeCriadaPop.equipe_id.membros,
+            total_membros: equipeCriadaPop.equipe_id.membros.length,
+        };
+        
+        // Retorna o objeto completo e populado SEM PRECISAR REGARREGAR A PÁGINA
         res.status(201).json({ 
-            message: 'Equipe e cordenador associado, criados com sucesso.', 
-            equipe: { 
-                ...equipeSalva.toObject(), 
-                pontos_acumulados: equipeGincanaSalva.pontos_acumulados 
-            }
+            message: 'Equipe e coordenador associado, criados com sucesso.', 
+            equipe: equipeFormatada
         });
 
     } catch (error) {
