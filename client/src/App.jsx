@@ -5,6 +5,7 @@ import Login from './pages/Login';
 import Home from './pages/Home';
 import Dashboard from './pages/Dashboard';
 import AdminProvas from './pages/AdminProvas';
+import AdminEquipes from './pages/AdminEquipes.jsx';
 import { useToast } from './components/ui/toast';
 import { ToastContainer } from './components/ui/ToastContainer';
 
@@ -50,6 +51,12 @@ function App() {
         <Route
           path="/dashboard"
           element={isAuthenticated ? <Dashboard /> : <Navigate to="/login" replace />}
+        />
+
+        {/* Rota para o Gerenciamento de Equipes (Admin) */}
+        <Route
+          path="/admin/equipes"
+          element={isAuthenticated ? <AdminEquipes /> : <Navigate to="/login" replace />}
         />
 
         {/* Admin Provas protegida */}

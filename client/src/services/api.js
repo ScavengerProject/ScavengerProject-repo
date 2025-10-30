@@ -144,6 +144,39 @@ export const provasService = {
 };
 
 /**
+* Serviço de Equipes (US06)
+*/
+export const equipesService = {
+    // [GET] /api/equipes
+    listarEquipes: () =>
+      request('/equipes', {
+        method: 'GET',
+      }),
+
+    // Rota para Coordenadores
+    listarCoordenadoresDisponiveis: () =>
+      request('/equipes/coordenadores-disponiveis', { method: 'GET' }),
+    
+    // [POST] /api/equipes
+    criarEquipe: (dados) =>
+      request('/equipes', {
+        method: 'POST',
+        body: JSON.stringify(dados),
+      }),
+
+    // [PATCH] /api/equipes/:id/membros
+    adicionarMembro: (equipeId, usuarioId) =>
+      request(`/equipes/${equipeId}/membros`, {
+        method: 'PATCH',
+        body: JSON.stringify({ usuario_id: usuarioId }),
+      }),
+
+    // [GET] /api/equipes/usuarios-disponiveis
+    listarMembrosDisponiveis: () =>
+      request('/equipes/membros-disponiveis', { method: 'GET' }),
+};
+
+/**
  * Serviço de Testes
  */
 export const testesService = {
@@ -165,4 +198,5 @@ export default {
   authService,
   provasService,
   testesService,
+  equipesService, // Adicionado o service de equipes
 };
