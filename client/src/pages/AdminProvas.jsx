@@ -32,6 +32,25 @@ const QUESITOS_OPCOES = [
   { value: 'PRODUTIVIDADE', label: 'Produtividade/Volume' },
 ];
 
+// Função auxiliar para formatar os requisitos
+const formatarRequisitos = (requisitos) => {
+  if (!requisitos || typeof requisitos !== 'object' || Object.keys(requisitos).length === 0) {
+    return "Não definido";
+  }
+
+  const requisitoMap = {
+    ALUNOS_FUNDAMENTAL: "Alunos Fundamental",
+    ALUNOS_MEDIO: "Alunos Médio",
+    PROFESSORES: "Professores",
+    'PAI/MÃE': "Pais/Mães",
+  };
+
+  // Transforma o objeto em uma lista de strings "Nome: valor"
+  return Object.entries(requisitos)
+    .map(([chave, valor]) => `${requisitoMap[chave] || chave}: ${valor}`)
+    .join(" | "); // Junta as strings com um separador
+};
+
 const AdminProvas = () => {
   const navigate = useNavigate();
   const [provas, setProvas] = useState([]);
@@ -60,7 +79,7 @@ const AdminProvas = () => {
     try {
       setLoading(true);
       const response = await provasService.listar();
-      setProvas(response.provas || []);
+      setProvas(response || []);
     } catch (error) {
       console.error("Erro ao carregar provas:", error);
       toast.error("Erro ao carregar provas");
@@ -134,7 +153,7 @@ const AdminProvas = () => {
         toast.success("Prova criada com sucesso!");
         
         // Adicionar à lista
-        setProvas([...provas, response.prova]);
+        setProvas([...provas, response]);
       }
 
       setIsDialogOpen(false);
@@ -479,7 +498,7 @@ const AdminProvas = () => {
                       {prova.requisito_usuario && (
                         <div>
                           <p className="text-xs text-gray-500 uppercase font-semibold">Requisito</p>
-                          <p className="text-sm text-gray-900">{prova.requisito_usuario}</p>
+                          <p className="text-sm text-gray-900">{formatarRequisitos(prova.requisito_usuario)}</p>
                         </div>
                       )}
                     </div>

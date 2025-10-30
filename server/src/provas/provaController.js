@@ -36,10 +36,7 @@ export const criarProva = async (req, res) => {
 
     const provaSalva = await novaProva.save();
 
-    res.status(201).json({
-      message: 'Prova criada com sucesso.',
-      prova: provaSalva,
-    });
+    res.status(201).json(provaSalva);
 
   } catch (error) {
     res.status(500).json({ message: 'Erro ao criar a prova.', error: error.message });
