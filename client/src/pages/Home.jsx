@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, User, BookOpen, BarChart3, Settings, Users } from 'lucide-react';
+import { LogOut, User, BookOpen, BarChart3, Settings, Users, UserCheck } from 'lucide-react';
 import { Button } from '../components/ui/button';
 
 export default function Home({ usuario, onLogout }) {
@@ -93,6 +93,26 @@ export default function Home({ usuario, onLogout }) {
                 >
                     Acessar Gerenciamento
                 </Button>
+            </div>
+          )}
+
+          {/* Card para o Coordenador gerenciar sua própria equipe */}
+          {usuario?.tipo === 'COORDENADOR' && (
+            <div 
+              className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition border border-gray-200 hover:border-green-300"
+            >
+              <div className="bg-linear-to-br from-green-100 to-green-50 rounded-full w-12 h-12 flex items-center justify-center mb-4">
+                <UserCheck className="text-green-700" size={24} /> 
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Minha Equipe</h3>
+              <p className="text-gray-600 mb-4">Visualize e gerencie os integrantes do seu time.</p>
+              <Button
+                variant="outline" 
+                onClick={() => navigate('/minha-equipe')}
+                className="w-full border-gray-300 hover:bg-gray-100 text-gray-900 font-semibold py-2 rounded-lg transition shadow-md"
+              >
+                Acessar Equipe
+              </Button>
             </div>
           )}
 
