@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 
 const EquipeMembroSchema = new mongoose.Schema({
-  // Referência ao registro de participação da equipe na gincana
+  // Referência ao registro da equipe
   equipe_id: { 
     type: mongoose.Schema.Types.ObjectId, 
     ref: 'EquipeGincana', 
