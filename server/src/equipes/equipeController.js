@@ -200,27 +200,23 @@ export const adicionarMembro = async (req, res) => {
 
         if (!usuario_id) return res.status(400).json({ message: 'O ID do usuário é obrigatório.' });
         
-        // 1. Buscas e validações em paralelo para otimização
         const [equipe, usuario, membroExistente, equipeGincana] = await Promise.all([
             Equipe.findById(equipeId),
             Usuario.findById(usuario_id),
             EquipeMembros.findOne({ usuario_id: usuario_id }),
-            // ✨ A LÓGICA NOVA E IMPORTANTE ESTÁ AQUI ✨
             // Busca o registro da equipe na gincana atual para obter o ID correto
             EquipeGincana.findOne({ equipe_id: equipeId, gincana_id: GINCANA_ATUAL_ID })
         ]);
 
-        // 2. Validações dos resultados
         if (!equipe) return res.status(404).json({ message: 'Equipe não encontrada.' });
         if (!usuario) return res.status(404).json({ message: 'Usuário não encontrado.' });
         if (membroExistente) return res.status(409).json({ message: 'Usuário já pertence a uma equipe.' });
         if (!equipeGincana) return res.status(404).json({ message: 'Contexto da equipe na gincana não foi encontrado. A equipe pode não estar participando.' });
         
-        // 3. Cria o novo membro com TODOS os campos obrigatórios
         const novoMembro = await EquipeMembros.create({
             equipe_id: equipeId,
             usuario_id: usuario_id,
-            equipe_gincana_id: equipeGincana._id, // <-- Usamos o ID que acabamos de encontrar
+            equipe_gincana_id: equipeGincana._id,
             is_coordenador: false,
         });
         
