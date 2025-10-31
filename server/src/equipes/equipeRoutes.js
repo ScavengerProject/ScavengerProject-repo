@@ -4,7 +4,9 @@ import {
     listarEquipes, 
     adicionarMembro,
     listarCoordenadoresDisponiveis,
-    listarUsuariosSemEquipe
+    listarUsuariosSemEquipe,
+    visualizarEquipe,
+    removerMembroEquipe
 } from './equipeController.js';
 import { proteger, autorizar } from '../auth/authPermissions.js';
 
@@ -24,5 +26,10 @@ router.get('/coordenadores-disponiveis', proteger, autorizar('ADMIN'), listarCoo
 
 // Listar usuários para membros comuns (exclui ADMIN/COORDENADOR)
 router.get('/membros-disponiveis', proteger, autorizar('ADMIN', 'COORDENADOR'), listarUsuariosSemEquipe);
+
+// --- ROTAS PARA COORDENADORES (US07) ---
+// Estas rotas são para o Coordenador gerenciar a SUA PRÓPRIA equipe.
+router.get('/minha-equipe', proteger, autorizar('COORDENADOR'), visualizarEquipe);
+router.delete('/minha-equipe/membros/:membroId', proteger, autorizar('COORDENADOR'), removerMembroEquipe);
 
 export default router;

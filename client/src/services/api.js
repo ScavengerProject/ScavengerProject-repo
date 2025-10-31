@@ -144,7 +144,7 @@ export const provasService = {
 };
 
 /**
-* Serviço de Equipes (US06)
+* Serviço de Equipes
 */
 export const equipesService = {
     // [GET] /api/equipes
@@ -174,6 +174,29 @@ export const equipesService = {
     // [GET] /api/equipes/usuarios-disponiveis
     listarMembrosDisponiveis: () =>
       request('/equipes/membros-disponiveis', { method: 'GET' }),
+
+    // [GET] /api/equipes/minha-equipe
+    visualizarMinhaEquipe: () =>
+      request('/equipes/minha-equipe', {
+        method: 'GET',
+      }),
+    
+    /**
+     * [POST] /api/equipes/minha-equipe/membros
+     */
+    adicionarMembroMinhaEquipe: (usuarioId) =>
+      request('/equipes/minha-equipe/membros', {
+        method: 'POST',
+        body: JSON.stringify({ usuario_id: usuarioId }),
+      }),
+    
+    /**
+     * [DELETE] /api/equipes/minha-equipe/membros/:membroId
+     */
+    removerMembroMinhaEquipe: (membroId) =>
+      request(`/equipes/minha-equipe/membros/${membroId}`, {
+        method: 'DELETE',
+      }),
 };
 
 /**

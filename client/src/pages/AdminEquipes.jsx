@@ -114,27 +114,29 @@ const AdminEquipes = () => {
 
     const handleAddMember = async () => {
         if (!selectedUsuarioId || !currentEquipe) return;
+    
+    const equipeId = currentEquipe.id || currentEquipe._id;
+
+    try {
+        await equipesService.adicionarMembro(equipeId, selectedUsuarioId);
+
+        setEquipes((prevEquipes) => 
+            prevEquipes.map((equipe) => {
+                // Encontra a equipe que foi modificada
+                if (equipe.id === equipeId || equipe._id === equipeId) {
+                    // Retorna a equipe com o total de membros incrementado
+                    return { ...equipe, total_membros: equipe.total_membros + 1 };
+                }
+                // Retorna as outras equipes sem alteração
+                return equipe;
+            })
+        );
         
-        const equipeId = currentEquipe.id || currentEquipe._id;
-
-        try {
-            const response = await equipesService.adicionarMembro(equipeId, selectedUsuarioId);
-
-            setEquipes((prev) => 
-                prev.map((e) => 
-                    e._id === equipeId || e.id === equipeId
-                        ? { ...e, 
-                            membros: response.equipe.membros,
-                            total_membros: response.equipe.membros.length
-                          } 
-                        : e
-                )
-            );
-            
-            setMembrosDisponiveis(prev => prev.filter(u => u._id !== selectedUsuarioId));
-            
-            toast.success('Participante adicionado com sucesso!');
-            setIsAddMemberOpen(false);
+        // Remove o usuário da lista de disponíveis
+        setMembrosDisponiveis(prev => prev.filter(u => u._id !== selectedUsuarioId));
+        
+        toast.success('Participante adicionado com sucesso!');
+        setIsAddMemberOpen(false); // Fecha o modal
         } catch (error) {
             const msg = error.message || 'Erro ao adicionar membro.';
             toast.error(msg);
