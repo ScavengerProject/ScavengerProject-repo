@@ -25,14 +25,14 @@ const UsuarioSchema = new mongoose.Schema({
   matricula: { type: String },
   status: { type: String, enum: ['ATIVO', 'INATIVO'], default: 'ATIVO' },
   criado_em: { type: Date, default: Date.now },
-
+  /*
   // equipe que o usuário pertence (Equipe.js)
   equipe_id: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Equipe',
       default: null, // o participante pode não ter equipe?!
       index: true,
-  },
+  },*/
 
 });
 
