@@ -1,34 +1,35 @@
+// src/equipes/migracaoEquipeRoutes.js
 import express from 'express';
 import { proteger, autorizar } from '../auth/authPermissions.js';
 import {
-  listarMigracoes,
+  listarMinhasMigracoes,
+  listarMigracoesPendentes,
   solicitarMigracao,
   decidirMigracao,
 } from './migracaoEquipeController.js';
 
 const router = express.Router();
 
-// Listagem genérica (contextual por perfil)
-router.get('/', proteger, listarMigracoes);
-
-// "Minhas" solicitações (força modo MINE)
-router.get('/minhas', proteger, (req, res, next) => {
-  req.query.mode = 'MINE';
-  return listarMigracoes(req, res, next);
-});
-
-// "Pendentes" para coord/admin
-router.get('/pendentes',
+/**
+ * Minhas solicitações (ALUNO/PROFESSOR/PAI-MÃE/COORDENADOR/ADMIN)
+ */
+router.get(
+  '/minhas',
   proteger,
-  autorizar('ADMIN', 'COORDENADOR'),
-  (req, res, next) => {
-    req.query.status = 'PENDENTE';
-    req.query.mode = 'COORD';
-    return listarMigracoes(req, res, next);
-  }
+  autorizar('ADMIN', 'COORDENADOR', 'PROFESSOR', 'ALUNO', 'PAI/MÃE'),
+  listarMinhasMigracoes
 );
 
-// Self-service: solicitar migração
+/**
+ * Pendentes para decisão
+ * - ADMIN: todas as PENDENTE
+ * - COORDENADOR: PENDENTE em que a origem ou destino é time coordenado por mim
+ */
+router.get('/pendentes', proteger, autorizar('ADMIN', 'COORDENADOR'), listarMigracoesPendentes);
+
+/**
+ * Solicitar migração (self-service)
+ */
 router.post(
   '/solicitar',
   proteger,
@@ -36,12 +37,10 @@ router.post(
   solicitarMigracao
 );
 
-// Decidir (aprovar/rejeitar) — compatível com body { aprovar } ou { aprovado }
-router.patch(
-  '/:id/decidir',
-  proteger,
-  autorizar('ADMIN', 'COORDENADOR'),
-  decidirMigracao
-);
+/**
+ * Decisão (aprovar/rejeitar) — ADMIN ou COORDENADOR
+ * body: { aprovar: boolean, justificativa?: string }
+ */
+router.patch('/:id/decidir', proteger, autorizar('ADMIN', 'COORDENADOR'), decidirMigracao);
 
 export default router;
