@@ -5,6 +5,7 @@ import connectDB from './config/db.js'; // importando o BD
 import authRoutes from './auth/authRoutes.js';
 import provaRoutes from './provas/provaRoutes.js';
 import equipeRoutes from './equipes/equipeRoutes.js';
+import migracaoEquipeRoutes from './equipes/migracaoEquipeRoutes.js';
 
 dotenv.config();
 connectDB(); // BD
@@ -18,6 +19,8 @@ app.use(express.json());
 app.use('/api/auth', authRoutes);
 app.use('/api/provas', provaRoutes);
 app.use('/api/equipes', equipeRoutes); // Novo uso de rota para equipes
+app.use('/api/migracoes-equipe', migracaoEquipeRoutes);
+app.use('/api/equipes/migracoes', migracaoEquipeRoutes);
 
 app.listen(PORT, () => {
   console.log(`Servidor Express rodando na porta ${PORT}`);

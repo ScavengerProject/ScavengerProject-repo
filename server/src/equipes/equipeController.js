@@ -426,3 +426,11 @@ export const removerMembroEquipe = async (req, res) => {
         res.status(500).json({ message: 'Erro interno ao remover membro.' });
     }
 };
+export const listarEquipesPublicas = async (req, res) => {
+  try {
+    const equipes = await Equipe.find({}, 'nome cor');
+    return res.status(200).json(equipes);
+  } catch (error) {
+    return res.status(500).json({ message: 'Erro ao listar equipes públicas.', error: error.message });
+  }
+};
