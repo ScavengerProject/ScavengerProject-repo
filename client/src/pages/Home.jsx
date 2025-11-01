@@ -12,7 +12,7 @@ export default function Home({ usuario, onLogout }) {
   };
 
   // Agora inclui coordenador
-  const isAdminOrCoordenador = usuario?.tipo === 'ADMIN' || usuario?.tipo === 'COORDENADOR';
+  const isAdmin = usuario?.tipo === 'ADMIN';
 
   return (
     <div className="min-h-screen bg-linear-to-br from-gray-50 to-gray-100">
@@ -96,7 +96,7 @@ export default function Home({ usuario, onLogout }) {
           )}
 
           {/* Card: Gerenciar Equipes (Admin ou Coordenador) */}
-          {isAdminOrCoordenador && (
+          {isAdmin && (
             <div 
               className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition border border-gray-200 hover:border-purple-300"
             >
