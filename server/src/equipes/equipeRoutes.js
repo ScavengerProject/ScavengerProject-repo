@@ -5,6 +5,8 @@ import {
   adicionarMembro,
   listarCoordenadoresDisponiveis,
   listarUsuariosSemEquipe,
+  listarTodosMembros,
+  listarEquipesGincana,
   visualizarEquipe,
   removerMembroEquipe,
   listarEquipesPublicas
@@ -13,7 +15,7 @@ import { proteger, autorizar } from '../auth/authPermissions.js';
 
 const router = express.Router();
 
-// ✅ rota “pública” para QUALQUER usuário autenticado (inclui aluno)
+// ✅ rota "pública" para QUALQUER usuário autenticado (inclui aluno)
 router.get('/publicas', proteger, listarEquipesPublicas);
 
 // Rotas existentes
@@ -22,6 +24,8 @@ router.post('/', proteger, autorizar('ADMIN'), criarEquipe);
 router.patch('/:id/membros', proteger, autorizar('ADMIN'), adicionarMembro);
 router.get('/coordenadores-disponiveis', proteger, autorizar('ADMIN'), listarCoordenadoresDisponiveis);
 router.get('/membros-disponiveis', proteger, autorizar('ADMIN', 'COORDENADOR'), listarUsuariosSemEquipe);
+router.get('/todos-membros', proteger, autorizar('ADMIN'), listarTodosMembros);
+router.get('/equipes-gincana', proteger, autorizar('ADMIN'), listarEquipesGincana);
 
 // Coordenador gerencia sua própria equipe
 router.get('/minha-equipe', proteger, autorizar('COORDENADOR'), visualizarEquipe);

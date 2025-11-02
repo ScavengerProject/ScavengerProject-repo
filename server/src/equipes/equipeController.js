@@ -288,6 +288,65 @@ export const listarCoordenadoresDisponiveis = async (req, res) => {
 };
 
 /**
+ * [GET] Lista todas as EquipeGincana (para seleção em empréstimos)
+ */
+export const listarEquipesGincana = async (req, res) => {
+  try {
+    const equipesGincana = await EquipeGincana.find({})
+      .populate('equipe_id', 'nome cor')
+      .populate('coordenador_usuario_id', 'nome email')
+      .populate('gincana_id', 'nome')
+      .sort({ 'equipe_id.nome': 1 });
+
+    // Formata para o frontend
+    const equipesFormatadas = equipesGincana.map(eg => ({
+      _id: eg._id,
+      nome: eg.equipe_id?.nome || 'Sem nome',
+      cor: eg.equipe_id?.cor,
+      coordenador: eg.coordenador_usuario_id?.nome,
+      gincana: eg.gincana_id?.nome,
+    }));
+
+    res.status(200).json(equipesFormatadas);
+  } catch (error) {
+    res.status(500).json({ message: 'Erro ao buscar equipes.', error: error.message });
+  }
+};
+
+/**
+ * [GET] Lista todos os membros de todas as equipes com dados populados do usuário
+ */
+export const listarTodosMembros = async (req, res) => {
+  try {
+    const membros = await EquipeMembros.find({})
+      .populate('usuario_id', 'nome email tipo turma')
+      .populate('equipe_id', 'nome cor')
+      .sort('usuario_id.nome');
+
+    // Extrair usuários únicos
+    const usuariosUnicos = [];
+    const usuariosProcessados = new Set();
+
+    membros.forEach(membro => {
+      if (membro.usuario_id && membro.usuario_id._id && !usuariosProcessados.has(membro.usuario_id._id.toString())) {
+        usuariosProcessados.add(membro.usuario_id._id.toString());
+        usuariosUnicos.push({
+          _id: membro.usuario_id._id,
+          nome: membro.usuario_id.nome,
+          email: membro.usuario_id.email,
+          tipo: membro.usuario_id.tipo,
+          turma: membro.usuario_id.turma,
+        });
+      }
+    });
+
+    res.status(200).json(usuariosUnicos);
+  } catch (error) {
+    res.status(500).json({ message: 'Erro ao buscar membros.', error: error.message });
+  }
+};
+
+/**
  * [GET] Lista usuários que NÃO estão em nenhuma equipe e SÃO ELEGÍVEIS para serem membros comuns (exclui ADMIN e COORDENADOR)
  */
 export const listarUsuariosSemEquipe = async (req, res) => {

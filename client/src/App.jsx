@@ -9,6 +9,7 @@ import AdminEquipes from './pages/AdminEquipes.jsx';
 import GerenciarEquipe from './pages/GerenciarEquipes.jsx';
 import SolicitarMigracao from './pages/SolicitarMigracao.jsx';
 import AprovarMigracoes from './pages/AprovarMigracoes.jsx';
+import AdminEmprestimos from './pages/AdminEmprestimos.jsx';
 import { useToast } from './components/ui/toast';
 import { ToastContainer } from './components/ui/ToastContainer';
 
@@ -72,6 +73,16 @@ function App() {
           path="/minha-equipe" 
           element={isAuthenticated ? (usuario.tipo === 'COORDENADOR' ? (<GerenciarEquipe />) : 
             (<Navigate to="/" replace />)) : (<Navigate to="/login" replace />)} 
+        />
+
+        {/* Rota para Admin Empréstimos */}
+        <Route
+          path="/admin/emprestimos"
+          element={
+            isAuthenticated
+              ? (usuario.tipo === 'ADMIN' ? <AdminEmprestimos /> : <Navigate to="/" replace />)
+              : <Navigate to="/login" replace />
+          }
         />
 
         {/* Fallback */}

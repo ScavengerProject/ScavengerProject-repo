@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, User, BookOpen, BarChart3, Settings, Users, UserCheck } from 'lucide-react';
+import { LogOut, User, BookOpen, BarChart3, Settings, Users, UserCheck, Handshake } from 'lucide-react';
 import { Button } from '../components/ui/button';
 
 export default function Home({ usuario, onLogout }) {
@@ -111,6 +111,26 @@ export default function Home({ usuario, onLogout }) {
                 className="w-full border-gray-300 hover:bg-gray-100 text-gray-900 font-semibold py-2 rounded-lg transition shadow-md"
               >
                 Acessar Gerenciamento
+              </Button>
+            </div>
+          )}
+
+          {/* Card: Gerenciar Empréstimos (Admin) */}
+          {isAdmin && (
+            <div 
+              className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition border border-gray-200 hover:border-indigo-300"
+            >
+              <div className="bg-linear-to-br from-indigo-100 to-indigo-50 rounded-full w-12 h-12 flex items-center justify-center mb-4">
+                <Handshake className="text-indigo-700" size={24} />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Empréstimos de Alunos</h3>
+              <p className="text-gray-600 mb-4">Autorize empréstimos temporários entre equipes em provas específicas.</p>
+              <Button
+                variant="outline" 
+                onClick={() => navigate('/admin/emprestimos')}
+                className="w-full border-gray-300 hover:bg-gray-100 text-gray-900 font-semibold py-2 rounded-lg transition shadow-md"
+              >
+                Gerenciar Empréstimos
               </Button>
             </div>
           )}
