@@ -8,6 +8,8 @@ import AdminProvas from './pages/AdminProvas';
 import AdminEquipes from './pages/AdminEquipes.jsx';
 import GerenciarEquipe from './pages/GerenciarEquipes.jsx';
 import InscricaoEquipes from './pages/InscricaoEquipes.jsx';
+import SolicitarMigracao from './pages/SolicitarMigracao.jsx';
+import AprovarMigracoes from './pages/AprovarMigracoes.jsx';
 import { useToast } from './components/ui/toast';
 import { ToastContainer } from './components/ui/ToastContainer';
 
@@ -85,6 +87,21 @@ function App() {
         <Route
           path="*"
           element={<Navigate to={isAuthenticated ? "/" : "/login"} replace />}
+        />
+        {/* Solicitar migração (qualquer autenticado não-admin tb pode; se quiser, deixe livre a todos) */}
+        <Route
+          path="/migracoes/solicitar"
+          element={isAuthenticated ? <SolicitarMigracao /> : <Navigate to="/login" replace />}
+        />
+
+        {/* Aprovar migrações (somente coordenador) */}
+        <Route
+          path="/migracoes/pendentes"
+          element={
+            isAuthenticated
+              ? (usuario.tipo === 'COORDENADOR' ? <AprovarMigracoes /> : <Navigate to="/" replace />)
+              : <Navigate to="/login" replace />
+          }
         />
       </Routes>
       <ToastContainer toasts={toasts} />

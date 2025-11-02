@@ -11,7 +11,8 @@ export default function Home({ usuario, onLogout }) {
     navigate('/login');
   };
 
-  const isAdminOrCoordenador = usuario?.tipo === 'ADMIN'
+  // Agora inclui coordenador
+  const isAdmin = usuario?.tipo === 'ADMIN';
 
   return (
     <div className="min-h-screen bg-linear-to-br from-gray-50 to-gray-100">
@@ -113,10 +114,46 @@ export default function Home({ usuario, onLogout }) {
                 >
                     Acessar Gerenciamento
                 </Button>
+              </ div>
+          {/* Card: Solicitar Migração (Aluno/Professor/Pai-Mãe) */}
+          {['ALUNO','PROFESSOR','PAI/MÃE'].includes(usuario?.tipo) && (
+            <div className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition border border-gray-200 hover:border-amber-300">
+              <div className="bg-linear-to-br from-amber-100 to-amber-50 rounded-full w-12 h-12 flex items-center justify-center mb-4">
+                <Users className="text-amber-700" size={24} />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Migrar de Equipe</h3>
+              <p className="text-gray-600 mb-4">Peça para entrar em outra equipe e acompanhe o status.</p>
+              <Button
+                variant="outline"
+                onClick={() => navigate('/migracoes/solicitar')}
+                className="w-full border-gray-300 hover:bg-gray-100 text-gray-900 font-semibold py-2 rounded-lg transition shadow-md"
+              >
+                Solicitar migração
+              </Button>
             </div>
           )}
 
-          {/* Card para o Coordenador gerenciar sua própria equipe */}
+          {/* Card: Gerenciar Equipes (Admin ou Coordenador) */}
+          {isAdmin && (
+            <div 
+              className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition border border-gray-200 hover:border-purple-300"
+            >
+              <div className="bg-linear-to-br from-purple-100 to-purple-50 rounded-full w-12 h-12 flex items-center justify-center mb-4">
+                <Users className="text-purple-700" size={24} />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Gerenciar Equipes</h3>
+              <p className="text-gray-600 mb-4">Crie equipes, defina coordenadores e adicione participantes.</p>
+              <Button
+                variant="outline" 
+                onClick={() => navigate('/admin/equipes')}
+                className="w-full border-gray-300 hover:bg-gray-100 text-gray-900 font-semibold py-2 rounded-lg transition shadow-md"
+              >
+                Acessar Gerenciamento
+              </Button>
+            </div>
+          )}
+
+          {/* Card para o Coordenador gerenciar sua própria equipe + aprovar migrações */}
           {usuario?.tipo === 'COORDENADOR' && (
             <div 
               className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition border border-gray-200 hover:border-green-300"
@@ -126,13 +163,22 @@ export default function Home({ usuario, onLogout }) {
               </div>
               <h3 className="text-xl font-bold text-gray-900 mb-2">Minha Equipe</h3>
               <p className="text-gray-600 mb-4">Visualize e gerencie os integrantes do seu time.</p>
-              <Button
-                variant="outline" 
-                onClick={() => navigate('/minha-equipe')}
-                className="w-full border-gray-300 hover:bg-gray-100 text-gray-900 font-semibold py-2 rounded-lg transition shadow-md"
-              >
-                Acessar Equipe
-              </Button>
+              <div className="grid grid-cols-1 gap-3">
+                <Button
+                  variant="outline" 
+                  onClick={() => navigate('/minha-equipe')}
+                  className="w-full border-gray-300 hover:bg-gray-100 text-gray-900 font-semibold py-2 rounded-lg transition shadow-md"
+                >
+                  Acessar Equipe
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => navigate('/migracoes/pendentes')}
+                  className="w-full border-gray-300 hover:bg-gray-100 text-gray-900 font-semibold py-2 rounded-lg transition shadow-md"
+                >
+                  Solicitações de migração
+                </Button>
+              </div>
             </div>
           )}
 
