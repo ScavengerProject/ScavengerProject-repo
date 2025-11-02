@@ -426,3 +426,60 @@ export const removerMembroEquipe = async (req, res) => {
         res.status(500).json({ message: 'Erro interno ao remover membro.' });
     }
 };
+
+/**
+ * [POST] Inscrever um aluno autenticado em uma equipe (USER STORY)
+ * O aluno só pode inscrever a si mesmo
+ */
+export const inscreverAlunoEmEquipe = async (req, res) => {
+    try {
+        const alunoId = req.usuario.id; // Do token JWT
+        const { equipeId } = req.params;
+
+        if (!equipeId) {
+            return res.status(400).json({ message: 'O ID da equipe é obrigatório.' });
+        }
+
+        // Validações em paralelo
+        const [aluno, equipe, membroExistente, equipeGincana] = await Promise.all([
+            Usuario.findById(alunoId),
+            Equipe.findById(equipeId),
+            EquipeMembros.findOne({ usuario_id: alunoId }),
+            EquipeGincana.findOne({ equipe_id: equipeId, gincana_id: GINCANA_ATUAL_ID })
+        ]);
+
+        // Validações
+        if (!aluno) {
+            return res.status(404).json({ message: 'Aluno não encontrado.' });
+        }
+
+        if (!equipe) {
+            return res.status(404).json({ message: 'Equipe não encontrada.' });
+        }
+
+        // Verifica se o usuário já pertence a alguma equipe
+        if (membroExistente) {
+            return res.status(409).json({ message: 'Você já pertence a uma equipe. Deixe sua equipe atual para se inscrever em outra.' });
+        }
+
+        if (!equipeGincana) {
+            return res.status(404).json({ message: 'A equipe não está participando da gincana atual.' });
+        }
+
+        // Cria a inscrição
+        const novaInscricao = await EquipeMembros.create({
+            equipe_id: equipeId,
+            usuario_id: alunoId,
+            is_coordenador: false,
+        });
+
+        res.status(201).json({
+            message: 'Você se inscreveu na equipe com sucesso!',
+            inscricao: novaInscricao
+        });
+
+    } catch (error) {
+        console.error('Erro ao inscrever aluno em equipe:', error);
+        res.status(500).json({ message: 'Erro interno ao processar inscrição.' });
+    }
+};

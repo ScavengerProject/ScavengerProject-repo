@@ -6,14 +6,16 @@ import {
     listarCoordenadoresDisponiveis,
     listarUsuariosSemEquipe,
     visualizarEquipe,
-    removerMembroEquipe
+    removerMembroEquipe,
+    inscreverAlunoEmEquipe,
+    limparMembrosorfaos
 } from './equipeController.js';
 import { proteger, autorizar } from '../auth/authPermissions.js';
 
 const router = express.Router();
 
 // Lista todas as equipes
-router.get('/', proteger, autorizar('ADMIN', 'COORDENADOR', 'PROFESSOR'), listarEquipes);
+router.get('/', proteger, autorizar('ADMIN', 'COORDENADOR', 'PROFESSOR', 'ALUNO'), listarEquipes);
 
 // Criar nova equipe
 router.post('/', proteger, autorizar('ADMIN'), criarEquipe);
@@ -31,5 +33,9 @@ router.get('/membros-disponiveis', proteger, autorizar('ADMIN', 'COORDENADOR'), 
 // Estas rotas são para o Coordenador gerenciar a SUA PRÓPRIA equipe.
 router.get('/minha-equipe', proteger, autorizar('COORDENADOR'), visualizarEquipe);
 router.delete('/minha-equipe/membros/:membroId', proteger, autorizar('COORDENADOR'), removerMembroEquipe);
+
+// --- ROTA PARA INSCRIÇÃO DE ALUNO (US08) ---
+// Aluno autenticado se inscreve em uma equipe
+router.post('/:equipeId/register', proteger, autorizar('ALUNO'), inscreverAlunoEmEquipe);
 
 export default router;

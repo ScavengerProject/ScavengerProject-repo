@@ -197,6 +197,15 @@ export const equipesService = {
       request(`/equipes/minha-equipe/membros/${membroId}`, {
         method: 'DELETE',
       }),
+
+    /**
+     * [POST] /api/equipes/:equipeId/register - Inscrever aluno em equipe
+     */
+    inscreverEmEquipe: (equipeId) =>
+      request(`/equipes/${equipeId}/register`, {
+        method: 'POST',
+        body: JSON.stringify({}),
+      }),
 };
 
 /**
