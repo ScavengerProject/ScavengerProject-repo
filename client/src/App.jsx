@@ -7,6 +7,7 @@ import Dashboard from './pages/Dashboard';
 import AdminProvas from './pages/AdminProvas';
 import AdminEquipes from './pages/AdminEquipes.jsx';
 import GerenciarEquipe from './pages/GerenciarEquipes.jsx';
+import InscricaoEquipes from './pages/InscricaoEquipes.jsx';
 import SolicitarMigracao from './pages/SolicitarMigracao.jsx';
 import AprovarMigracoes from './pages/AprovarMigracoes.jsx';
 import { useToast } from './components/ui/toast';
@@ -67,11 +68,19 @@ function App() {
           path="/admin/provas"
           element={isAuthenticated ? <AdminProvas /> : <Navigate to="/login" replace />}
         />
+
         {/* Rota para Gerenciamento da Própria Equipe (Coord) */}
         <Route 
           path="/minha-equipe" 
           element={isAuthenticated ? (usuario.tipo === 'COORDENADOR' ? (<GerenciarEquipe />) : 
             (<Navigate to="/" replace />)) : (<Navigate to="/login" replace />)} 
+        />
+
+        {/* Rota para Inscrição em Equipe (Aluno) */}
+        <Route
+          path="/inscricao-equipes"
+          element={isAuthenticated ? (usuario.tipo === 'ALUNO' ? (<InscricaoEquipes />) :
+            (<Navigate to="/" replace />)) : (<Navigate to="/login" replace />)}
         />
 
         {/* Fallback */}
