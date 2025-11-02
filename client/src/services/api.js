@@ -37,7 +37,6 @@ const request = async (endpoint, options = {}) => {
       headers,
     });
 
-    // Se a resposta for 401 (não autorizado), limpar dados de sessão
     if (response.status === 401) {
       localStorage.removeItem('token');
       localStorage.removeItem('usuario');
@@ -46,11 +45,25 @@ const request = async (endpoint, options = {}) => {
       throw new Error('Sua sessão expirou. Por favor, faça login novamente.');
     }
 
-    // Se a resposta não for ok, lançar erro
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.message || 'Erro na requisição');
+      // tenta parsear JSON; se vier HTML (erro do Express padrão), evita quebrar com "<!DOCTYPE"
+      let errorMessage = 'Erro na requisição';
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.message || errorMessage;
+      } catch (_) {
+        const text = await response.text();
+        if (text && text.startsWith('<!DOCTYPE')) {
+          errorMessage = 'Erro (HTML) do servidor. Verifique a rota no backend.';
+        } else if (text) {
+          errorMessage = text;
+        }
+      }
+      throw new Error(errorMessage);
     }
+
+    // pode haver 204
+    if (response.status === 204) return null;
 
     return await response.json();
   } catch (error) {
@@ -63,25 +76,18 @@ const request = async (endpoint, options = {}) => {
  * Serviço de Autenticação
  */
 export const authService = {
-  // Login
   login: (email, senha) =>
     request('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, senha }),
     }),
-
-  // Logout (apenas limpar cliente)
   logout: () => {
     localStorage.removeItem('token');
     localStorage.removeItem('usuario');
     localStorage.removeItem('sessionStartTime');
     localStorage.removeItem('sessionExpiryTime');
   },
-
-  // Obter token atual
   getToken: () => localStorage.getItem('token'),
-
-  // Obter usuário atual
   getUsuarioAtual: () => {
     const usuario = localStorage.getItem('usuario');
     return usuario ? JSON.parse(usuario) : null;
@@ -92,19 +98,8 @@ export const authService = {
  * Serviço de Provas
  */
 export const provasService = {
-  // Listar todas as provas
-  listar: () =>
-    request('/provas', {
-      method: 'GET',
-    }),
-
-  // Obter uma prova específica
-  obter: (id) =>
-    request(`/provas/${id}`, {
-      method: 'GET',
-    }),
-
-  // Criar nova prova (admin)
+  listar: () => request('/provas', { method: 'GET' }),
+  obter: (id) => request(`/provas/${id}`, { method: 'GET' }),
   criar: (dados) =>
     request('/provas', {
       method: 'POST',
@@ -119,8 +114,6 @@ export const provasService = {
         requisito_usuario: dados.requisito_usuario || null,
       }),
     }),
-
-  // Atualizar prova (admin)
   atualizar: (id, dados) =>
     request(`/provas/${id}`, {
       method: 'PUT',
@@ -135,81 +128,56 @@ export const provasService = {
         requisito_usuario: dados.requisito_usuario || null,
       }),
     }),
-
-  // Deletar prova (admin)
-  deletar: (id) =>
-    request(`/provas/${id}`, {
-      method: 'DELETE',
-    }),
+  deletar: (id) => request(`/provas/${id}`, { method: 'DELETE' }),
 };
 
 /**
 * Serviço de Equipes
 */
 export const equipesService = {
-    // [GET] /api/equipes
-    listarEquipes: () =>
-      request('/equipes', {
-        method: 'GET',
-      }),
+  listarEquipes: () => request('/equipes', { method: 'GET' }),
 
-    // Rota para Coordenadores
-    listarCoordenadoresDisponiveis: () =>
-      request('/equipes/coordenadores-disponiveis', { method: 'GET' }),
-    
-    // [POST] /api/equipes
-    criarEquipe: (dados) =>
-      request('/equipes', {
-        method: 'POST',
-        body: JSON.stringify(dados),
-      }),
+  // ✅ público para autenticados (nomes/ids) – usado pelos alunos ao solicitar migração
+  listarEquipesPublicas: () => request('/equipes/publicas', { method: 'GET' }),
 
-    // [PATCH] /api/equipes/:id/membros
-    adicionarMembro: (equipeId, usuarioId) =>
-      request(`/equipes/${equipeId}/membros`, {
-        method: 'PATCH',
-        body: JSON.stringify({ usuario_id: usuarioId }),
-      }),
+  listarCoordenadoresDisponiveis: () =>
+    request('/equipes/coordenadores-disponiveis', { method: 'GET' }),
 
-    // [GET] /api/equipes/usuarios-disponiveis
-    listarMembrosDisponiveis: () =>
-      request('/equipes/membros-disponiveis', { method: 'GET' }),
+  criarEquipe: (dados) =>
+    request('/equipes', {
+      method: 'POST',
+      body: JSON.stringify(dados),
+    }),
 
-    // [GET] /api/equipes/minha-equipe
-    visualizarMinhaEquipe: () =>
-      request('/equipes/minha-equipe', {
-        method: 'GET',
-      }),
-    
-    /**
-     * [POST] /api/equipes/minha-equipe/membros
-     */
-    adicionarMembroMinhaEquipe: (usuarioId) =>
-      request('/equipes/minha-equipe/membros', {
-        method: 'POST',
-        body: JSON.stringify({ usuario_id: usuarioId }),
-      }),
-    
-    /**
-     * [DELETE] /api/equipes/minha-equipe/membros/:membroId
-     */
-    removerMembroMinhaEquipe: (membroId) =>
-      request(`/equipes/minha-equipe/membros/${membroId}`, {
-        method: 'DELETE',
-      }),
+  adicionarMembro: (equipeId, usuarioId) =>
+    request(`/equipes/${equipeId}/membros`, {
+      method: 'PATCH',
+      body: JSON.stringify({ usuario_id: usuarioId }),
+    }),
+
+  listarMembrosDisponiveis: () =>
+    request('/equipes/membros-disponiveis', { method: 'GET' }),
+
+  visualizarMinhaEquipe: () =>
+    request('/equipes/minha-equipe', { method: 'GET' }),
+
+  adicionarMembroMinhaEquipe: (usuarioId) =>
+    request('/equipes/minha-equipe/membros', {
+      method: 'POST',
+      body: JSON.stringify({ usuario_id: usuarioId }),
+    }),
+
+  removerMembroMinhaEquipe: (membroId) =>
+    request(`/equipes/minha-equipe/membros/${membroId}`, {
+      method: 'DELETE',
+    }),
 };
 
 /**
  * Serviço de Testes
  */
 export const testesService = {
-  // Listar testes de uma prova
-  listar: (provaId) =>
-    request(`/provas/${provaId}/testes`, {
-      method: 'GET',
-    }),
-
-  // Enviar resposta de teste
+  listar: (provaId) => request(`/provas/${provaId}/testes`, { method: 'GET' }),
   responder: (provaId, testeId, resposta) =>
     request(`/provas/${provaId}/testes/${testeId}/resposta`, {
       method: 'POST',
@@ -221,5 +189,28 @@ export default {
   authService,
   provasService,
   testesService,
-  equipesService, // Adicionado o service de equipes
+  equipesService,
+};
+
+/**
+ * Serviço de Migrações de Equipe
+ */
+export const migracoesService = {
+  listarMinhas: () => request('/equipes/migracoes/minhas', { method: 'GET' }),
+
+  listarPendentes: () =>
+    request('/equipes/migracoes/pendentes', { method: 'GET' }),
+
+  solicitar: (equipe_destino_id, motivo) =>
+    request('/equipes/migracoes/solicitar', {
+      method: 'POST',
+      body: JSON.stringify({ equipe_destino_id, motivo }),
+    }),
+
+  // ✅ Corrigido: backend espera { aprovar }, não { aprovado }
+  decidir: (migracaoId, aprovar, justificativa) =>
+    request(`/equipes/migracoes/${migracaoId}/decidir`, {
+      method: 'PATCH',
+      body: JSON.stringify({ aprovar, justificativa }),
+    }),
 };
