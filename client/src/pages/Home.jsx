@@ -13,6 +13,7 @@ export default function Home({ usuario, onLogout }) {
 
   // Agora inclui coordenador
   const isAdmin = usuario?.tipo === 'ADMIN';
+  const isAdminOrCoordenador = isAdmin || usuario?.tipo === 'COORDENADOR';
 
   return (
     <div className="min-h-screen bg-linear-to-br from-gray-50 to-gray-100">
@@ -114,7 +115,8 @@ export default function Home({ usuario, onLogout }) {
                 >
                     Acessar Gerenciamento
                 </Button>
-              </ div>
+              </div>
+          )}
           {/* Card: Solicitar Migração (Aluno/Professor/Pai-Mãe) */}
           {['ALUNO','PROFESSOR','PAI/MÃE'].includes(usuario?.tipo) && (
             <div className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition border border-gray-200 hover:border-amber-300">
