@@ -13,6 +13,7 @@ export default function Home({ usuario, onLogout }) {
 
   // Agora inclui coordenador
   const isAdmin = usuario?.tipo === 'ADMIN';
+  const isAdminOrCoordenador = isAdmin || usuario?.tipo === 'COORDENADOR';
 
   return (
     <div className="min-h-screen bg-linear-to-br from-gray-50 to-gray-100">
@@ -77,6 +78,45 @@ export default function Home({ usuario, onLogout }) {
             </Button>
           </div>
 
+          {/* Card de Inscrição em Equipe (para Alunos) */}
+          {usuario?.tipo === 'ALUNO' && (
+            <div 
+              className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition border border-gray-200 hover:border-indigo-300"
+            >
+              <div className="bg-linear-to-br from-indigo-100 to-indigo-50 rounded-full w-12 h-12 flex items-center justify-center mb-4">
+                <UserCheck className="text-indigo-700" size={24} />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Inscrição em Equipe</h3>
+              <p className="text-gray-600 mb-4">Escolha uma equipe para participar ativamente das provas da gincana.</p>
+              <Button
+                variant="outline" 
+                onClick={() => navigate('/inscricao-equipes')}
+                className="w-full border-gray-300 hover:bg-gray-100 text-gray-900 font-semibold py-2 rounded-lg transition shadow-md"
+              >
+                Inscrever-se em Equipe
+              </Button>
+            </div>
+          )}
+
+          {/* Novo card: Gerenciar Equipes */}
+          {isAdminOrCoordenador && (
+            <div 
+                className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition border border-gray-200 hover:border-purple-300"
+            >
+                <div className="bg-linear-to-br from-purple-100 to-purple-50 rounded-full w-12 h-12 flex items-center justify-center mb-4">
+                    <Users className="text-purple-700" size={24} />
+                </div>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">Gerenciar Equipes</h3>
+                <p className="text-gray-600 mb-4">Crie equipes, defina coordenadores e adicione participantes.</p>
+                <Button
+                    variant="outline" 
+                    onClick={() => navigate('/admin/equipes')}
+                    className="w-full border-gray-300 hover:bg-gray-100 text-gray-900 font-semibold py-2 rounded-lg transition shadow-md"
+                >
+                    Acessar Gerenciamento
+                </Button>
+              </div>
+          )}
           {/* Card: Solicitar Migração (Aluno/Professor/Pai-Mãe) */}
           {['ALUNO','PROFESSOR','PAI/MÃE'].includes(usuario?.tipo) && (
             <div className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition border border-gray-200 hover:border-amber-300">

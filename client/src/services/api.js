@@ -155,6 +155,37 @@ export const equipesService = {
       body: JSON.stringify(dados),
     }),
 
+    // [GET] /api/equipes/minha-equipe
+    visualizarMinhaEquipe: () =>
+      request('/equipes/minha-equipe', {
+        method: 'GET',
+      }),
+    
+    /**
+     * [POST] /api/equipes/minha-equipe/membros
+     */
+    adicionarMembroMinhaEquipe: (usuarioId) =>
+      request('/equipes/minha-equipe/membros', {
+        method: 'POST',
+        body: JSON.stringify({ usuario_id: usuarioId }),
+      }),
+    
+    /**
+     * [DELETE] /api/equipes/minha-equipe/membros/:membroId
+     */
+    removerMembroMinhaEquipe: (membroId) =>
+      request(`/equipes/minha-equipe/membros/${membroId}`, {
+        method: 'DELETE',
+      }),
+
+    /**
+     * [POST] /api/equipes/:equipeId/register - Inscrever aluno em equipe
+     */
+    inscreverEmEquipe: (equipeId) =>
+      request(`/equipes/${equipeId}/register`, {
+        method: 'POST',
+        body: JSON.stringify({}),
+      }),
   adicionarMembro: (equipeId, usuarioId) =>
     request(`/equipes/${equipeId}/membros`, {
       method: 'PATCH',
