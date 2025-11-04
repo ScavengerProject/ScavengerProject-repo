@@ -60,7 +60,7 @@ export const listarMinhasMigracoes = async (req, res) => {
 /**
  * GET /api/equipes/migracoes/pendentes
  * ADMIN → todas PENDENTE
- * COORDENADOR → PENDENTE onde origem ou destino pertence a equipe coordenada por mim
+ * COORDENADOR → PENDENTE onde ORIGEM pertence a equipe coordenada por mim
  */
 export const listarMigracoesPendentes = async (req, res) => {
   try {
@@ -80,10 +80,8 @@ export const listarMigracoesPendentes = async (req, res) => {
         return res.status(200).json([]);
       }
 
-      filtro.$or = [
-        { equipe_origem_id: { $in: ids } },
-        { equipe_destino_id: { $in: ids } },
-      ];
+      //Mostrar apenas solicitações onde a equipe de ORIGEM é coordenada por mim
+      filtro.equipe_origem_id = { $in: ids };
     }
     // se ADMIN, usa apenas { status: 'PENDENTE' }
 
@@ -139,6 +137,25 @@ export const solicitarMigracao = async (req, res) => {
       return res
         .status(422)
         .json({ message: 'Você não pertence a nenhuma equipe no momento.' });
+    }
+
+    // ✅ Verifica se já existe uma solicitação PENDENTE para este usuário
+    const solicitacaoPendente = await MigracaoEquipe.findOne({
+      usuario_id: me.id,
+      status: 'PENDENTE'
+    });
+
+    if (solicitacaoPendente) {
+      return res
+        .status(409)
+        .json({ message: 'Você já possui uma solicitação de migração pendente. Aguarde a decisão do coordenador.' });
+    }
+
+    // ✅ Verifica se o usuário está tentando migrar para a própria equipe
+    if (membroAtual.equipe_id.toString() === egDestino._id.toString()) {
+      return res
+        .status(400)
+        .json({ message: 'Você já faz parte desta equipe.' });
     }
 
     const doc = await MigracaoEquipe.create({

@@ -6,7 +6,7 @@ import { Textarea } from '../components/ui/textarea';
 import { toast } from '../components/ui/toast';
 import { useNavigate } from 'react-router-dom';
 import { equipesService, migracoesService } from '../services/api';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, AlertCircle } from 'lucide-react';
 
 export default function SolicitarMigracao() {
   const navigate = useNavigate();
@@ -20,7 +20,7 @@ export default function SolicitarMigracao() {
     try {
       setLoading(true);
       const [lista, minhas] = await Promise.all([
-        equipesService.listarEquipesPublicas(),  // ✅ aqui
+        equipesService.listarEquipesPublicas(),
         migracoesService.listarMinhas(),
       ]);
       setEquipes(lista || []);
@@ -34,6 +34,9 @@ export default function SolicitarMigracao() {
   };
 
   useEffect(() => { carregar(); }, []);
+
+  // Verifica se há solicitação pendente
+  const temSolicitacaoPendente = minhasSolicitacoes.some(s => s.status === 'PENDENTE');
 
   const enviar = async () => {
     if (!destino) return toast.error('Selecione a equipe de destino');
@@ -70,42 +73,65 @@ export default function SolicitarMigracao() {
       </header>
 
       <main className="container mx-auto px-6 py-8 grid gap-6 lg:grid-cols-2">
+        {/* Card de novo pedido ou aviso */}
         <Card className="bg-white border-gray-200 shadow-md">
           <CardHeader>
             <CardTitle className="text-gray-900">Novo pedido</CardTitle>
-            <CardDescription>Escolha a equipe de destino e descreva o motivo.</CardDescription>
+            <CardDescription>
+              {temSolicitacaoPendente 
+                ? 'Você já possui uma solicitação pendente.' 
+                : 'Escolha a equipe de destino e descreva o motivo.'}
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div>
-              <label className="text-sm font-medium text-gray-800">Equipe de destino</label>
-              <Select value={destino} onValueChange={setDestino}>
-                <SelectTrigger className="mt-1">
-                  <SelectValue placeholder="Selecione..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {equipes.map((eq) => (
-                    <SelectItem key={eq._id} value={eq._id}>
-                      {eq.nome}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {temSolicitacaoPendente ? (
+              <div className="bg-yellow-50 border border-yellow-300 rounded-lg p-4">
+                <div className="flex items-center gap-2 text-yellow-800">
+                  <AlertCircle className="w-5 h-5" />
+                  <span className="font-semibold">Aguarde a decisão do coordenador</span>
+                </div>
+                <p className="text-sm text-yellow-700 mt-2">
+                  Você já enviou uma solicitação de migração que está aguardando aprovação. 
+                  Você poderá fazer uma nova solicitação após a decisão do coordenador.
+                </p>
+              </div>
+            ) : (
+              <>
+                <div>
+                  <label className="text-sm font-medium text-gray-800">Equipe de destino</label>
+                  <Select value={destino} onValueChange={setDestino}>
+                    <SelectTrigger className="mt-1">
+                      <SelectValue placeholder="Selecione..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {equipes.length === 0 && (
+                        <div className="p-2 text-sm text-gray-500">Nenhuma equipe disponível</div>
+                      )}
+                      {equipes.map((eq) => (
+                        <SelectItem key={eq._id} value={eq._id}>
+                          {eq.nome}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-            <div>
-              <label className="text-sm font-medium text-gray-800">Motivo</label>
-              <Textarea
-                value={motivo}
-                onChange={(e) => setMotivo(e.target.value)}
-                placeholder="Explique em poucas linhas"
-                className="mt-1"
-                rows={4}
-              />
-            </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-800">Motivo</label>
+                  <Textarea
+                    value={motivo}
+                    onChange={(e) => setMotivo(e.target.value)}
+                    placeholder="Explique em poucas linhas"
+                    className="mt-1"
+                    rows={4}
+                  />
+                </div>
 
-            <Button onClick={enviar} className="bg-blue-600 hover:bg-blue-700 text-white">
-              Enviar solicitação
-            </Button>
+                <Button onClick={enviar} className="bg-blue-600 hover:bg-blue-700 text-white">
+                  Enviar solicitação
+                </Button>
+              </>
+            )}
           </CardContent>
         </Card>
 
@@ -127,12 +153,19 @@ export default function SolicitarMigracao() {
                     </p>
                     <p className="text-sm text-gray-600 mt-1">Motivo: {s.motivo}</p>
                   </div>
-                  <span className="text-sm px-2 py-1 rounded bg-white border">
+                  <span className={`text-sm px-2 py-1 rounded border ${
+                    s.status === 'PENDENTE' ? 'bg-yellow-100 border-yellow-300 text-yellow-800' :
+                    s.status === 'APROVADA' ? 'bg-green-100 border-green-300 text-green-800' :
+                    s.status === 'REJEITADA' ? 'bg-red-100 border-red-300 text-red-800' :
+                    'bg-white border-gray-300'
+                  }`}>
                     {s.status}
                   </span>
                 </div>
-                {s.justificativa && (
-                  <p className="text-xs text-gray-500 mt-2">Obs: {s.justificativa}</p>
+                {s.status === 'REJEITADA' && s.justificativa && (
+                  <p className="text-xs text-red-600 mt-2 bg-red-50 p-2 rounded">
+                    <strong>Justificativa do coordenador:</strong> {s.justificativa}
+                  </p>
                 )}
               </div>
             ))}

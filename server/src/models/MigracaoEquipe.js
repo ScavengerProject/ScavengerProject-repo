@@ -13,6 +13,7 @@ const MigracaoEquipeSchema = new mongoose.Schema({
   },
 
   motivo: { type: String, default: '' },
+  justificativa: { type: String, default: '' },
 
   solicitado_por: { type: mongoose.Schema.Types.ObjectId, ref: 'Usuario', required: true },
   aprovado_por: { type: mongoose.Schema.Types.ObjectId, ref: 'Usuario', default: null },
