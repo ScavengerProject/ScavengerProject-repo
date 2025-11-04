@@ -10,9 +10,7 @@ import {
   visualizarEquipe,
   removerMembroEquipe,
   listarEquipesPublicas,
-  inscreverAlunoEmEquipe,
-  limparMembrosorfaos,
-  listarEquipesPublicas
+  inscreverAlunoEmEquipe
 } from './equipeController.js';
 import { proteger, autorizar } from '../auth/authPermissions.js';
 

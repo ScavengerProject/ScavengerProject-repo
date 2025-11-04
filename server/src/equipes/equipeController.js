@@ -541,6 +541,8 @@ export const inscreverAlunoEmEquipe = async (req, res) => {
         console.error('Erro ao inscrever aluno em equipe:', error);
         res.status(500).json({ message: 'Erro interno ao processar inscrição.' });
     }
+};
+
 export const listarEquipesPublicas = async (req, res) => {
   try {
     const equipes = await Equipe.find({}, 'nome cor');
@@ -548,6 +550,4 @@ export const listarEquipesPublicas = async (req, res) => {
   } catch (error) {
     return res.status(500).json({ message: 'Erro ao listar equipes públicas.', error: error.message });
   }
-};
-
 };
