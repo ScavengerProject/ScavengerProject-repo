@@ -85,6 +85,8 @@ function App() {
               ? (usuario.tipo === 'ADMIN' ? <AdminEmprestimos /> : <Navigate to="/" replace />)
               : <Navigate to="/login" replace />
           }
+        />
+        
         {/* Rota para Inscrição em Equipe (Aluno) */}
         <Route
           path="/inscricao-equipes"
