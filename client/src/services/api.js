@@ -52,11 +52,17 @@ const request = async (endpoint, options = {}) => {
         const errorData = await response.json();
         errorMessage = errorData.message || errorMessage;
       } catch (_) {
-        const text = await response.text();
-        if (text && text.startsWith('<!DOCTYPE')) {
-          errorMessage = 'Erro (HTML) do servidor. Verifique a rota no backend.';
-        } else if (text) {
-          errorMessage = text;
+        // Se não conseguir fazer parse de JSON, tentar ler como texto
+        // Mas só tenta se houver body ainda disponível
+        try {
+          const text = await response.text();
+          if (text && text.startsWith('<!DOCTYPE')) {
+            errorMessage = 'Erro (HTML) do servidor. Verifique a rota no backend.';
+          } else if (text) {
+            errorMessage = text;
+          }
+        } catch (textError) {
+          errorMessage = `${response.status} - ${response.statusText}`;
         }
       }
       throw new Error(errorMessage);
@@ -189,6 +195,14 @@ export const equipesService = {
   listarMembrosDisponiveis: () =>
     request('/equipes/membros-disponiveis', { method: 'GET' }),
 
+  // ✅ Lista todos os membros de todas as equipes
+  listarTodosMembros: () =>
+    request('/equipes/todos-membros', { method: 'GET' }),
+
+  // ✅ Lista EquipeGincana para seleção (empréstimos)
+  listarEquipesGincana: () =>
+    request('/equipes/equipes-gincana', { method: 'GET' }),
+
   visualizarMinhaEquipe: () =>
     request('/equipes/minha-equipe', { method: 'GET' }),
 
@@ -243,5 +257,35 @@ export const migracoesService = {
     request(`/equipes/migracoes/${migracaoId}/decidir`, {
       method: 'PATCH',
       body: JSON.stringify({ aprovar, justificativa }),
+    }),
+};
+
+/**
+ * Serviço de Empréstimos de Equipe
+ */
+export const emprestimosService = {
+  // Lista empréstimos (Admin vê tudo, Coordenador vê apenas os relacionados às suas equipes)
+  listar: (status, provaId, usuarioId) => {
+    const params = new URLSearchParams();
+    if (status) params.append('status', status);
+    if (provaId) params.append('provaId', provaId);
+    if (usuarioId) params.append('usuarioId', usuarioId);
+    
+    const queryString = params.toString();
+    return request(`/equipes/emprestimos${queryString ? '?' + queryString : ''}`, { method: 'GET' });
+  },
+
+  // Criar novo empréstimo
+  criar: (usuario_id, equipe_destino_id, prova_id, inicio, fim) =>
+    request('/equipes/emprestimos', {
+      method: 'POST',
+      body: JSON.stringify({ usuario_id, equipe_destino_id, prova_id, inicio, fim }),
+    }),
+
+  // Encerrar empréstimo
+  encerrar: (emprestimoId, justificativa) =>
+    request(`/equipes/emprestimos/${emprestimoId}/encerrar`, {
+      method: 'PATCH',
+      body: JSON.stringify({ justificativa }),
     }),
 };

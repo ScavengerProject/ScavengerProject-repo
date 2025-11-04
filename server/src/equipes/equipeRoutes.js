@@ -1,15 +1,18 @@
 import express from 'express';
 import { 
-    criarEquipe, 
-    listarEquipes, 
-    adicionarMembro,
-    listarCoordenadoresDisponiveis,
-    listarUsuariosSemEquipe,
-    visualizarEquipe,
-    removerMembroEquipe,
-    inscreverAlunoEmEquipe,
-    limparMembrosorfaos,
-    listarEquipesPublicas
+  criarEquipe, 
+  listarEquipes, 
+  adicionarMembro,
+  listarCoordenadoresDisponiveis,
+  listarUsuariosSemEquipe,
+  listarTodosMembros,
+  listarEquipesGincana,
+  visualizarEquipe,
+  removerMembroEquipe,
+  listarEquipesPublicas,
+  inscreverAlunoEmEquipe,
+  limparMembrosorfaos,
+  listarEquipesPublicas
 } from './equipeController.js';
 import { proteger, autorizar } from '../auth/authPermissions.js';
 
@@ -28,6 +31,8 @@ router.post('/', proteger, autorizar('ADMIN'), criarEquipe);
 router.patch('/:id/membros', proteger, autorizar('ADMIN'), adicionarMembro);
 router.get('/coordenadores-disponiveis', proteger, autorizar('ADMIN'), listarCoordenadoresDisponiveis);
 router.get('/membros-disponiveis', proteger, autorizar('ADMIN', 'COORDENADOR'), listarUsuariosSemEquipe);
+router.get('/todos-membros', proteger, autorizar('ADMIN'), listarTodosMembros);
+router.get('/equipes-gincana', proteger, autorizar('ADMIN'), listarEquipesGincana);
 
 // Coordenador gerencia sua própria equipe
 router.get('/minha-equipe', proteger, autorizar('COORDENADOR'), visualizarEquipe);
