@@ -26,6 +26,9 @@ import { toast } from "../components/ui/toast";
 import { Plus, Edit, Trash2, ArrowLeft, Loader } from "lucide-react";
 import { Checkbox } from "../components/ui/checkbox";
 import { provasService } from "../services/api";
+import ProvaRestricoesForm from "../components/ProvaRestricoesForm";
+import ProvaElegibilidadeForm from "../components/ProvaElegibilidadeForm";
+import ProvaSequenciamentoForm from "../components/ProvaSequenciamentoForm";
 
 const QUESITOS_OPCOES = [
   { value: 'TEMPO', label: 'Tempo de Execução' },
@@ -68,6 +71,10 @@ const AdminProvas = () => {
     status: "NAO_INICIADA",
     quesitos_de_avaliacao: [],
     requisito_usuario: "",
+    restricao_participacao: {},
+    criterio_elegibilidade: {},
+    sequenciamento: {},
+    pontuacao: {},
   });
 
   // Carregar provas ao montar o componente
@@ -98,6 +105,10 @@ const AdminProvas = () => {
       status: "NAO_INICIADA",
       quesitos_de_avaliacao: [],
       requisito_usuario: "",
+      restricao_participacao: {},
+      criterio_elegibilidade: {},
+      sequenciamento: {},
+      pontuacao: {},
     });
     setEditingProva(null);
   };
@@ -177,6 +188,10 @@ const AdminProvas = () => {
       status: prova.status || "NAO_INICIADA",
       quesitos_de_avaliacao: prova.quesitos_de_avaliacao || [],
       requisito_usuario: prova.requisito_usuario || "",
+      restricao_participacao: prova.restricao_participacao || {},
+      criterio_elegibilidade: prova.criterio_elegibilidade || {},
+      sequenciamento: prova.sequenciamento || {},
+      pontuacao: prova.pontuacao || {},
     });
     setIsDialogOpen(true);
   };
@@ -402,6 +417,29 @@ const AdminProvas = () => {
                       </SelectContent>
                     </Select>
                   </div>
+
+                  {/* Divisor visual para separar seções básicas das avançadas */}
+                  <div className="border-t border-gray-300 my-4"></div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Configurações Avançadas (US14)</h3>
+
+                  {/* Restrições de Participação */}
+                  <ProvaRestricoesForm
+                    restricoes={formData.restricao_participacao}
+                    onChange={(restricoes) => setFormData({ ...formData, restricao_participacao: restricoes })}
+                  />
+
+                  {/* Critérios de Elegibilidade */}
+                  <ProvaElegibilidadeForm
+                    criterios={formData.criterio_elegibilidade}
+                    onChange={(criterios) => setFormData({ ...formData, criterio_elegibilidade: criterios })}
+                    provaAtualId={editingProva?._id}
+                  />
+
+                  {/* Sequenciamento */}
+                  <ProvaSequenciamentoForm
+                    sequenciamento={formData.sequenciamento}
+                    onChange={(sequenciamento) => setFormData({ ...formData, sequenciamento: sequenciamento })}
+                  />
                 </div>
                 <DialogFooter>
                   <Button 
