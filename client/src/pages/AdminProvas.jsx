@@ -235,6 +235,58 @@ const AdminProvas = () => {
     return formatoMap[formato] || formato;
   };
 
+  // Função auxiliar para formatar critérios de elegibilidade
+  const formatarCriteriosElegibilidade = (criterio) => {
+    if (!criterio || typeof criterio !== 'object') return null;
+    
+    const turmas = criterio.turmas_permitidas || [];
+    const preRequisitos = criterio.pre_requisitos_prova_ids || [];
+    
+    if (turmas.length === 0 && preRequisitos.length === 0) return null;
+    
+    const partes = [];
+    if (turmas.length > 0) {
+      partes.push(`${turmas.length} turma(s)`);
+    } else {
+      partes.push('Todas as turmas');
+    }
+    if (preRequisitos.length > 0) {
+      partes.push(`${preRequisitos.length} pré-requisito(s)`);
+    }
+    return partes.join(' • ');
+  };
+
+  // Função auxiliar para formatar restrições de participação
+  const formatarRestricoes = (restricao) => {
+    if (!restricao || typeof restricao !== 'object') return null;
+    
+    const partes = [];
+    if (restricao.limite_tentativas) {
+      partes.push(`Máx ${restricao.limite_tentativas} tentativas`);
+    }
+    if (restricao.tempo_maximo_minutos) {
+      partes.push(`${restricao.tempo_maximo_minutos} min`);
+    }
+    if (restricao.permitir_reenvio === false) {
+      partes.push('Sem reenvio');
+    }
+    
+    return partes.length > 0 ? partes.join(' • ') : null;
+  };
+
+  // Função auxiliar para formatar sequenciamento
+  const formatarSequenciamento = (sequenciamento) => {
+    if (!sequenciamento || typeof sequenciamento !== 'object') return null;
+    
+    const etapas = sequenciamento.etapas || [];
+    if (etapas.length === 0) return null;
+    
+    const obrigatorias = etapas.filter(e => e.obrigatoria).length;
+    const exigeOrdem = sequenciamento.exigir_ordem ? ' (ordem obrigatória)' : '';
+    
+    return `${etapas.length} etapa(s) - ${obrigatorias} obrigatória(s)${exigeOrdem}`;
+  };
+
   return (
     <div className="min-h-screen bg-white">
       {/* Header */}
@@ -540,6 +592,38 @@ const AdminProvas = () => {
                         </div>
                       )}
                     </div>
+
+                    {/* Novos critérios US14 */}
+                    {(formatarCriteriosElegibilidade(prova.criterio_elegibilidade) || 
+                      formatarRestricoes(prova.restricao_participacao) || 
+                      formatarSequenciamento(prova.sequenciamento)) && (
+                      <div className="pt-3 border-t border-gray-200">
+                        <p className="text-xs text-gray-500 uppercase font-semibold mb-2">Configurações Avançadas (US14)</p>
+                        <div className="space-y-1">
+                          {formatarCriteriosElegibilidade(prova.criterio_elegibilidade) && (
+                            <div className="flex items-start gap-2">
+                              <p className="text-sm text-gray-700">
+                                <span className="font-medium">Elegibilidade:</span> {formatarCriteriosElegibilidade(prova.criterio_elegibilidade)}
+                              </p>
+                            </div>
+                          )}
+                          {formatarRestricoes(prova.restricao_participacao) && (
+                            <div className="flex items-start gap-2">
+                              <p className="text-sm text-gray-700">
+                                <span className="font-medium">Restrições:</span> {formatarRestricoes(prova.restricao_participacao)}
+                              </p>
+                            </div>
+                          )}
+                          {formatarSequenciamento(prova.sequenciamento) && (
+                            <div className="flex items-start gap-2">
+                              <p className="text-sm text-gray-700">
+                                <span className="font-medium">Sequenciamento:</span> {formatarSequenciamento(prova.sequenciamento)}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               ))

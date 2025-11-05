@@ -4,6 +4,7 @@ import { useAuth } from './hooks/useAuth.jsx';
 import Login from './pages/Login';
 import Home from './pages/Home';
 import Dashboard from './pages/Dashboard';
+import TodasProvas from './pages/TodasProvas';
 import AdminProvas from './pages/AdminProvas';
 import AdminEquipes from './pages/AdminEquipes.jsx';
 import GerenciarEquipe from './pages/GerenciarEquipes.jsx';
@@ -52,22 +53,36 @@ function App() {
           )}
         />
 
-        {/* Dashboard protegida */}
+        {/* Dashboard protegida - acessível a todos os usuários autenticados */}
         <Route
           path="/dashboard"
           element={isAuthenticated ? <Dashboard /> : <Navigate to="/login" replace />}
         />
 
+        {/* Todas as Provas - acessível a todos os usuários autenticados */}
+        <Route
+          path="/provas"
+          element={isAuthenticated ? <TodasProvas /> : <Navigate to="/login" replace />}
+        />
+
         {/* Rota para o Gerenciamento de Equipes (Admin) */}
         <Route
           path="/admin/equipes"
-          element={isAuthenticated ? <AdminEquipes /> : <Navigate to="/login" replace />}
+          element={
+            isAuthenticated 
+              ? (usuario.tipo === 'ADMIN' ? <AdminEquipes /> : <Navigate to="/" replace />)
+              : <Navigate to="/login" replace />
+          }
         />
 
-        {/* Admin Provas protegida */}
+        {/* Admin Provas protegida (Admin) */}
         <Route
           path="/admin/provas"
-          element={isAuthenticated ? <AdminProvas /> : <Navigate to="/login" replace />}
+          element={
+            isAuthenticated 
+              ? (usuario.tipo === 'ADMIN' ? <AdminProvas /> : <Navigate to="/" replace />)
+              : <Navigate to="/login" replace />
+          }
         />
 
         {/* Rota para Gerenciamento da Própria Equipe (Coord) */}

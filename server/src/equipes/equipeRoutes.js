@@ -17,19 +17,18 @@ import { proteger, autorizar } from '../auth/authPermissions.js';
 
 const router = express.Router();
 
-// Lista todas as equipes
-router.get('/', proteger, autorizar('ADMIN', 'COORDENADOR', 'PROFESSOR', 'ALUNO'), listarEquipes);
-
-// Criar nova equipe
 // ✅ rota "pública" para QUALQUER usuário autenticado (inclui aluno)
 router.get('/publicas', proteger, listarEquipesPublicas);
 
 // ✅ Lista equipes para inscrição, indicando qual é a equipe atual do aluno
 router.get('/para-inscricao', proteger, autorizar('ALUNO', 'PROFESSOR', 'PAI/MÃE'), listarEquipesParaInscricao);
 
-// Rotas existentes
-router.get('/', proteger, autorizar('ADMIN', 'COORDENADOR', 'PROFESSOR'), listarEquipes);
+// Lista todas as equipes (Admin, Coordenador, Professor, Aluno)
+router.get('/', proteger, autorizar('ADMIN', 'COORDENADOR', 'PROFESSOR', 'ALUNO'), listarEquipes);
+
+// Criar nova equipe (apenas Admin)
 router.post('/', proteger, autorizar('ADMIN'), criarEquipe);
+
 router.patch('/:id/membros', proteger, autorizar('ADMIN'), adicionarMembro);
 router.get('/coordenadores-disponiveis', proteger, autorizar('ADMIN'), listarCoordenadoresDisponiveis);
 router.get('/membros-disponiveis', proteger, autorizar('ADMIN', 'COORDENADOR'), listarUsuariosSemEquipe);
