@@ -570,3 +570,50 @@ export const listarEquipesPublicas = async (req, res) => {
     return res.status(500).json({ message: 'Erro ao listar equipes públicas.', error: error.message });
   }
 };
+
+/**
+ * [GET] Retorna as equipes para inscrição, marcando qual é a equipe atual do usuário
+ */
+export const listarEquipesParaInscricao = async (req, res) => {
+  try {
+    const meId = req.usuario.id;
+
+    // Busca a equipe atual do usuário
+    const membroAtual = await EquipeMembros.findOne({ usuario_id: meId });
+    let equipeAtualId = null;
+
+    if (membroAtual) {
+      const equipeGincana = await EquipeGincana.findById(membroAtual.equipe_id);
+      if (equipeGincana) {
+        equipeAtualId = equipeGincana.equipe_id.toString();
+      }
+    }
+
+    // Busca todas as equipes com seus dados
+    const gincanaRecords = await EquipeGincana.find({ gincana_id: GINCANA_ATUAL_ID })
+      .populate('equipe_id', 'nome cor')
+      .populate('coordenador_usuario_id', 'nome email');
+
+    const equipes = await Promise.all(gincanaRecords.map(async (rec) => {
+      if (!rec.equipe_id) return null;
+
+      const total_membros = await EquipeMembros.countDocuments({ equipe_id: rec._id });
+      const isMinhaEquipe = equipeAtualId && rec.equipe_id._id.toString() === equipeAtualId;
+
+      return {
+        id: rec.equipe_id._id,
+        nome: rec.equipe_id.nome,
+        cor: rec.equipe_id.cor,
+        pontos_acumulados: rec.pontos_acumulados,
+        coordenador: rec.coordenador_usuario_id,
+        total_membros: total_membros,
+        isMinhaEquipe: isMinhaEquipe, // ✅ Marcador se é a equipe atual
+      };
+    }));
+
+    res.status(200).json(equipes.filter(e => e !== null));
+  } catch (error) {
+    console.error('Erro ao listar equipes para inscrição:', error);
+    res.status(500).json({ message: 'Erro interno ao listar equipes.' });
+  }
+};

@@ -10,6 +10,7 @@ import {
   visualizarEquipe,
   removerMembroEquipe,
   listarEquipesPublicas,
+  listarEquipesParaInscricao,
   inscreverAlunoEmEquipe
 } from './equipeController.js';
 import { proteger, autorizar } from '../auth/authPermissions.js';
@@ -20,8 +21,11 @@ const router = express.Router();
 router.get('/', proteger, autorizar('ADMIN', 'COORDENADOR', 'PROFESSOR', 'ALUNO'), listarEquipes);
 
 // Criar nova equipe
-// ✅ rota “pública” para QUALQUER usuário autenticado (inclui aluno)
+// ✅ rota "pública" para QUALQUER usuário autenticado (inclui aluno)
 router.get('/publicas', proteger, listarEquipesPublicas);
+
+// ✅ Lista equipes para inscrição, indicando qual é a equipe atual do aluno
+router.get('/para-inscricao', proteger, autorizar('ALUNO', 'PROFESSOR', 'PAI/MÃE'), listarEquipesParaInscricao);
 
 // Rotas existentes
 router.get('/', proteger, autorizar('ADMIN', 'COORDENADOR', 'PROFESSOR'), listarEquipes);

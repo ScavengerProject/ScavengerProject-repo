@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
-import { ArrowLeft, Users, LogIn, Zap } from 'lucide-react';
+import { ArrowLeft, Users, LogIn, Zap, CheckCircle2 } from 'lucide-react';
 import { toast } from '../components/ui/toast';
 import { equipesService } from '../services/api';
 import { useAuth } from '../hooks/useAuth.jsx';
@@ -13,14 +13,19 @@ const InscricaoEquipes = () => {
 
   const [equipes, setEquipes] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [inscrievendo, setInscrievendo] = useState(null); // Para controlar qual equipe está sendo processada
+  const [inscrievendo, setInscrievendo] = useState(null);
+  const [minhaEquipe, setMinhaEquipe] = useState(null);
 
   useEffect(() => {
     const fetchEquipes = async () => {
       try {
         setIsLoading(true);
-        const data = await equipesService.listarEquipes();
+        const data = await equipesService.listarEquipesParaInscricao();
         setEquipes(data);
+        
+        // Encontra a equipe atual
+        const equipaAtual = data.find(eq => eq.isMinhaEquipe);
+        setMinhaEquipe(equipaAtual || null);
       } catch (error) {
         toast.error('Erro ao carregar equipes disponíveis.');
         console.error('Erro na listagem de equipes:', error);
@@ -86,9 +91,14 @@ const InscricaoEquipes = () => {
       <main className="container mx-auto px-6 py-8">
         {/* Informações da página */}
         <div className="mb-8">
-          <h2 className="text-3xl font-bold text-gray-900 mb-2">Escolha sua Equipe</h2>
+          <h2 className="text-3xl font-bold text-gray-900 mb-2">
+            {minhaEquipe ? 'Sua Equipe' : 'Escolha sua Equipe'}
+          </h2>
           <p className="text-gray-600">
-            Selecione uma das equipes disponíveis para participar ativamente das provas da gincana.
+            {minhaEquipe 
+              ? 'Você já faz parte de uma equipe. Para trocar de equipe, solicite uma migração.'
+              : 'Selecione uma das equipes disponíveis para participar ativamente das provas da gincana.'
+            }
           </p>
         </div>
 
@@ -98,7 +108,11 @@ const InscricaoEquipes = () => {
             {equipes.map((equipe) => (
               <Card 
                 key={equipe.id || equipe._id} 
-                className="shadow-md border-gray-200 hover:shadow-lg transition-shadow"
+                className={`shadow-md border-2 transition-all ${
+                  equipe.isMinhaEquipe 
+                    ? 'border-green-500 bg-green-50 shadow-lg' 
+                    : 'border-gray-200 hover:shadow-lg'
+                }`}
               >
                 <CardHeader>
                   <div className="flex items-center gap-3 mb-3">
@@ -106,15 +120,25 @@ const InscricaoEquipes = () => {
                       className="h-8 w-8 rounded-full border-2 border-gray-300" 
                       style={{ backgroundColor: equipe.cor || '#ccc' }}
                     ></div>
-                    <div>
-                      <CardTitle className="text-lg text-gray-900">{equipe.nome}</CardTitle>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <CardTitle className="text-lg text-gray-900">{equipe.nome}</CardTitle>
+                        {equipe.isMinhaEquipe && (
+                          <CheckCircle2 className="h-5 w-5 text-green-600" />
+                        )}
+                      </div>
+                      {equipe.isMinhaEquipe && (
+                        <span className="text-xs font-semibold text-green-700 bg-green-200 px-2 py-0.5 rounded-full inline-block mt-1">
+                          Sua equipe atual
+                        </span>
+                      )}
                     </div>
                   </div>
                 </CardHeader>
 
                 <CardContent className="space-y-4">
                   {/* Informações da Equipe */}
-                  <div className="bg-gray-50 rounded-lg p-3 space-y-2">
+                  <div className="bg-white rounded-lg p-3 space-y-2 border border-gray-200">
                     <div className="flex items-center gap-2 text-sm text-gray-700">
                       <Users className="h-4 w-4 text-gray-500" />
                       <span><strong>Membros:</strong> {equipe.total_membros || 0}</span>
@@ -130,24 +154,39 @@ const InscricaoEquipes = () => {
                     )}
                   </div>
 
-                  {/* Botão de Inscrição */}
-                  <Button
-                    onClick={() => handleInscrever(equipe.id || equipe._id)}
-                    disabled={inscrievendo === (equipe.id || equipe._id)}
-                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-lg transition"
-                  >
-                    {inscrievendo === (equipe.id || equipe._id) ? (
-                      <>
-                        <span className="inline-block animate-spin mr-2">⏳</span>
-                        Inscrevendo...
-                      </>
-                    ) : (
-                      <>
-                        <LogIn className="h-4 w-4 mr-2 inline" />
-                        Inscrever-se
-                      </>
-                    )}
-                  </Button>
+                  {/* Botão de Inscrição ou Mensagem */}
+                  {equipe.isMinhaEquipe ? (
+                    <div className="bg-green-100 border border-green-300 rounded-lg p-3 text-center">
+                      <p className="text-sm text-green-800 font-medium">
+                        ✓ Você já faz parte desta equipe
+                      </p>
+                    </div>
+                  ) : minhaEquipe ? (
+                    <Button
+                      disabled
+                      className="w-full bg-gray-300 text-gray-500 font-semibold py-2 rounded-lg cursor-not-allowed"
+                    >
+                      Já inscrito em outra equipe
+                    </Button>
+                  ) : (
+                    <Button
+                      onClick={() => handleInscrever(equipe.id || equipe._id)}
+                      disabled={inscrievendo === (equipe.id || equipe._id)}
+                      className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-lg transition"
+                    >
+                      {inscrievendo === (equipe.id || equipe._id) ? (
+                        <>
+                          <span className="inline-block animate-spin mr-2">⏳</span>
+                          Inscrevendo...
+                        </>
+                      ) : (
+                        <>
+                          <LogIn className="h-4 w-4 mr-2 inline" />
+                          Inscrever-se
+                        </>
+                      )}
+                    </Button>
+                  )}
                 </CardContent>
               </Card>
             ))}

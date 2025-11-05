@@ -146,6 +146,9 @@ export const equipesService = {
   // ✅ público para autenticados (nomes/ids) – usado pelos alunos ao solicitar migração
   listarEquipesPublicas: () => request('/equipes/publicas', { method: 'GET' }),
 
+  // ✅ Lista equipes para inscrição, marcando qual é a equipe atual
+  listarEquipesParaInscricao: () => request('/equipes/para-inscricao', { method: 'GET' }),
+
   listarCoordenadoresDisponiveis: () =>
     request('/equipes/coordenadores-disponiveis', { method: 'GET' }),
 
