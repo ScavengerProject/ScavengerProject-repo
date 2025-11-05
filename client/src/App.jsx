@@ -5,6 +5,7 @@ import Login from './pages/Login';
 import Home from './pages/Home';
 import Dashboard from './pages/Dashboard';
 import TodasProvas from './pages/TodasProvas';
+import MinhasInscricoes from './pages/MinhasInscricoes';
 import AdminProvas from './pages/AdminProvas';
 import AdminEquipes from './pages/AdminEquipes.jsx';
 import GerenciarEquipe from './pages/GerenciarEquipes.jsx';
@@ -63,6 +64,12 @@ function App() {
         <Route
           path="/provas"
           element={isAuthenticated ? <TodasProvas /> : <Navigate to="/login" replace />}
+        />
+
+        {/* Minhas Inscrições - acessível a todos os usuários autenticados */}
+        <Route
+          path="/minhas-inscricoes"
+          element={isAuthenticated ? <MinhasInscricoes /> : <Navigate to="/login" replace />}
         />
 
         {/* Rota para o Gerenciamento de Equipes (Admin) */}

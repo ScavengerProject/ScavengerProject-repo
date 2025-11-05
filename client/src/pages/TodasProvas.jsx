@@ -45,6 +45,11 @@ const TodasProvas = () => {
     setProvaSelecionada(null);
   };
 
+  const handleInscricaoSucesso = () => {
+    // Recarregar provas após inscrição bem-sucedida
+    carregarProvas();
+  };
+
   // Filtrar provas disponíveis para o usuário
   const provasDisponiveis = provas.filter(prova => {
     // Se for admin, mostrar todas
@@ -282,6 +287,7 @@ const TodasProvas = () => {
         prova={provaSelecionada}
         isOpen={modalAberto}
         onClose={fecharModal}
+        onInscricaoSucesso={handleInscricaoSucesso}
       />
     </div>
   );

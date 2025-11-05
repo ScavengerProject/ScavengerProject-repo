@@ -4,6 +4,7 @@ import {
   atualizarRequisitoUsuario,
   inscreverUsuarioNaProva,
   listarParticipantes,
+  verificarInscricao,
   listarProvas,     
   obterProva,    
   atualizarProva,   
@@ -16,6 +17,7 @@ const router = express.Router();
 // Rotas públicas (protegidas)
 router.get('/', proteger, listarProvas);
 router.get('/:id', proteger, obterProva);
+router.get('/:id/inscricao/status', proteger, verificarInscricao);
 
 // Rotas de admin
 router.post('/', proteger, autorizar('ADMIN'), criarProva);

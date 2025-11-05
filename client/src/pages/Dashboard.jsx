@@ -63,6 +63,11 @@ const Dashboard = () => {
     setProvaSelecionada(null);
   };
 
+  const handleInscricaoSucesso = () => {
+    // Recarregar dados após inscrição bem-sucedida
+    carregarDados();
+  };
+
   // Calcular estatísticas
   const provasAtivas = provas.filter(p => p.status === 'EM_ANDAMENTO').length;
   const provasNaoIniciadas = provas.filter(p => p.status === 'NAO_INICIADA').length;
@@ -484,6 +489,7 @@ const Dashboard = () => {
         prova={provaSelecionada}
         isOpen={modalAberto}
         onClose={fecharModal}
+        onInscricaoSucesso={handleInscricaoSucesso}
       />
     </div>
   );

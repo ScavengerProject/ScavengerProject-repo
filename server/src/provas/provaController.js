@@ -306,3 +306,26 @@ export const listarParticipantes = async (req, res) => {
     res.status(500).json({ message: 'Erro ao listar participantes.', error: error.message });
   }
 };
+
+/**
+ * Verificar se o usuário está inscrito na prova
+ * GET /api/provas/:id/inscricao/status
+ */
+export const verificarInscricao = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const usuarioId = req.usuario.id;
+
+    const inscricao = await ProvaUsuario.findOne({
+      prova_id: id,
+      usuario_id: usuarioId
+    });
+
+    res.status(200).json({
+      inscrito: !!inscricao,
+      inscricao: inscricao || null
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Erro ao verificar inscrição.', error: error.message });
+  }
+};

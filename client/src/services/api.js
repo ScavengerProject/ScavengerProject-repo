@@ -143,6 +143,21 @@ export const provasService = {
       }),
     }),
   deletar: (id) => request(`/provas/${id}`, { method: 'DELETE' }),
+  
+  // Inscrever usuário na prova
+  inscrever: (provaId, usuarioId = null) =>
+    request(`/provas/${provaId}/inscricoes`, {
+      method: 'POST',
+      body: JSON.stringify(usuarioId ? { usuario_id: usuarioId } : {}),
+    }),
+  
+  // Verificar se está inscrito na prova
+  verificarInscricao: (provaId) =>
+    request(`/provas/${provaId}/inscricao/status`, { method: 'GET' }),
+  
+  // Listar participantes de uma prova
+  listarParticipantes: (provaId) =>
+    request(`/provas/${provaId}/participantes`, { method: 'GET' }),
 };
 
 /**

@@ -1,15 +1,45 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from "./ui/dialog";
 import { Badge } from "./ui/badge";
-import { Calendar, Clock, Users, Target, AlertCircle, List, CheckCircle2, AlertTriangle } from "lucide-react";
+import { Button } from "./ui/button";
+import { Calendar, Clock, Users, Target, AlertCircle, List, CheckCircle2, AlertTriangle, UserPlus, Loader, UserCheck } from "lucide-react";
+import { provasService } from "../services/api";
+import { toast } from "./ui/toast";
 
-const ProvaDetalhesModal = ({ prova, isOpen, onClose }) => {
+const ProvaDetalhesModal = ({ prova, isOpen, onClose, onInscricaoSucesso }) => {
+  const [inscrevendo, setInscrevendo] = useState(false);
+  const [jaInscrito, setJaInscrito] = useState(false);
+  const [verificandoInscricao, setVerificandoInscricao] = useState(false);
+
+  // Verificar inscrição quando o modal abrir
+  useEffect(() => {
+    if (isOpen && prova) {
+      verificarInscricao();
+    }
+  }, [isOpen, prova]);
+
+  const verificarInscricao = async () => {
+    if (!prova) return;
+    
+    try {
+      setVerificandoInscricao(true);
+      const response = await provasService.verificarInscricao(prova._id);
+      setJaInscrito(response.inscrito);
+    } catch (error) {
+      console.error('Erro ao verificar inscrição:', error);
+      // Silenciosamente falha - não mostra erro ao usuário
+    } finally {
+      setVerificandoInscricao(false);
+    }
+  };
+  
   if (!prova) return null;
 
   // Formatar data completa
@@ -57,6 +87,23 @@ const ProvaDetalhesModal = ({ prova, isOpen, onClose }) => {
     const valor = Number(cota);
     return !isNaN(valor) && valor > 0;
   });
+
+  const handleInscrever = async () => {
+    try {
+      setInscrevendo(true);
+      await provasService.inscrever(prova._id);
+      toast.success('Inscrição realizada com sucesso!');
+      setJaInscrito(true);
+      if (onInscricaoSucesso) {
+        onInscricaoSucesso();
+      }
+    } catch (error) {
+      console.error('Erro ao inscrever na prova:', error);
+      toast.error(error.message || 'Erro ao realizar inscrição');
+    } finally {
+      setInscrevendo(false);
+    }
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -219,6 +266,49 @@ const ProvaDetalhesModal = ({ prova, isOpen, onClose }) => {
             </div>
           )}
         </div>
+
+        {/* Footer com botão de inscrição */}
+        <DialogFooter className="mt-6">
+          <div className="flex items-center justify-between w-full gap-4">
+            <Button
+              variant="outline"
+              onClick={onClose}
+              className="border-gray-300 hover:bg-gray-100"
+            >
+              Fechar
+            </Button>
+            
+            {verificandoInscricao ? (
+              <div className="flex items-center gap-2 text-gray-600">
+                <Loader className="h-4 w-4 animate-spin" />
+                <span className="text-sm">Verificando...</span>
+              </div>
+            ) : jaInscrito ? (
+              <div className="flex items-center gap-2 px-4 py-2 bg-green-50 border border-green-200 rounded-lg">
+                <UserCheck className="h-5 w-5 text-green-600" />
+                <span className="text-sm font-medium text-green-800">Você já está inscrito nesta prova</span>
+              </div>
+            ) : temCotas && prova.status !== 'CONCLUIDA' ? (
+              <Button
+                onClick={handleInscrever}
+                disabled={inscrevendo}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                {inscrevendo ? (
+                  <>
+                    <Loader className="h-4 w-4 mr-2 animate-spin" />
+                    Inscrevendo...
+                  </>
+                ) : (
+                  <>
+                    <UserPlus className="h-4 w-4 mr-2" />
+                    Inscrever-se nesta prova
+                  </>
+                )}
+              </Button>
+            ) : null}
+          </div>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
