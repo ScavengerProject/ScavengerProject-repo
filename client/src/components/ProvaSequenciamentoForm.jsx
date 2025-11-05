@@ -4,7 +4,7 @@ import { Label } from './ui/label';
 import { Button } from './ui/button';
 import { Checkbox } from './ui/checkbox';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
-import { List, Plus, Trash2, GripVertical } from 'lucide-react';
+import { List, Plus, Trash2, GripVertical, CheckCircle, XCircle, Info } from 'lucide-react';
 
 /**
  * Componente para configurar sequenciamento de etapas dentro de uma prova
@@ -136,9 +136,19 @@ export default function ProvaSequenciamentoForm({ sequenciamento, onChange }) {
                   {/* Descrição */}
                   <div className="flex-1">
                     <p className="text-sm text-gray-900">{etapa.descricao}</p>
-                    {etapa.obrigatoria && (
-                      <span className="text-xs text-purple-600">✓ Obrigatória</span>
-                    )}
+                    <div className="flex items-center gap-1 mt-1">
+                      {etapa.obrigatoria ? (
+                        <>
+                          <CheckCircle className="h-3 w-3 text-purple-600" />
+                          <span className="text-xs text-purple-600">Obrigatória</span>
+                        </>
+                      ) : (
+                        <>
+                          <Info className="h-3 w-3 text-gray-500" />
+                          <span className="text-xs text-gray-500">Opcional</span>
+                        </>
+                      )}
+                    </div>
                   </div>
 
                   {/* Controles */}
@@ -222,9 +232,20 @@ export default function ProvaSequenciamentoForm({ sequenciamento, onChange }) {
           <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 mt-4">
             <p className="text-sm text-purple-900 font-medium mb-2">Resumo do Sequenciamento:</p>
             <ul className="text-xs text-purple-800 space-y-1">
-              <li>✓ {etapas.length} etapa(s) definida(s)</li>
-              <li>✓ {etapas.filter(e => e.obrigatoria).length} obrigatória(s)</li>
-              {exigirOrdem && <li>✓ Deve seguir a ordem sequencial</li>}
+              <li className="flex items-center gap-1">
+                <List className="h-3 w-3" />
+                <span>{etapas.length} etapa(s) definida(s)</span>
+              </li>
+              <li className="flex items-center gap-1">
+                <CheckCircle className="h-3 w-3" />
+                <span>{etapas.filter(e => e.obrigatoria).length} obrigatória(s)</span>
+              </li>
+              {exigirOrdem && (
+                <li className="flex items-center gap-1">
+                  <Info className="h-3 w-3" />
+                  <span>Deve seguir a ordem sequencial</span>
+                </li>
+              )}
             </ul>
             <div className="mt-3 pt-3 border-t border-purple-200">
               <p className="text-xs text-purple-800 font-semibold mb-1">Sequência:</p>

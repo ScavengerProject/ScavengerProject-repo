@@ -265,9 +265,12 @@ const TodasProvas = () => {
             {/* Mensagem informativa para não-admins */}
             {usuario?.tipo !== 'ADMIN' && provasDisponiveis.length < provas.length && (
               <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <p className="text-sm text-blue-800">
-                  ℹ️ Algumas provas não estão sendo exibidas pois não estão disponíveis para seu perfil ou turma.
-                </p>
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="h-5 w-5 text-blue-600 mt-0.5 shrink-0" />
+                  <p className="text-sm text-blue-800">
+                    Algumas provas não estão sendo exibidas pois não estão disponíveis para seu perfil ou turma.
+                  </p>
+                </div>
               </div>
             )}
           </>

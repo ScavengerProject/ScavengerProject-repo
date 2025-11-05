@@ -157,8 +157,9 @@ const InscricaoEquipes = () => {
                   {/* Botão de Inscrição ou Mensagem */}
                   {equipe.isMinhaEquipe ? (
                     <div className="bg-green-100 border border-green-300 rounded-lg p-3 text-center">
-                      <p className="text-sm text-green-800 font-medium">
-                        ✓ Você já faz parte desta equipe
+                      <p className="text-sm text-green-800 font-medium flex items-center justify-center gap-2">
+                        <CheckCircle2 className="h-4 w-4" />
+                        <span>Você já faz parte desta equipe</span>
                       </p>
                     </div>
                   ) : minhaEquipe ? (

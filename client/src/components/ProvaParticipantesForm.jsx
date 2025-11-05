@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/
 import { Label } from "./ui/label";
 import { Input } from "./ui/Input";
 import { Checkbox } from "./ui/checkbox";
-import { Users, Infinity } from "lucide-react";
+import { Users, Infinity, CheckCircle, XCircle, Lock } from "lucide-react";
 
 const ProvaParticipantesForm = ({ requisitos, onChange }) => {
   const [semLimite, setSemLimite] = useState(false);
@@ -132,10 +132,20 @@ const ProvaParticipantesForm = ({ requisitos, onChange }) => {
                     placeholder="0 = não permitido"
                     className="bg-white border-gray-300"
                   />
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-gray-500 flex items-center gap-1">
                     {cotas[tipo.key] === 0 
-                      ? '❌ Não poderá participar'
-                      : `✓ Até ${cotas[tipo.key]} participante(s)`
+                      ? (
+                        <>
+                          <XCircle className="h-3 w-3 text-red-600" />
+                          <span>Não poderá participar</span>
+                        </>
+                      )
+                      : (
+                        <>
+                          <CheckCircle className="h-3 w-3 text-green-600" />
+                          <span>Até {cotas[tipo.key]} participante(s)</span>
+                        </>
+                      )
                     }
                   </p>
                 </div>
@@ -147,10 +157,20 @@ const ProvaParticipantesForm = ({ requisitos, onChange }) => {
               <p className="text-sm font-medium text-gray-900 mb-2">Resumo das Vagas:</p>
               <div className="grid grid-cols-2 gap-2 text-xs">
                 {tiposParticipantes.map((tipo) => (
-                  <div key={tipo.key} className="flex justify-between">
+                  <div key={tipo.key} className="flex justify-between items-center">
                     <span className="text-gray-600">{tipo.label.split(' ')[0]}:</span>
-                    <span className={`font-semibold ${cotas[tipo.key] > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {cotas[tipo.key] === 0 ? 'Bloqueado' : `${cotas[tipo.key]} vagas`}
+                    <span className={`font-semibold flex items-center gap-1 ${cotas[tipo.key] > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {cotas[tipo.key] === 0 ? (
+                        <>
+                          <Lock className="h-3 w-3" />
+                          <span>Bloqueado</span>
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle className="h-3 w-3" />
+                          <span>{cotas[tipo.key]} vagas</span>
+                        </>
+                      )}
                     </span>
                   </div>
                 ))}
@@ -169,9 +189,12 @@ const ProvaParticipantesForm = ({ requisitos, onChange }) => {
 
         {semLimite && (
           <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-            <p className="text-sm text-green-800">
-              ✓ <strong>Participação ilimitada ativada.</strong> Todos os tipos de usuários poderão participar desta prova sem restrição de vagas.
-            </p>
+            <div className="flex items-start gap-2">
+              <CheckCircle className="h-5 w-5 text-green-600 mt-0.5 shrink-0" />
+              <p className="text-sm text-green-800">
+                <strong>Participação ilimitada ativada.</strong> Todos os tipos de usuários poderão participar desta prova sem restrição de vagas.
+              </p>
+            </div>
           </div>
         )}
       </CardContent>

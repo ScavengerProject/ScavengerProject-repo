@@ -7,7 +7,7 @@ import {
   DialogTitle,
 } from "./ui/dialog";
 import { Badge } from "./ui/badge";
-import { Calendar, Clock, Users, Target, AlertCircle, List, CheckCircle2 } from "lucide-react";
+import { Calendar, Clock, Users, Target, AlertCircle, List, CheckCircle2, AlertTriangle } from "lucide-react";
 
 const ProvaDetalhesModal = ({ prova, isOpen, onClose }) => {
   if (!prova) return null;
@@ -180,9 +180,10 @@ const ProvaDetalhesModal = ({ prova, isOpen, onClose }) => {
                 <h4 className="font-semibold">Etapas da Prova</h4>
               </div>
               {sequenciamento.exigir_ordem && (
-                <p className="text-xs text-purple-700 mb-3 bg-purple-100 p-2 rounded">
-                  ⚠️ As etapas devem ser concluídas na ordem apresentada
-                </p>
+                <div className="flex items-start gap-2 text-xs text-purple-700 mb-3 bg-purple-100 p-2 rounded">
+                  <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+                  <span>As etapas devem ser concluídas na ordem apresentada</span>
+                </div>
               )}
               <ol className="space-y-2">
                 {sequenciamento.etapas

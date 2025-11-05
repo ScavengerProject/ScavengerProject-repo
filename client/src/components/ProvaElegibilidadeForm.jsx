@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Label } from './ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
-import { CheckSquare } from 'lucide-react';
+import { CheckSquare, CheckCircle, AlertCircle } from 'lucide-react';
 import { provasService } from '../services/api';
 import { Checkbox } from './ui/checkbox';
 
@@ -169,14 +169,26 @@ export default function ProvaElegibilidadeForm({ criterios, onChange, provaAtual
           <p className="text-sm text-blue-900 font-medium mb-2">Resumo dos Critérios:</p>
           <ul className="text-xs text-blue-800 space-y-1">
             {turmasSelecionadas.length > 0 ? (
-              <li>✓ Restrito a {turmasSelecionadas.length} turma(s) específica(s)</li>
+              <li className="flex items-center gap-1">
+                <CheckCircle className="h-3 w-3" />
+                <span>Restrito a {turmasSelecionadas.length} turma(s) específica(s)</span>
+              </li>
             ) : (
-              <li>✓ Todas as turmas podem participar</li>
+              <li className="flex items-center gap-1">
+                <CheckCircle className="h-3 w-3" />
+                <span>Todas as turmas podem participar</span>
+              </li>
             )}
             {preRequisitos.length > 0 ? (
-              <li>✓ Exige conclusão de {preRequisitos.length} prova(s) anterior(es)</li>
+              <li className="flex items-center gap-1">
+                <AlertCircle className="h-3 w-3" />
+                <span>Exige conclusão de {preRequisitos.length} prova(s) anterior(es)</span>
+              </li>
             ) : (
-              <li>✓ Sem pré-requisitos (qualquer pessoa pode fazer)</li>
+              <li className="flex items-center gap-1">
+                <CheckCircle className="h-3 w-3" />
+                <span>Sem pré-requisitos (qualquer pessoa pode fazer)</span>
+              </li>
             )}
           </ul>
         </div>

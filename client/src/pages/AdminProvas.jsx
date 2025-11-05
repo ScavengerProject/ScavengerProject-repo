@@ -54,7 +54,7 @@ const formatarRequisitos = (requisitos) => {
   const todosMaiorQue999 = valores.every(v => v >= 999);
   
   if (todosMaiorQue999) {
-    return "✓ Ilimitado (todos)";
+    return "Ilimitado (todos)";
   }
 
   // Contar vagas disponíveis
@@ -67,7 +67,7 @@ const formatarRequisitos = (requisitos) => {
     return vagas;
   }
 
-  return "⚠️ Sem vagas (0 para todos)";
+  return "Sem vagas";
 };
 
 const AdminProvas = () => {
