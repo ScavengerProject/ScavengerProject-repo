@@ -315,3 +315,47 @@ export const emprestimosService = {
       body: JSON.stringify({ justificativa }),
     }),
 };
+
+/**
+ * Serviço de Usuários (apenas ADMIN)
+ */
+export const usuariosService = {
+  // Listar todos os usuários com filtros opcionais
+  listar: (filtros = {}) => {
+    const params = new URLSearchParams();
+    if (filtros.tipo) params.append('tipo', filtros.tipo);
+    if (filtros.status) params.append('status', filtros.status);
+    if (filtros.turma) params.append('turma', filtros.turma);
+    if (filtros.search) params.append('search', filtros.search);
+    
+    const queryString = params.toString();
+    return request(`/usuarios${queryString ? '?' + queryString : ''}`, { method: 'GET' });
+  },
+
+  // Obter um usuário específico
+  obter: (id) => request(`/usuarios/${id}`, { method: 'GET' }),
+
+  // Criar novo usuário
+  criar: (dados) =>
+    request('/usuarios', {
+      method: 'POST',
+      body: JSON.stringify(dados),
+    }),
+
+  // Atualizar usuário existente
+  atualizar: (id, dados) =>
+    request(`/usuarios/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(dados),
+    }),
+
+  // Deletar usuário
+  deletar: (id) => request(`/usuarios/${id}`, { method: 'DELETE' }),
+
+  // Alternar status (ATIVO/INATIVO)
+  alternarStatus: (id) =>
+    request(`/usuarios/${id}/status`, { method: 'PATCH' }),
+
+  // Obter estatísticas
+  obterEstatisticas: () => request('/usuarios/estatisticas', { method: 'GET' }),
+};
