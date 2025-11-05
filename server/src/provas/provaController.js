@@ -15,7 +15,20 @@ const GRUPO_LABEL = {
  */
 export const criarProva = async (req, res) => {
   try {
-    const { titulo, descricao, formato, data_inicio, data_fim, status, quesitos_de_avaliacao, requisito_usuario, pontuacao } = req.body;
+    const { 
+      titulo, 
+      descricao, 
+      formato, 
+      data_inicio, 
+      data_fim, 
+      status, 
+      quesitos_de_avaliacao, 
+      requisito_usuario, 
+      pontuacao,
+      restricao_participacao,
+      criterio_elegibilidade,
+      sequenciamento
+    } = req.body;
 
     if (!titulo || !descricao || !formato) {
       return res.status(400).json({ message: 'Campos título, descrição e formato são obrigatórios.' });
@@ -29,8 +42,11 @@ export const criarProva = async (req, res) => {
       data_fim: data_fim || null,
       status: status || 'NAO_INICIADA',
       quesitos_de_avaliacao: quesitos_de_avaliacao || [],
-      requisito_usuario: requisito_usuario || null,
+      requisito_usuario: requisito_usuario || {},
       pontuacao: pontuacao || {},
+      restricao_participacao: restricao_participacao || {},
+      criterio_elegibilidade: criterio_elegibilidade || {},
+      sequenciamento: sequenciamento || {},
       criado_por_usuario_id: req.usuario.id,
     });
 
@@ -288,5 +304,28 @@ export const listarParticipantes = async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ message: 'Erro ao listar participantes.', error: error.message });
+  }
+};
+
+/**
+ * Verificar se o usuário está inscrito na prova
+ * GET /api/provas/:id/inscricao/status
+ */
+export const verificarInscricao = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const usuarioId = req.usuario.id;
+
+    const inscricao = await ProvaUsuario.findOne({
+      prova_id: id,
+      usuario_id: usuarioId
+    });
+
+    res.status(200).json({
+      inscrito: !!inscricao,
+      inscricao: inscricao || null
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Erro ao verificar inscrição.', error: error.message });
   }
 };

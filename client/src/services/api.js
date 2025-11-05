@@ -118,6 +118,10 @@ export const provasService = {
         status: dados.status || 'NAO_INICIADA',
         quesitos_de_avaliacao: dados.quesitos_de_avaliacao || [],
         requisito_usuario: dados.requisito_usuario || null,
+        restricao_participacao: dados.restricao_participacao || {},
+        criterio_elegibilidade: dados.criterio_elegibilidade || {},
+        sequenciamento: dados.sequenciamento || {},
+        pontuacao: dados.pontuacao || {},
       }),
     }),
   atualizar: (id, dados) =>
@@ -132,9 +136,28 @@ export const provasService = {
         status: dados.status || 'NAO_INICIADA',
         quesitos_de_avaliacao: dados.quesitos_de_avaliacao || [],
         requisito_usuario: dados.requisito_usuario || null,
+        restricao_participacao: dados.restricao_participacao || {},
+        criterio_elegibilidade: dados.criterio_elegibilidade || {},
+        sequenciamento: dados.sequenciamento || {},
+        pontuacao: dados.pontuacao || {},
       }),
     }),
   deletar: (id) => request(`/provas/${id}`, { method: 'DELETE' }),
+  
+  // Inscrever usuário na prova
+  inscrever: (provaId, usuarioId = null) =>
+    request(`/provas/${provaId}/inscricoes`, {
+      method: 'POST',
+      body: JSON.stringify(usuarioId ? { usuario_id: usuarioId } : {}),
+    }),
+  
+  // Verificar se está inscrito na prova
+  verificarInscricao: (provaId) =>
+    request(`/provas/${provaId}/inscricao/status`, { method: 'GET' }),
+  
+  // Listar participantes de uma prova
+  listarParticipantes: (provaId) =>
+    request(`/provas/${provaId}/participantes`, { method: 'GET' }),
 };
 
 /**

@@ -26,6 +26,10 @@ import { toast } from "../components/ui/toast";
 import { Plus, Edit, Trash2, ArrowLeft, Loader } from "lucide-react";
 import { Checkbox } from "../components/ui/checkbox";
 import { provasService } from "../services/api";
+import ProvaRestricoesForm from "../components/ProvaRestricoesForm";
+import ProvaElegibilidadeForm from "../components/ProvaElegibilidadeForm";
+import ProvaSequenciamentoForm from "../components/ProvaSequenciamentoForm";
+import ProvaParticipantesForm from "../components/ProvaParticipantesForm";
 
 const QUESITOS_OPCOES = [
   { value: 'TEMPO', label: 'Tempo de Execução' },
@@ -35,20 +39,35 @@ const QUESITOS_OPCOES = [
 // Função auxiliar para formatar os requisitos
 const formatarRequisitos = (requisitos) => {
   if (!requisitos || typeof requisitos !== 'object' || Object.keys(requisitos).length === 0) {
-    return "Não definido";
+    return "Não configurado";
   }
 
   const requisitoMap = {
-    ALUNOS_FUNDAMENTAL: "Alunos Fundamental",
-    ALUNOS_MEDIO: "Alunos Médio",
-    PROFESSORES: "Professores",
-    'PAI/MÃE': "Pais/Mães",
+    ALUNOS_FUNDAMENTAL: "EF",
+    ALUNOS_MEDIO: "EM",
+    PROFESSORES: "Prof",
+    'PAI/MÃE': "Pais",
   };
 
-  // Transforma o objeto em uma lista de strings "Nome: valor"
-  return Object.entries(requisitos)
+  // Verificar se é "sem limite" (todos >= 999)
+  const valores = Object.values(requisitos).map(v => Number(v) || 0);
+  const todosMaiorQue999 = valores.every(v => v >= 999);
+  
+  if (todosMaiorQue999) {
+    return "Ilimitado (todos)";
+  }
+
+  // Contar vagas disponíveis
+  const vagas = Object.entries(requisitos)
+    .filter(([_, valor]) => Number(valor) > 0)
     .map(([chave, valor]) => `${requisitoMap[chave] || chave}: ${valor}`)
-    .join(" | "); // Junta as strings com um separador
+    .join(" | ");
+
+  if (vagas) {
+    return vagas;
+  }
+
+  return "Sem vagas";
 };
 
 const AdminProvas = () => {
@@ -67,7 +86,16 @@ const AdminProvas = () => {
     data_fim: "",
     status: "NAO_INICIADA",
     quesitos_de_avaliacao: [],
-    requisito_usuario: "",
+    requisito_usuario: {
+      ALUNOS_FUNDAMENTAL: 0,
+      ALUNOS_MEDIO: 0,
+      PROFESSORES: 0,
+      'PAI/MÃE': 0,
+    },
+    restricao_participacao: {},
+    criterio_elegibilidade: {},
+    sequenciamento: {},
+    pontuacao: {},
   });
 
   // Carregar provas ao montar o componente
@@ -97,7 +125,16 @@ const AdminProvas = () => {
       data_fim: "",
       status: "NAO_INICIADA",
       quesitos_de_avaliacao: [],
-      requisito_usuario: "",
+      requisito_usuario: {
+        ALUNOS_FUNDAMENTAL: 0,
+        ALUNOS_MEDIO: 0,
+        PROFESSORES: 0,
+        'PAI/MÃE': 0,
+      },
+      restricao_participacao: {},
+      criterio_elegibilidade: {},
+      sequenciamento: {},
+      pontuacao: {},
     });
     setEditingProva(null);
   };
@@ -168,6 +205,24 @@ const AdminProvas = () => {
 
   const handleEdit = (prova) => {
     setEditingProva(prova);
+    
+    // Garantir que requisito_usuario seja sempre um objeto
+    let requisitoUsuario = {
+      ALUNOS_FUNDAMENTAL: 0,
+      ALUNOS_MEDIO: 0,
+      PROFESSORES: 0,
+      'PAI/MÃE': 0,
+    };
+    
+    if (prova.requisito_usuario && typeof prova.requisito_usuario === 'object') {
+      requisitoUsuario = {
+        ALUNOS_FUNDAMENTAL: Number(prova.requisito_usuario.ALUNOS_FUNDAMENTAL) || 0,
+        ALUNOS_MEDIO: Number(prova.requisito_usuario.ALUNOS_MEDIO) || 0,
+        PROFESSORES: Number(prova.requisito_usuario.PROFESSORES) || 0,
+        'PAI/MÃE': Number(prova.requisito_usuario['PAI/MÃE']) || 0,
+      };
+    }
+    
     setFormData({
       titulo: prova.titulo,
       descricao: prova.descricao,
@@ -176,7 +231,11 @@ const AdminProvas = () => {
       data_fim: prova.data_fim ? new Date(prova.data_fim).toISOString().split('T')[0] : "",
       status: prova.status || "NAO_INICIADA",
       quesitos_de_avaliacao: prova.quesitos_de_avaliacao || [],
-      requisito_usuario: prova.requisito_usuario || "",
+      requisito_usuario: requisitoUsuario,
+      restricao_participacao: prova.restricao_participacao || {},
+      criterio_elegibilidade: prova.criterio_elegibilidade || {},
+      sequenciamento: prova.sequenciamento || {},
+      pontuacao: prova.pontuacao || {},
     });
     setIsDialogOpen(true);
   };
@@ -218,6 +277,58 @@ const AdminProvas = () => {
       PROVA_ESCRITA: "Prova Escrita",
     };
     return formatoMap[formato] || formato;
+  };
+
+  // Função auxiliar para formatar critérios de elegibilidade
+  const formatarCriteriosElegibilidade = (criterio) => {
+    if (!criterio || typeof criterio !== 'object') return null;
+    
+    const turmas = criterio.turmas_permitidas || [];
+    const preRequisitos = criterio.pre_requisitos_prova_ids || [];
+    
+    if (turmas.length === 0 && preRequisitos.length === 0) return null;
+    
+    const partes = [];
+    if (turmas.length > 0) {
+      partes.push(`${turmas.length} turma(s)`);
+    } else {
+      partes.push('Todas as turmas');
+    }
+    if (preRequisitos.length > 0) {
+      partes.push(`${preRequisitos.length} pré-requisito(s)`);
+    }
+    return partes.join(' • ');
+  };
+
+  // Função auxiliar para formatar restrições de participação
+  const formatarRestricoes = (restricao) => {
+    if (!restricao || typeof restricao !== 'object') return null;
+    
+    const partes = [];
+    if (restricao.limite_tentativas) {
+      partes.push(`Máx ${restricao.limite_tentativas} tentativas`);
+    }
+    if (restricao.tempo_maximo_minutos) {
+      partes.push(`${restricao.tempo_maximo_minutos} min`);
+    }
+    if (restricao.permitir_reenvio === false) {
+      partes.push('Sem reenvio');
+    }
+    
+    return partes.length > 0 ? partes.join(' • ') : null;
+  };
+
+  // Função auxiliar para formatar sequenciamento
+  const formatarSequenciamento = (sequenciamento) => {
+    if (!sequenciamento || typeof sequenciamento !== 'object') return null;
+    
+    const etapas = sequenciamento.etapas || [];
+    if (etapas.length === 0) return null;
+    
+    const obrigatorias = etapas.filter(e => e.obrigatoria).length;
+    const exigeOrdem = sequenciamento.exigir_ordem ? ' (ordem obrigatória)' : '';
+    
+    return `${etapas.length} etapa(s) - ${obrigatorias} obrigatória(s)${exigeOrdem}`;
   };
 
   return (
@@ -385,23 +496,34 @@ const AdminProvas = () => {
                     </div>
                   </div>
 
-                  {/* Requisito de Usuário */}
-                  <div className="grid gap-2">
-                    <Label htmlFor="requisito" className="text-gray-900 font-medium">
-                      Requisito de Usuário
-                    </Label>
-                    <Select value={formData.requisito_usuario} onValueChange={(value) => setFormData({ ...formData, requisito_usuario: value })} disabled={submitting}>
-                      <SelectTrigger className="bg-white border-gray-300">
-                        <SelectValue placeholder="Selecione (opcional)" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-white border-gray-300">
-                        <SelectItem value="ALUNOS_FUNDAMENTAL">Alunos Fundamental</SelectItem>
-                        <SelectItem value="ALUNOS_MEDIO">Alunos Médio</SelectItem>
-                        <SelectItem value="PROFESSORES">Professores</SelectItem>
-                        <SelectItem value="PAI/MÃE">Pai/Mãe</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  {/* Divisor visual para separar seções básicas das avançadas */}
+                  <div className="border-t border-gray-300 my-4"></div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Configurações Avançadas</h3>
+
+                  {/* Participantes e Cotas */}
+                  <ProvaParticipantesForm
+                    requisitos={formData.requisito_usuario}
+                    onChange={(requisitos) => setFormData({ ...formData, requisito_usuario: requisitos })}
+                  />
+
+                  {/* Restrições de Participação */}
+                  <ProvaRestricoesForm
+                    restricoes={formData.restricao_participacao}
+                    onChange={(restricoes) => setFormData({ ...formData, restricao_participacao: restricoes })}
+                  />
+
+                  {/* Critérios de Elegibilidade */}
+                  <ProvaElegibilidadeForm
+                    criterios={formData.criterio_elegibilidade}
+                    onChange={(criterios) => setFormData({ ...formData, criterio_elegibilidade: criterios })}
+                    provaAtualId={editingProva?._id}
+                  />
+
+                  {/* Sequenciamento */}
+                  <ProvaSequenciamentoForm
+                    sequenciamento={formData.sequenciamento}
+                    onChange={(sequenciamento) => setFormData({ ...formData, sequenciamento: sequenciamento })}
+                  />
                 </div>
                 <DialogFooter>
                   <Button 
@@ -502,6 +624,38 @@ const AdminProvas = () => {
                         </div>
                       )}
                     </div>
+
+                    {/* Novos critérios US14 */}
+                    {(formatarCriteriosElegibilidade(prova.criterio_elegibilidade) || 
+                      formatarRestricoes(prova.restricao_participacao) || 
+                      formatarSequenciamento(prova.sequenciamento)) && (
+                      <div className="pt-3 border-t border-gray-200">
+                        <p className="text-xs text-gray-500 uppercase font-semibold mb-2">Configurações Avançadas</p>
+                        <div className="space-y-1">
+                          {formatarCriteriosElegibilidade(prova.criterio_elegibilidade) && (
+                            <div className="flex items-start gap-2">
+                              <p className="text-sm text-gray-700">
+                                <span className="font-medium">Elegibilidade:</span> {formatarCriteriosElegibilidade(prova.criterio_elegibilidade)}
+                              </p>
+                            </div>
+                          )}
+                          {formatarRestricoes(prova.restricao_participacao) && (
+                            <div className="flex items-start gap-2">
+                              <p className="text-sm text-gray-700">
+                                <span className="font-medium">Restrições:</span> {formatarRestricoes(prova.restricao_participacao)}
+                              </p>
+                            </div>
+                          )}
+                          {formatarSequenciamento(prova.sequenciamento) && (
+                            <div className="flex items-start gap-2">
+                              <p className="text-sm text-gray-700">
+                                <span className="font-medium">Sequenciamento:</span> {formatarSequenciamento(prova.sequenciamento)}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               ))
