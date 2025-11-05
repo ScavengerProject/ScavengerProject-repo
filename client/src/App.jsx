@@ -13,6 +13,7 @@ import InscricaoEquipes from './pages/InscricaoEquipes.jsx';
 import SolicitarMigracao from './pages/SolicitarMigracao.jsx';
 import AprovarMigracoes from './pages/AprovarMigracoes.jsx';
 import AdminEmprestimos from './pages/AdminEmprestimos.jsx';
+import AdminUsuarios from './pages/AdminUsuarios.jsx';
 import { useToast } from './components/ui/toast';
 import { ToastContainer } from './components/ui/ToastContainer';
 
@@ -105,6 +106,16 @@ function App() {
           element={
             isAuthenticated
               ? (usuario.tipo === 'ADMIN' ? <AdminEmprestimos /> : <Navigate to="/" replace />)
+              : <Navigate to="/login" replace />
+          }
+        />
+
+        {/* Rota para Admin Usuários */}
+        <Route
+          path="/admin/usuarios"
+          element={
+            isAuthenticated
+              ? (usuario.tipo === 'ADMIN' ? <AdminUsuarios /> : <Navigate to="/" replace />)
               : <Navigate to="/login" replace />
           }
         />
