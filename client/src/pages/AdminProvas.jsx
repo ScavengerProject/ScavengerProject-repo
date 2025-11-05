@@ -29,6 +29,7 @@ import { provasService } from "../services/api";
 import ProvaRestricoesForm from "../components/ProvaRestricoesForm";
 import ProvaElegibilidadeForm from "../components/ProvaElegibilidadeForm";
 import ProvaSequenciamentoForm from "../components/ProvaSequenciamentoForm";
+import ProvaParticipantesForm from "../components/ProvaParticipantesForm";
 
 const QUESITOS_OPCOES = [
   { value: 'TEMPO', label: 'Tempo de Execução' },
@@ -38,20 +39,35 @@ const QUESITOS_OPCOES = [
 // Função auxiliar para formatar os requisitos
 const formatarRequisitos = (requisitos) => {
   if (!requisitos || typeof requisitos !== 'object' || Object.keys(requisitos).length === 0) {
-    return "Não definido";
+    return "Não configurado";
   }
 
   const requisitoMap = {
-    ALUNOS_FUNDAMENTAL: "Alunos Fundamental",
-    ALUNOS_MEDIO: "Alunos Médio",
-    PROFESSORES: "Professores",
-    'PAI/MÃE': "Pais/Mães",
+    ALUNOS_FUNDAMENTAL: "EF",
+    ALUNOS_MEDIO: "EM",
+    PROFESSORES: "Prof",
+    'PAI/MÃE': "Pais",
   };
 
-  // Transforma o objeto em uma lista de strings "Nome: valor"
-  return Object.entries(requisitos)
+  // Verificar se é "sem limite" (todos >= 999)
+  const valores = Object.values(requisitos).map(v => Number(v) || 0);
+  const todosMaiorQue999 = valores.every(v => v >= 999);
+  
+  if (todosMaiorQue999) {
+    return "✓ Ilimitado (todos)";
+  }
+
+  // Contar vagas disponíveis
+  const vagas = Object.entries(requisitos)
+    .filter(([_, valor]) => Number(valor) > 0)
     .map(([chave, valor]) => `${requisitoMap[chave] || chave}: ${valor}`)
-    .join(" | "); // Junta as strings com um separador
+    .join(" | ");
+
+  if (vagas) {
+    return vagas;
+  }
+
+  return "⚠️ Sem vagas (0 para todos)";
 };
 
 const AdminProvas = () => {
@@ -70,7 +86,12 @@ const AdminProvas = () => {
     data_fim: "",
     status: "NAO_INICIADA",
     quesitos_de_avaliacao: [],
-    requisito_usuario: "",
+    requisito_usuario: {
+      ALUNOS_FUNDAMENTAL: 0,
+      ALUNOS_MEDIO: 0,
+      PROFESSORES: 0,
+      'PAI/MÃE': 0,
+    },
     restricao_participacao: {},
     criterio_elegibilidade: {},
     sequenciamento: {},
@@ -104,7 +125,12 @@ const AdminProvas = () => {
       data_fim: "",
       status: "NAO_INICIADA",
       quesitos_de_avaliacao: [],
-      requisito_usuario: "",
+      requisito_usuario: {
+        ALUNOS_FUNDAMENTAL: 0,
+        ALUNOS_MEDIO: 0,
+        PROFESSORES: 0,
+        'PAI/MÃE': 0,
+      },
       restricao_participacao: {},
       criterio_elegibilidade: {},
       sequenciamento: {},
@@ -179,6 +205,24 @@ const AdminProvas = () => {
 
   const handleEdit = (prova) => {
     setEditingProva(prova);
+    
+    // Garantir que requisito_usuario seja sempre um objeto
+    let requisitoUsuario = {
+      ALUNOS_FUNDAMENTAL: 0,
+      ALUNOS_MEDIO: 0,
+      PROFESSORES: 0,
+      'PAI/MÃE': 0,
+    };
+    
+    if (prova.requisito_usuario && typeof prova.requisito_usuario === 'object') {
+      requisitoUsuario = {
+        ALUNOS_FUNDAMENTAL: Number(prova.requisito_usuario.ALUNOS_FUNDAMENTAL) || 0,
+        ALUNOS_MEDIO: Number(prova.requisito_usuario.ALUNOS_MEDIO) || 0,
+        PROFESSORES: Number(prova.requisito_usuario.PROFESSORES) || 0,
+        'PAI/MÃE': Number(prova.requisito_usuario['PAI/MÃE']) || 0,
+      };
+    }
+    
     setFormData({
       titulo: prova.titulo,
       descricao: prova.descricao,
@@ -187,7 +231,7 @@ const AdminProvas = () => {
       data_fim: prova.data_fim ? new Date(prova.data_fim).toISOString().split('T')[0] : "",
       status: prova.status || "NAO_INICIADA",
       quesitos_de_avaliacao: prova.quesitos_de_avaliacao || [],
-      requisito_usuario: prova.requisito_usuario || "",
+      requisito_usuario: requisitoUsuario,
       restricao_participacao: prova.restricao_participacao || {},
       criterio_elegibilidade: prova.criterio_elegibilidade || {},
       sequenciamento: prova.sequenciamento || {},
@@ -452,27 +496,15 @@ const AdminProvas = () => {
                     </div>
                   </div>
 
-                  {/* Requisito de Usuário */}
-                  <div className="grid gap-2">
-                    <Label htmlFor="requisito" className="text-gray-900 font-medium">
-                      Requisito de Usuário
-                    </Label>
-                    <Select value={formData.requisito_usuario} onValueChange={(value) => setFormData({ ...formData, requisito_usuario: value })} disabled={submitting}>
-                      <SelectTrigger className="bg-white border-gray-300">
-                        <SelectValue placeholder="Selecione (opcional)" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-white border-gray-300">
-                        <SelectItem value="ALUNOS_FUNDAMENTAL">Alunos Fundamental</SelectItem>
-                        <SelectItem value="ALUNOS_MEDIO">Alunos Médio</SelectItem>
-                        <SelectItem value="PROFESSORES">Professores</SelectItem>
-                        <SelectItem value="PAI/MÃE">Pai/Mãe</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
                   {/* Divisor visual para separar seções básicas das avançadas */}
                   <div className="border-t border-gray-300 my-4"></div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Configurações Avançadas (US14)</h3>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Configurações Avançadas</h3>
+
+                  {/* Participantes e Cotas */}
+                  <ProvaParticipantesForm
+                    requisitos={formData.requisito_usuario}
+                    onChange={(requisitos) => setFormData({ ...formData, requisito_usuario: requisitos })}
+                  />
 
                   {/* Restrições de Participação */}
                   <ProvaRestricoesForm
@@ -598,7 +630,7 @@ const AdminProvas = () => {
                       formatarRestricoes(prova.restricao_participacao) || 
                       formatarSequenciamento(prova.sequenciamento)) && (
                       <div className="pt-3 border-t border-gray-200">
-                        <p className="text-xs text-gray-500 uppercase font-semibold mb-2">Configurações Avançadas (US14)</p>
+                        <p className="text-xs text-gray-500 uppercase font-semibold mb-2">Configurações Avançadas</p>
                         <div className="space-y-1">
                           {formatarCriteriosElegibilidade(prova.criterio_elegibilidade) && (
                             <div className="flex items-start gap-2">
