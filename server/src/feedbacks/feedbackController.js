@@ -105,3 +105,23 @@ export const responderFeedback = async (req, res) => {
         res.status(500).json({ message: 'Erro interno ao responder feedback.' });
     }
 };
+
+/**
+ * [GET] Lista APENAS os feedbacks enviados pelo usuário logado.
+ */
+export const listarMeusFeedbacks = async (req, res) => {
+    try {
+        const usuarioId = req.usuario.id; 
+
+        // Busca feedbacks onde o ID do usuário logado é o criador
+        const feedbacks = await Feedback.find({ criado_por_usuario_id: usuarioId })
+            .sort({ criado_em: -1 }) // Ordena do mais novo para o mais antigo
+            .populate('avaliado_por_usuario_id', 'nome'); // Popula quem respondeu
+
+        res.status(200).json(feedbacks);
+
+    } catch (error) {
+        console.error('Erro ao listar meus feedbacks:', error);
+        res.status(500).json({ message: 'Erro interno ao buscar seus feedbacks.' });
+    }
+};

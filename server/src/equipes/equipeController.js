@@ -450,7 +450,12 @@ export const visualizarEquipe = async (req, res) => {
         // 2. Busca os detalhes da equipe e os membros em paralelo
         const [equipe, membrosDaEquipe] = await Promise.all([
             Equipe.findById(equipeId),
-            EquipeMembros.find({ equipe_id: equipeId }).populate('usuario_id', 'nome email tipo turma')
+            
+            // Filtra os membros para excluir o próprio Coordenador.
+            EquipeMembros.find({ 
+                equipe_id: equipeId,
+                usuario_id: { $ne: coordenadorId } // Adiciona a condição: usuario_id NÃO É IGUAL ao coordenadorId
+            }).populate('usuario_id', 'nome email tipo turma')
         ]);
         
         if (!equipe) return res.status(404).json({ message: 'Equipe não encontrada.' });

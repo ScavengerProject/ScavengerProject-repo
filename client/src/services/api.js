@@ -375,6 +375,11 @@ export const feedbacksService = {
                 resposta_admin: respostaTexto 
             }),
         }),
+
+    listarMeusFeedbacks: () =>
+          request('/feedbacks/minhos', {
+              method: 'GET',
+          }),
 };
 
 export default {

@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { MessageSquare } from 'lucide-react';
-import EnviarFeedback from '../pages/EnviarFeedback'; // Ajuste o caminho se for diferente
+import EnviarFeedback from '../pages/EnviarFeedback';
 
 const FeedbackFAB = () => {
     const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);

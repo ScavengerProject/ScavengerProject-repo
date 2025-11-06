@@ -2,10 +2,10 @@ import React, { useState } from 'react';
 import { Button } from '../components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../components/ui/dialog';
 import { Label } from '../components/ui/label';
-import { Textarea } from '../components/ui/textarea'; // Assume que você tem um componente Textarea
+import { Textarea } from '../components/ui/textarea';
 import { Send } from 'lucide-react';
 import { toast } from '../components/ui/toast';
-import { feedbacksService } from '../services/api.js'; // Ajuste o caminho conforme necessário
+import { feedbacksService } from '../services/api.js';
 
 const EnviarFeedback = ({ isOpen, setIsOpen }) => {
     const [descricao, setDescricao] = useState('');

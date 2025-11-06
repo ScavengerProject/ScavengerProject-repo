@@ -15,6 +15,7 @@ import AprovarMigracoes from './pages/AprovarMigracoes.jsx';
 import AdminEmprestimos from './pages/AdminEmprestimos.jsx';
 import AdminUsuarios from './pages/AdminUsuarios.jsx';
 import AdminFeedbacks from './pages/AdminFeedbacks.jsx';
+import MeusFeedbacks from './pages/MeusFeedbacks.jsx';
 import { useToast } from './components/ui/toast';
 import { ToastContainer } from './components/ui/ToastContainer';
 
@@ -158,6 +159,10 @@ function App() {
               : <Navigate to="/login" replace />
           }
         />
+        <Route
+        path="/meus-feedbacks"
+        element={isAuthenticated ? <MeusFeedbacks /> : <Navigate to="/login" replace />}
+      />
       </Routes>
       <ToastContainer toasts={toasts} />
     </>
