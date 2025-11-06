@@ -11,7 +11,8 @@ import {
   removerMembroEquipe,
   listarEquipesPublicas,
   listarEquipesParaInscricao,
-  inscreverAlunoEmEquipe
+  inscreverAlunoEmEquipe,
+  deletarEquipe
 } from './equipeController.js';
 import { proteger, autorizar } from '../auth/authPermissions.js';
 
@@ -28,6 +29,8 @@ router.get('/', proteger, autorizar('ADMIN', 'COORDENADOR', 'PROFESSOR', 'ALUNO'
 
 // Criar nova equipe (apenas Admin)
 router.post('/', proteger, autorizar('ADMIN'), criarEquipe);
+// Excluir equipe (apenas Admin)
+router.delete('/:id', proteger, autorizar('ADMIN'), deletarEquipe);
 
 router.patch('/:id/membros', proteger, autorizar('ADMIN'), adicionarMembro);
 router.get('/coordenadores-disponiveis', proteger, autorizar('ADMIN'), listarCoordenadoresDisponiveis);

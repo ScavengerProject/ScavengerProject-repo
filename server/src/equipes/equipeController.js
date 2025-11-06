@@ -407,6 +407,34 @@ export const listarUsuariosSemEquipe = async (req, res) => {
 };
 
 /**
+ * [DELETE] Exclui uma equipe e todos os seus registros associados em todas as collections.
+ * Quem pode: ADMIN
+ */
+export const deletarEquipe = async (req, res) => {
+    try {
+        const { id: equipeId } = req.params;
+
+        const equipe = await Equipe.findById(equipeId);
+        if (!equipe) {
+            return res.status(404).json({ message: 'Equipe não encontrada.' });
+        }
+
+        await Promise.all([
+            EquipeMembros.deleteMany({ equipe_id: equipeId }),
+            EquipeGincana.deleteMany({ equipe_id: equipeId }), 
+
+            Equipe.findByIdAndDelete(equipeId), 
+        ]);
+
+        res.status(200).json({ message: 'Equipe excluída com sucesso.' });
+
+    } catch (error) {
+        console.error('Erro ao deletar equipe:', error);
+        res.status(500).json({ message: 'Erro interno ao deletar equipe.' });
+    }
+};
+
+/**
  * GET visualizar detalhes e membros da própria equipe
  */
 export const visualizarEquipe = async (req, res) => {

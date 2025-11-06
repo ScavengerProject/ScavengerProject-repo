@@ -164,84 +164,80 @@ export const provasService = {
 * Serviço de Equipes
 */
 export const equipesService = {
-  listarEquipes: () => request('/equipes', { method: 'GET' }),
+  listarEquipes: () => request('/equipes', { method: 'GET' }),
 
-  // ✅ público para autenticados (nomes/ids) – usado pelos alunos ao solicitar migração
-  listarEquipesPublicas: () => request('/equipes/publicas', { method: 'GET' }),
+  // ✅ público para autenticados (nomes/ids) – usado pelos alunos ao solicitar migração
+  listarEquipesPublicas: () => request('/equipes/publicas', { method: 'GET' }),
 
-  // ✅ Lista equipes para inscrição, marcando qual é a equipe atual
-  listarEquipesParaInscricao: () => request('/equipes/para-inscricao', { method: 'GET' }),
+  // ✅ Lista equipes para inscrição, marcando qual é a equipe atual
+  listarEquipesParaInscricao: () => request('/equipes/para-inscricao', { method: 'GET' }),
 
-  listarCoordenadoresDisponiveis: () =>
-    request('/equipes/coordenadores-disponiveis', { method: 'GET' }),
+  listarCoordenadoresDisponiveis: () =>
+    request('/equipes/coordenadores-disponiveis', { method: 'GET' }),
 
-  criarEquipe: (dados) =>
-    request('/equipes', {
-      method: 'POST',
-      body: JSON.stringify(dados),
-    }),
+  criarEquipe: (dados) =>
+    request('/equipes', {
+      method: 'POST',
+      body: JSON.stringify(dados),
+    }),
 
-    // [GET] /api/equipes/minha-equipe
-    visualizarMinhaEquipe: () =>
-      request('/equipes/minha-equipe', {
-        method: 'GET',
-      }),
+    // [GET] /api/equipes/minha-equipe
+    visualizarMinhaEquipe: () =>
+      request('/equipes/minha-equipe', {
+        method: 'GET',
+      }),
+    
+    /**
+     * [POST] /api/equipes/minha-equipe/membros
+     */
+    adicionarMembroMinhaEquipe: (usuarioId) =>
+      request('/equipes/minha-equipe/membros', {
+        method: 'POST',
+        body: JSON.stringify({ usuario_id: usuarioId }),
+      }),
+    
+    /**
+     * [DELETE] /api/equipes/minha-equipe/membros/:membroId
+     */
+    removerMembroMinhaEquipe: (membroId) =>
+      request(`/equipes/minha-equipe/membros/${membroId}`, {
+        method: 'DELETE',
+      }),
+
+    /**
+     * [POST] /api/equipes/:equipeId/register - Inscrever aluno em equipe
+     */
+    inscreverEmEquipe: (equipeId) =>
+      request(`/equipes/${equipeId}/register`, {
+        method: 'POST',
+        body: JSON.stringify({}),
+      }),
     
     /**
-     * [POST] /api/equipes/minha-equipe/membros
+     * [DELETE] /api/equipes/:equipeId
      */
-    adicionarMembroMinhaEquipe: (usuarioId) =>
-      request('/equipes/minha-equipe/membros', {
-        method: 'POST',
-        body: JSON.stringify({ usuario_id: usuarioId }),
-      }),
-    
-    /**
-     * [DELETE] /api/equipes/minha-equipe/membros/:membroId
-     */
-    removerMembroMinhaEquipe: (membroId) =>
-      request(`/equipes/minha-equipe/membros/${membroId}`, {
+    deletarEquipe: (equipeId) =>
+      request(`/equipes/${equipeId}`, {
         method: 'DELETE',
       }),
 
-    /**
-     * [POST] /api/equipes/:equipeId/register - Inscrever aluno em equipe
-     */
-    inscreverEmEquipe: (equipeId) =>
-      request(`/equipes/${equipeId}/register`, {
-        method: 'POST',
-        body: JSON.stringify({}),
-      }),
-  adicionarMembro: (equipeId, usuarioId) =>
-    request(`/equipes/${equipeId}/membros`, {
-      method: 'PATCH',
-      body: JSON.stringify({ usuario_id: usuarioId }),
-    }),
+  adicionarMembro: (equipeId, usuarioId) =>
+    request(`/equipes/${equipeId}/membros`, {
+      method: 'PATCH',
+      body: JSON.stringify({ usuario_id: usuarioId }),
+    }),
 
-  listarMembrosDisponiveis: () =>
-    request('/equipes/membros-disponiveis', { method: 'GET' }),
+  listarMembrosDisponiveis: () =>
+    request('/equipes/membros-disponiveis', { method: 'GET' }),
 
-  // ✅ Lista todos os membros de todas as equipes
-  listarTodosMembros: () =>
-    request('/equipes/todos-membros', { method: 'GET' }),
+  // ✅ Lista todos os membros de todas as equipes
+  listarTodosMembros: () =>
+    request('/equipes/todos-membros', { method: 'GET' }),
 
-  // ✅ Lista EquipeGincana para seleção (empréstimos)
-  listarEquipesGincana: () =>
-    request('/equipes/equipes-gincana', { method: 'GET' }),
+  // ✅ Lista EquipeGincana para seleção (empréstimos)
+  listarEquipesGincana: () =>
+    request('/equipes/equipes-gincana', { method: 'GET' }),
 
-  visualizarMinhaEquipe: () =>
-    request('/equipes/minha-equipe', { method: 'GET' }),
-
-  adicionarMembroMinhaEquipe: (usuarioId) =>
-    request('/equipes/minha-equipe/membros', {
-      method: 'POST',
-      body: JSON.stringify({ usuario_id: usuarioId }),
-    }),
-
-  removerMembroMinhaEquipe: (membroId) =>
-    request(`/equipes/minha-equipe/membros/${membroId}`, {
-      method: 'DELETE',
-    }),
 };
 
 /**
