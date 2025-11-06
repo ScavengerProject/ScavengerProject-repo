@@ -3,9 +3,9 @@ import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
-import { ArrowLeft, Trophy, Calendar, Filter, CheckCircle2, Clock, XCircle } from "lucide-react";
+import { ArrowLeft, Trophy, Calendar, Filter, CheckCircle2, Clock, XCircle, AlertCircle } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
-import { provasService } from "../services/api";
+import { provasService, equipesService } from "../services/api";
 import { toast } from "../components/ui/toast";
 import ProvaDetalhesModal from "../components/ProvaDetalhesModal";
 
@@ -17,10 +17,14 @@ const TodasProvas = () => {
   const [provaSelecionada, setProvaSelecionada] = useState(null);
   const [modalAberto, setModalAberto] = useState(false);
   const [filtroStatus, setFiltroStatus] = useState('TODOS');
+  const [equipeLider, setEquipeLider] = useState(null);
 
   useEffect(() => {
     carregarProvas();
-  }, []);
+    if (usuario) {
+      carregarEquipeLider();
+    }
+  }, [usuario]);
 
   const carregarProvas = async () => {
     try {
@@ -32,6 +36,23 @@ const TodasProvas = () => {
       toast.error("Erro ao carregar provas");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const carregarEquipeLider = async () => {
+    try {
+      // Usar o serviço correto baseado no tipo de usuário
+      const equipesData = usuario?.tipo === 'ADMIN' 
+        ? await equipesService.listarEquipes()
+        : await equipesService.listarEquipesParaInscricao();
+      
+      // Ordenar por pontuação decrescente e pegar a primeira
+      const equipesOrdenadas = (equipesData || [])
+        .sort((a, b) => (b.pontos_acumulados || 0) - (a.pontos_acumulados || 0));
+      setEquipeLider(equipesOrdenadas.length > 0 ? equipesOrdenadas[0] : null);
+    } catch (error) {
+      console.error("Erro ao carregar equipe líder:", error);
+      // Silenciosamente falha - não mostra erro ao usuário
     }
   };
 
@@ -260,6 +281,16 @@ const TodasProvas = () => {
                             </Badge>
                           )}
                         </div>
+
+                        {/* Equipe em primeiro lugar - apenas para provas concluídas */}
+                        {prova.status === 'CONCLUIDA' && equipeLider && (
+                          <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
+                            <Trophy className="h-4 w-4 text-yellow-600" />
+                            <span className="text-xs font-medium text-gray-700">
+                              1º lugar: <span className="font-semibold text-gray-900">{equipeLider.nome}</span>
+                            </span>
+                          </div>
+                        )}
                       </CardContent>
                     </Card>
                   );

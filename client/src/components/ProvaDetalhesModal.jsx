@@ -9,19 +9,24 @@ import {
 } from "./ui/dialog";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
-import { Calendar, Clock, Users, Target, AlertCircle, List, CheckCircle2, AlertTriangle, UserPlus, Loader, UserCheck } from "lucide-react";
-import { provasService } from "../services/api";
+import { Checkbox } from "./ui/checkbox";
+import { Calendar, Clock, Users, Target, AlertCircle, List, CheckCircle2, AlertTriangle, UserPlus, Loader, UserCheck, Trophy } from "lucide-react";
+import { provasService, equipesService } from "../services/api";
 import { toast } from "./ui/toast";
 
 const ProvaDetalhesModal = ({ prova, isOpen, onClose, onInscricaoSucesso }) => {
   const [inscrevendo, setInscrevendo] = useState(false);
   const [jaInscrito, setJaInscrito] = useState(false);
   const [verificandoInscricao, setVerificandoInscricao] = useState(false);
+  const [equipes, setEquipes] = useState([]);
+  const [carregandoEquipes, setCarregandoEquipes] = useState(false);
+  const [mostrarPontos, setMostrarPontos] = useState(false);
 
-  // Verificar inscrição quando o modal abrir
+  // Verificar inscrição e carregar equipes quando o modal abrir
   useEffect(() => {
     if (isOpen && prova) {
       verificarInscricao();
+      carregarEquipes();
     }
   }, [isOpen, prova]);
 
@@ -37,6 +42,22 @@ const ProvaDetalhesModal = ({ prova, isOpen, onClose, onInscricaoSucesso }) => {
       // Silenciosamente falha - não mostra erro ao usuário
     } finally {
       setVerificandoInscricao(false);
+    }
+  };
+
+  const carregarEquipes = async () => {
+    try {
+      setCarregandoEquipes(true);
+      const equipesData = await equipesService.listarEquipes();
+      // Ordenar por pontuação decrescente (maior para menor)
+      const equipesOrdenadas = (equipesData || [])
+        .sort((a, b) => (b.pontos_acumulados || 0) - (a.pontos_acumulados || 0));
+      setEquipes(equipesOrdenadas);
+    } catch (error) {
+      console.error('Erro ao carregar equipes:', error);
+      // Silenciosamente falha - não mostra erro ao usuário
+    } finally {
+      setCarregandoEquipes(false);
     }
   };
   
@@ -237,7 +258,7 @@ const ProvaDetalhesModal = ({ prova, isOpen, onClose, onInscricaoSucesso }) => {
                   .sort((a, b) => a.ordem - b.ordem)
                   .map((etapa, index) => (
                     <li key={index} className="flex items-start gap-3 text-sm text-purple-800">
-                      <span className="font-bold text-purple-600 min-w-[24px]">{etapa.ordem}.</span>
+                      <span className="font-bold text-purple-600 min-w-6">{etapa.ordem}.</span>
                       <div className="flex-1">
                         <span>{etapa.descricao}</span>
                         {!etapa.obrigatoria && (
@@ -265,6 +286,84 @@ const ProvaDetalhesModal = ({ prova, isOpen, onClose, onInscricaoSucesso }) => {
               </div>
             </div>
           )}
+
+          {/* Pontuação das Equipes */}
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2 text-green-900">
+                <Trophy className="h-5 w-5" />
+                <h4 className="font-semibold">Pontuação das Equipes da Gincana</h4>
+              </div>
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="mostrar-pontos"
+                  checked={mostrarPontos}
+                  onCheckedChange={setMostrarPontos}
+                />
+                <label
+                  htmlFor="mostrar-pontos"
+                  className="text-sm font-medium text-green-800 cursor-pointer"
+                >
+                  Mostrar pontos
+                </label>
+              </div>
+            </div>
+            {carregandoEquipes ? (
+              <div className="flex items-center justify-center py-4">
+                <Loader className="h-5 w-5 animate-spin text-green-600" />
+                <span className="ml-2 text-sm text-green-800">Carregando ranking...</span>
+              </div>
+            ) : equipes.length === 0 ? (
+              <p className="text-sm text-green-800 text-center py-2">
+                Nenhuma equipe cadastrada ainda.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {equipes.map((equipe, index) => (
+                  <div
+                    key={equipe.id || equipe._id}
+                    className={`flex items-center justify-between p-3 rounded-lg border ${
+                      index === 0
+                        ? 'bg-yellow-50 border-yellow-300'
+                        : index === 1
+                        ? 'bg-gray-50 border-gray-300'
+                        : index === 2
+                        ? 'bg-orange-50 border-orange-300'
+                        : 'bg-white border-green-200'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 flex-1">
+                      <span className={`font-bold text-lg min-w-8 ${
+                        index === 0 ? 'text-yellow-600' : 
+                        index === 1 ? 'text-gray-600' : 
+                        index === 2 ? 'text-orange-600' : 
+                        'text-green-700'
+                      }`}>
+                        {index + 1}º
+                      </span>
+                      <div className="flex items-center gap-2 flex-1">
+                        {equipe.cor && (
+                          <div
+                            className="h-4 w-4 rounded-full border border-gray-300"
+                            style={{ backgroundColor: equipe.cor }}
+                          />
+                        )}
+                        <span className="font-semibold text-gray-900">{equipe.nome}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {mostrarPontos && (
+                        <span className="text-sm font-medium text-gray-700">
+                          {equipe.pontos_acumulados || 0} pontos
+                        </span>
+                      )}
+                      {index === 0 && <Trophy className="h-5 w-5 text-yellow-600" />}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Footer com botão de inscrição */}
