@@ -1,10 +1,13 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, User, BookOpen, BarChart3, Settings, Users, UserCheck, Handshake } from 'lucide-react';
+import { LogOut, User, BookOpen, BarChart3, Settings, Users, UserCheck, Handshake, MessageSquare } from 'lucide-react';
 import { Button } from '../components/ui/button';
+import EnviarFeedback from './EnviarFeedback';
 
 export default function Home({ usuario, onLogout }) {
   const navigate = useNavigate();
+
+  const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
 
   const handleLogout = () => {
     onLogout();
@@ -26,6 +29,15 @@ export default function Home({ usuario, onLogout }) {
           </div>
 
           <div className="flex items-center gap-4">
+            {/* BOTÃO FLUTUANTE DE FEEDBACK */}
+            <Button
+                variant="outline"
+                onClick={() => setIsFeedbackModalOpen(true)}
+                className="flex items-center gap-2 border-gray-300 hover:bg-gray-100 text-gray-900 font-semibold transition"
+            >
+                <MessageSquare size={18} /> Feedback
+            </Button>
+
             {/* Informações do usuário */}
             <div className="flex items-center gap-3 bg-gray-50 px-4 py-2 rounded-lg border border-gray-200">
               <div className="bg-linear-to-br from-blue-600 to-blue-700 text-white rounded-full w-10 h-10 flex items-center justify-center">
@@ -220,6 +232,24 @@ export default function Home({ usuario, onLogout }) {
             </Button>
           </div>
 
+          {/* Card: Gerenciar Feedbacks (Admin) */}
+          {isAdmin && (
+              <div className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition border border-gray-200 hover:border-pink-300">
+                  <div className="bg-linear-to-br from-pink-100 to-pink-50 rounded-full w-12 h-12 flex items-center justify-center mb-4">
+                      <MessageSquare className="text-pink-700" size={24} />
+                  </div>
+                  <h3 className="text-xl font-bold text-gray-900 mb-2">Gerenciar Feedbacks</h3>
+                  <p className="text-gray-600 mb-4">Visualize, analise e responda os feedbacks dos usuários.</p>
+                  <Button
+                      variant="outline" 
+                      onClick={() => navigate('/admin/feedbacks')} // ✅ NOVA NAVEGAÇÃO
+                      className="w-full border-gray-300 hover:bg-gray-100 text-gray-900 font-semibold py-2 rounded-lg transition shadow-md"
+                  >
+                      Analisar Feedbacks
+                  </Button>
+              </div>
+          )}
+
           {/* Card Configurações */}
           <div className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition border border-gray-200 hover:border-blue-300">
             <div className="bg-linear-to-br from-blue-100 to-blue-50 rounded-full w-12 h-12 flex items-center justify-center mb-4">
@@ -236,6 +266,7 @@ export default function Home({ usuario, onLogout }) {
           </div>
         </div>
       </div>
+      <EnviarFeedback isOpen={isFeedbackModalOpen} setIsOpen={setIsFeedbackModalOpen} />
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import express from 'express';
 import { proteger, autorizar } from '../auth/authPermissions.js';
-import { enviarFeedback, listarFeedbacks } from './feedbackController.js';
+import { enviarFeedback, listarFeedbacks, responderFeedback } from './feedbackController.js';
 
 const router = express.Router();
 

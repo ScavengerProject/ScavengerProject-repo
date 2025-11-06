@@ -14,6 +14,7 @@ import SolicitarMigracao from './pages/SolicitarMigracao.jsx';
 import AprovarMigracoes from './pages/AprovarMigracoes.jsx';
 import AdminEmprestimos from './pages/AdminEmprestimos.jsx';
 import AdminUsuarios from './pages/AdminUsuarios.jsx';
+import AdminFeedbacks from './pages/AdminFeedbacks.jsx';
 import { useToast } from './components/ui/toast';
 import { ToastContainer } from './components/ui/ToastContainer';
 
@@ -144,6 +145,16 @@ function App() {
           element={
             isAuthenticated
               ? (usuario.tipo === 'COORDENADOR' ? <AprovarMigracoes /> : <Navigate to="/" replace />)
+              : <Navigate to="/login" replace />
+          }
+        />
+
+        {/* Rota para Gerenciamento de Feedbacks (Admin) */}
+        <Route
+          path="/admin/feedbacks"
+          element={
+            isAuthenticated 
+              ? (usuario.tipo === 'ADMIN' ? <AdminFeedbacks /> : <Navigate to="/" replace />)
               : <Navigate to="/login" replace />
           }
         />

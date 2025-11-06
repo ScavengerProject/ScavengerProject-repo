@@ -256,12 +256,6 @@ export const testesService = {
     }),
 };
 
-export default {
-  authService,
-  provasService,
-  testesService,
-  equipesService,
-};
 
 /**
  * Serviço de Migrações de Equipe
@@ -358,4 +352,39 @@ export const usuariosService = {
 
   // Obter estatísticas
   obterEstatisticas: () => request('/usuarios/estatisticas', { method: 'GET' }),
+};
+
+/**
+ * Serviço de Feedbacks (US18)
+ */
+export const feedbacksService = {
+    // Para TODOS os perfis: Enviar um novo feedback/relato
+    enviarFeedback: (descricao) =>
+        request('/feedbacks', {
+            method: 'POST',
+            body: JSON.stringify({ descricao }),
+        }),
+
+    // Para o ADMIN: Listar todos os feedbacks
+    listarFeedbacks: () =>
+        request('/feedbacks', {
+            method: 'GET',
+        }),
+
+    // Para o ADMIN: Responder um feedback
+    responderFeedback: (feedbackId, respostaTexto) =>
+        request(`/feedbacks/${feedbackId}/responder`, {
+            method: 'PATCH',
+            body: JSON.stringify({ 
+                resposta_admin: respostaTexto 
+            }),
+        }),
+};
+
+export default {
+  authService,
+  provasService,
+  testesService,
+  equipesService,
+  feedbacksService
 };
