@@ -22,6 +22,13 @@ const FeedbackSchema = new mongoose.Schema({
         trim: true,
         maxlength: 10000 // Limite de 1000 caracteres para a descrição
     },
+
+    resposta_admin: {
+        type: String,
+        trim: true,
+        maxlength: 10000,
+        default: null // Inicialmente nulo
+    },
     
     // Status do feedback (para o Admin/Gestor saber o que foi tratado)
     status: {
