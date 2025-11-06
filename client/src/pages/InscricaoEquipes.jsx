@@ -6,6 +6,8 @@ import { ArrowLeft, Users, LogIn, Zap, CheckCircle2 } from 'lucide-react';
 import { toast } from '../components/ui/toast';
 import { equipesService } from '../services/api';
 import { useAuth } from '../hooks/useAuth.jsx';
+import FeedbackFAB from '../components/EnviarFeedbackModal';
+
 
 const InscricaoEquipes = () => {
   const navigate = useNavigate();
@@ -207,6 +209,7 @@ const InscricaoEquipes = () => {
           </Card>
         )}
       </main>
+      <FeedbackFAB />
     </div>
   );
 };

@@ -7,6 +7,8 @@ import { useAuth } from "../hooks/useAuth";
 import { provasService, equipesService } from "../services/api";
 import { toast } from "../components/ui/toast";
 import ProvaDetalhesModal from "../components/ProvaDetalhesModal";
+import FeedbackFAB from '../components/EnviarFeedbackModal';
+
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -491,6 +493,7 @@ const Dashboard = () => {
         onClose={fecharModal}
         onInscricaoSucesso={handleInscricaoSucesso}
       />
+      <FeedbackFAB />
     </div>
   );
 };

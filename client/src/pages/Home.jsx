@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LogOut, User, BookOpen, BarChart3, Settings, Users, UserCheck, Handshake, MessageSquare } from 'lucide-react';
 import { Button } from '../components/ui/button';
-import EnviarFeedback from './EnviarFeedback';
+import FeedbackFAB from '../components/EnviarFeedbackModal';
 
 export default function Home({ usuario, onLogout }) {
   const navigate = useNavigate();
@@ -29,14 +29,6 @@ export default function Home({ usuario, onLogout }) {
           </div>
 
           <div className="flex items-center gap-4">
-            {/* BOTÃO FLUTUANTE DE FEEDBACK */}
-            <Button
-                variant="outline"
-                onClick={() => setIsFeedbackModalOpen(true)}
-                className="flex items-center gap-2 border-gray-300 hover:bg-gray-100 text-gray-900 font-semibold transition"
-            >
-                <MessageSquare size={18} /> Feedback
-            </Button>
 
             {/* Informações do usuário */}
             <div className="flex items-center gap-3 bg-gray-50 px-4 py-2 rounded-lg border border-gray-200">
@@ -242,7 +234,7 @@ export default function Home({ usuario, onLogout }) {
                   <p className="text-gray-600 mb-4">Visualize, analise e responda os feedbacks dos usuários.</p>
                   <Button
                       variant="outline" 
-                      onClick={() => navigate('/admin/feedbacks')} // ✅ NOVA NAVEGAÇÃO
+                      onClick={() => navigate('/admin/feedbacks')}
                       className="w-full border-gray-300 hover:bg-gray-100 text-gray-900 font-semibold py-2 rounded-lg transition shadow-md"
                   >
                       Analisar Feedbacks
@@ -266,7 +258,7 @@ export default function Home({ usuario, onLogout }) {
           </div>
         </div>
       </div>
-      <EnviarFeedback isOpen={isFeedbackModalOpen} setIsOpen={setIsFeedbackModalOpen} />
+      <FeedbackFAB />
     </div>
   );
 }

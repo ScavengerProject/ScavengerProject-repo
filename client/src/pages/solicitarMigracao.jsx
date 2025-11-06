@@ -7,6 +7,8 @@ import { toast } from '../components/ui/toast';
 import { useNavigate } from 'react-router-dom';
 import { equipesService, migracoesService } from '../services/api';
 import { ArrowLeft, AlertCircle } from 'lucide-react';
+import FeedbackFAB from '../components/EnviarFeedbackModal';
+
 
 export default function SolicitarMigracao() {
   const navigate = useNavigate();
@@ -172,6 +174,7 @@ export default function SolicitarMigracao() {
           </CardContent>
         </Card>
       </main>
+      <FeedbackFAB />
     </div>
   );
 }
