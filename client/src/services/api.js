@@ -416,10 +416,50 @@ export const feedbacksService = {
           }),
 };
 
+/**
+ * Serviço de Notificações (US17)
+ */
+export const notificacoesService = {
+    // Listar todas as notificações do usuário
+    listar: (filtros = {}) => {
+        const params = new URLSearchParams();
+        if (filtros.lida !== undefined) params.append('lida', filtros.lida);
+        if (filtros.tipo) params.append('tipo', filtros.tipo);
+        
+        const queryString = params.toString();
+        return request(`/notificacoes${queryString ? '?' + queryString : ''}`, { method: 'GET' });
+    },
+
+    // Obter contagem de notificações não lidas
+    contarNaoLidas: () =>
+        request('/notificacoes/nao-lidas/contagem', { method: 'GET' }),
+
+    // Obter uma notificação específica
+    obter: (id) =>
+        request(`/notificacoes/${id}`, { method: 'GET' }),
+
+    // Marcar notificação como lida
+    marcarComoLida: (id) =>
+        request(`/notificacoes/${id}/marcar-lida`, {
+            method: 'PATCH',
+        }),
+
+    // Marcar todas as notificações como lidas
+    marcarTodasComoLidas: () =>
+        request('/notificacoes/marcar-todas-lidas', {
+            method: 'PATCH',
+        }),
+
+    // Deletar uma notificação
+    deletar: (id) =>
+        request(`/notificacoes/${id}`, { method: 'DELETE' }),
+};
+
 export default {
   authService,
   provasService,
   testesService,
   equipesService,
-  feedbacksService
+  feedbacksService,
+  notificacoesService
 };
