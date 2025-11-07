@@ -12,13 +12,6 @@ const EquipeSchema = new mongoose.Schema({
         type: String, 
         required: [true, 'A cor da equipe é obrigatória.'],
     },
-    /* Comentando essa linha porque o controle de membros é feito em outra tabela
-    // Array para rastrear todos os membros atuais da equipe (independênte da gincana atual).
-    membros: [{ 
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Usuario'
-    }],*/
-
     criado_em: { 
         type: Date, 
         default: Date.now 

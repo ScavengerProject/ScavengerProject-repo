@@ -19,7 +19,7 @@ const EquipeGincanaSchema = new mongoose.Schema({
     coordenador_usuario_id: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Usuario', 
-        required: [true, 'O coordenador da equipe é obrigatório.'],
+        default: null,
     },
     
     pontos_acumulados: {
@@ -31,9 +31,6 @@ const EquipeGincanaSchema = new mongoose.Schema({
         type: Date, 
         default: Date.now 
     },
-    
-    // Índice único composto (para garantir que uma equipe só tenha um registro por gincana)
-    // EquipeGincanaSchema.index({ equipe_id: 1, gincana_id: 1 }, { unique: true });
 });
 
 const EquipeGincana = mongoose.model('EquipeGincana', EquipeGincanaSchema, 'Equipes_Gincana');

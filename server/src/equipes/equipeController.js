@@ -6,79 +6,51 @@ import Usuario from '../models/Usuario.js';
 const GINCANA_ATUAL_ID = 'GINCANA_PRINCIPAL'; 
 
 /**
- * [POST] Cria uma nova equipe principal E o registro da Gincana.
- * Quem exerce: ADMIN
- * Regra: Somente usuários do tipo 'COORDENADOR' podem ser líderes.
+ * [POST] Cria uma nova equipe principal e o registro da Gincana.
+ * Quem exerce: ADMIN. O Coordenador é atribuído posteriormente.
  */
 export const criarEquipe = async (req, res) => {
     try {
-        const { nome, cor, coordenador_usuario_id } = req.body;
+        // 1. Recebe APENAS nome e cor
+        const { nome, cor } = req.body;
 
-        if (!nome || !cor || !coordenador_usuario_id) {
-            return res.status(400).json({ message: 'Nome, cor e coordenador são obrigatórios.' });
+        // 2. Validação Mínima
+        if (!nome || !cor) {
+            return res.status(400).json({ message: 'Nome e cor são obrigatórios.' });
         }
         
-        // verifica se o coordenador existe
-        const coordenador = await Usuario.findById(coordenador_usuario_id);
-        
-        if (!coordenador) {
-            return res.status(404).json({ message: 'Coordenador não encontrado.' });
-        }
-
-        // checa se é do tipo "COORDENADOR"
-        if (coordenador.tipo !== 'COORDENADOR') {
-            return res.status(403).json({ 
-                message: `Usuários do tipo '${coordenador.tipo}' não podem ser designados como Coordenadores de Equipe.` 
-            });
-        }
-        
-        // verifica Conflito de Equipe (se o usuário já está associado a uma equipe)
-        const membroExistente = await EquipeMembros.findOne({ usuario_id: coordenador_usuario_id });
-        if (membroExistente) {
-            return res.status(409).json({ message: 'Coordenador já pertence a outra equipe.' });
-        }
-        
-        // Cria a equipe
+        // 3. Cria a Equipe Principal (Master Data)
         const novaEquipe = new Equipe({
             nome,
             cor,
+            membros: [], // Inicia sem membros
         });
         const equipeSalva = await novaEquipe.save();
         
-        // Cria o registro contextual (EquipeGincana)
+        // 4. Cria o registro contextual (EquipeGincana)
         const equipeGincanaSalva = await EquipeGincana.create({
             equipe_id: equipeSalva._id,
-            coordenador_usuario_id,
+            coordenador_usuario_id: null, 
             gincana_id: GINCANA_ATUAL_ID,
         });
 
-        // cria a ligação na tabela de membros
-        await EquipeMembros.create({
-            equipe_id: equipeSalva._id,
-            usuario_id: coordenador_usuario_id,
-            is_coordenador: true, // Define o primeiro membro como coordenador
-        });
-
-        const equipeCriadaPop = await EquipeGincana.findById(equipeGincanaSalva._id)
+        // 5. Busca e Popula o objeto final para retorno
+        // (Ainda populamos o coordenador, que será null, para manter a consistência)
+        const equipeCriadaPop = await EquipeGincana.findOne({ equipe_id: equipeSalva._id })
             .populate('equipe_id', 'nome cor')
             .populate('coordenador_usuario_id', 'nome email');
             
-        if (!equipeCriadaPop) {
-            throw new Error('Falha ao recuperar dados da equipe recém-criada.');
-        }
-
         const equipeFormatada = {
             id: equipeCriadaPop.equipe_id._id,
             nome: equipeCriadaPop.equipe_id.nome,
             cor: equipeCriadaPop.equipe_id.cor,
             pontos_acumulados: equipeCriadaPop.pontos_acumulados,
-            coordenador: equipeCriadaPop.coordenador_usuario_id,
-            total_membros: 1, 
+            coordenador: equipeCriadaPop.coordenador_usuario_id, // (Será null)
+            total_membros: 0, // Inicia com 0 membros
         };
-        
-        // Enviamos UMA ÚNICA resposta com o "bolo pronto"
+
         res.status(201).json({ 
-            message: 'Equipe criada e coordenador associado com sucesso.', 
+            message: 'Equipe criada com sucesso. Coordenador pendente.', 
             equipe: equipeFormatada 
         });
 
