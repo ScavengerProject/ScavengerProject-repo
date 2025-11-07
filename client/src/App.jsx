@@ -16,6 +16,7 @@ import AdminEmprestimos from './pages/AdminEmprestimos.jsx';
 import AdminUsuarios from './pages/AdminUsuarios.jsx';
 import AdminFeedbacks from './pages/AdminFeedbacks.jsx';
 import MeusFeedbacks from './pages/MeusFeedbacks.jsx';
+import Notificacoes from './pages/Notificacoes.jsx';
 import { useToast } from './components/ui/toast';
 import { ToastContainer } from './components/ui/ToastContainer';
 
@@ -163,6 +164,10 @@ function App() {
         path="/meus-feedbacks"
         element={isAuthenticated ? <MeusFeedbacks /> : <Navigate to="/login" replace />}
       />
+        <Route
+          path="/notificacoes"
+          element={isAuthenticated ? <Notificacoes /> : <Navigate to="/login" replace />}
+        />
       </Routes>
       <ToastContainer toasts={toasts} />
     </>

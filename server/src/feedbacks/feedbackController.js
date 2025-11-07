@@ -1,6 +1,10 @@
 // src/feedbacks/feedbackController.js
 
 import Feedback from '../models/Feedback.js';
+import Usuario from '../models/Usuario.js';
+import Notificacao from '../models/Notificacao.js';
+import { criarNotificacao } from '../notificacoes/notificacaoController.js';
+import { enviarEmailNovoFeedback, enviarEmailFeedbackRespondido } from '../utils/emailService.js';
 
 const GINCANA_ATUAL_ID = 'GINCANA_PRINCIPAL';
 
@@ -31,6 +35,64 @@ export const enviarFeedback = async (req, res) => {
         });
 
         const feedbackSalvo = await novoFeedback.save();
+
+        // Popula dados do usuário que enviou o feedback
+        await feedbackSalvo.populate('criado_por_usuario_id', 'nome email tipo');
+
+        // US17: Enviar notificações para ADMINs quando um feedback é criado
+        try {
+            // Buscar todos os usuários ADMIN que estão ativos
+            const admins = await Usuario.find({
+                tipo: 'ADMIN',
+                status: 'ATIVO'
+            }).select('_id nome email tipo');
+
+            if (admins.length > 0) {
+                // Criar notificações e enviar emails em paralelo (sem bloquear a resposta)
+                const promessasNotificacoes = admins.map(async (admin) => {
+                    try {
+                        // Criar notificação no banco de dados
+                        const titulo = 'Novo Feedback Recebido';
+                        const nomeAutor = feedbackSalvo.criado_por_usuario_id?.nome || 'Usuário';
+                        const mensagem = `${nomeAutor} enviou um novo feedback que requer sua análise.`;
+                        
+                        const notificacao = await criarNotificacao(
+                            admin._id,
+                            'COMUNICADO',
+                            titulo,
+                            mensagem,
+                            null, // Não há prova relacionada
+                            feedbackSalvo._id // Referência ao feedback
+                        );
+
+                        // Enviar email (não bloqueia se falhar)
+                        const resultadoEmail = await enviarEmailNovoFeedback(
+                            admin.email,
+                            admin.nome,
+                            feedbackSalvo,
+                            feedbackSalvo.criado_por_usuario_id
+                        );
+
+                        // Atualizar notificação com status do email
+                        if (resultadoEmail.sucesso && notificacao) {
+                            await Notificacao.findByIdAndUpdate(notificacao._id, {
+                                email_enviado: true,
+                                email_enviado_em: new Date()
+                            });
+                        }
+                    } catch (err) {
+                        console.error(`Erro ao notificar admin ${admin._id}:`, err);
+                    }
+                });
+
+                // Executa todas as notificações em paralelo
+                Promise.all(promessasNotificacoes).catch(err => {
+                    console.error('Erro ao processar notificações de feedback:', err);
+                });
+            }
+        } catch (notificacaoError) {
+            console.error('Erro ao enviar notificações de feedback:', notificacaoError);
+        }
 
         res.status(201).json({ 
             message: 'Feedback enviado com sucesso! Agradecemos sua contribuição.',
@@ -77,6 +139,13 @@ export const responderFeedback = async (req, res) => {
              return res.status(400).json({ message: 'A resposta não pode exceder 10000 caracteres.' });
         }
 
+        // Encontra o feedback antes de atualizar (para pegar o criador)
+        const feedbackOriginal = await Feedback.findById(id);
+        
+        if (!feedbackOriginal) {
+            return res.status(404).json({ message: 'Feedback não encontrado.' });
+        }
+
         // Encontra e atualiza o feedback
         const feedbackAtualizado = await Feedback.findByIdAndUpdate(
             id,
@@ -88,12 +157,48 @@ export const responderFeedback = async (req, res) => {
             { new: true }
         );
 
-        if (!feedbackAtualizado) {
-            return res.status(404).json({ message: 'Feedback não encontrado.' });
-        }
-
-        // Popula os dados do avaliador para o frontend
+        // Popula os dados do avaliador e do criador
         await feedbackAtualizado.populate('avaliado_por_usuario_id', 'nome email');
+        await feedbackAtualizado.populate('criado_por_usuario_id', 'nome email tipo');
+
+        // US17: Enviar notificação para o usuário que enviou o feedback
+        try {
+            const usuarioCriador = feedbackAtualizado.criado_por_usuario_id;
+            const adminResposta = feedbackAtualizado.avaliado_por_usuario_id;
+
+            if (usuarioCriador) {
+                // Criar notificação no banco de dados
+                const titulo = 'Feedback Respondido';
+                const mensagem = `Seu feedback foi analisado e respondido pela administração.`;
+                
+                const notificacao = await criarNotificacao(
+                    usuarioCriador._id,
+                    'COMUNICADO',
+                    titulo,
+                    mensagem,
+                    null, // Não há prova relacionada
+                    feedbackAtualizado._id // Referência ao feedback
+                );
+
+                // Enviar email (não bloqueia se falhar)
+                const resultadoEmail = await enviarEmailFeedbackRespondido(
+                    usuarioCriador.email,
+                    usuarioCriador.nome,
+                    feedbackAtualizado,
+                    adminResposta
+                );
+
+                // Atualizar notificação com status do email
+                if (resultadoEmail.sucesso && notificacao) {
+                    await Notificacao.findByIdAndUpdate(notificacao._id, {
+                        email_enviado: true,
+                        email_enviado_em: new Date()
+                    });
+                }
+            }
+        } catch (notificacaoError) {
+            console.error('Erro ao enviar notificação de feedback respondido:', notificacaoError);
+        }
 
         res.status(200).json({
             message: `Feedback ${id} respondido e marcado como ANALISADO.`,

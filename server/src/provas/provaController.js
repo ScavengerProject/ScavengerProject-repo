@@ -1,6 +1,9 @@
 import Prova from '../models/Prova.js';
 import Usuario from '../models/Usuario.js';
 import ProvaUsuario from '../models/ProvaUsuario.js';
+import Notificacao from '../models/Notificacao.js';
+import { criarNotificacao } from '../notificacoes/notificacaoController.js';
+import { enviarEmailNovaProva } from '../utils/emailService.js';
 
 const GRUPO_LABEL = {
   ALUNOS_FUNDAMENTAL: 'alunos do ensino fundamental',
@@ -51,6 +54,60 @@ export const criarProva = async (req, res) => {
     });
 
     const provaSalva = await novaProva.save();
+
+    // US17: Enviar notificações para ALUNO e COORDENADOR quando uma nova prova é criada
+    try {
+      // Buscar todos os usuários ALUNO e COORDENADOR que estão ativos
+      const participantes = await Usuario.find({
+        tipo: { $in: ['ALUNO', 'COORDENADOR'] },
+        status: 'ATIVO'
+      }).select('_id nome email tipo');
+
+      // Criar notificações e enviar emails em paralelo (sem bloquear a resposta)
+      const promessasNotificacoes = participantes.map(async (participante) => {
+        try {
+          // Criar notificação no banco de dados
+          const titulo = `Nova Prova: ${provaSalva.titulo}`;
+          const mensagem = `Uma nova prova "${provaSalva.titulo}" foi criada e está disponível para você.`;
+          
+          const notificacao = await criarNotificacao(
+            participante._id,
+            'NOVA_PROVA',
+            titulo,
+            mensagem,
+            provaSalva._id
+          );
+
+          // Enviar email (não bloqueia se falhar)
+          const resultadoEmail = await enviarEmailNovaProva(
+            participante.email,
+            participante.nome,
+            provaSalva
+          );
+
+          // Atualizar notificação com status do email
+          if (resultadoEmail.sucesso && notificacao) {
+            await Notificacao.findByIdAndUpdate(notificacao._id, {
+              email_enviado: true,
+              email_enviado_em: new Date()
+            });
+          }
+        } catch (err) {
+          // Log do erro mas não interrompe o processo
+          console.error(`Erro ao notificar usuário ${participante._id}:`, err);
+        }
+      });
+
+      // Executa todas as notificações em paralelo (não espera pela conclusão)
+      Promise.all(promessasNotificacoes).catch(err => {
+        console.error('Erro ao processar notificações:', err);
+      });
+
+      console.log(`Notificações enviadas para ${participantes.length} participantes sobre a prova "${provaSalva.titulo}"`);
+    } catch (notificacaoError) {
+      // Log do erro mas não falha a criação da prova
+      console.error('Erro ao enviar notificações:', notificacaoError);
+    }
 
     res.status(201).json(provaSalva);
 

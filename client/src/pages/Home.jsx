@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, User, BookOpen, BarChart3, Settings, Users, UserCheck, Handshake, MessageSquare, ListTodo, History } from 'lucide-react';
+import { LogOut, User, BookOpen, BarChart3, Settings, Users, UserCheck, Handshake, MessageSquare, History } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import FeedbackFAB from '../components/EnviarFeedbackModal';
+import NotificacoesDropdown from '../components/NotificacoesDropdown';
 
 export default function Home({ usuario, onLogout }) {
   const navigate = useNavigate();
@@ -29,6 +30,8 @@ export default function Home({ usuario, onLogout }) {
           </div>
 
           <div className="flex items-center gap-4">
+            {/* Dropdown de Notificações */}
+            <NotificacoesDropdown />
 
             {/* Informações do usuário */}
             <div className="flex items-center gap-3 bg-gray-50 px-4 py-2 rounded-lg border border-gray-200">
