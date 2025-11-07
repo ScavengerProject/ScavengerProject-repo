@@ -253,61 +253,6 @@ export const listarCoordenadoresDisponiveis = async (req, res) => {
 };
 
 /**
- * [GET] Lista todos os usuários elegíveis para serem Coordenadores
- * (ou seja, tanto ALUNOS quanto COORDENADORES que ainda não estão em equipe).
- */
-export const listarUsuariosElegiveisCoordenador = async (req, res) => {
-    try {
-        const usuariosElegiveis = await Usuario.aggregate([
-            {
-                // Pega usuários que são ALUNO ou COORDENADOR
-                $match: { tipo: { $in: ['ALUNO', 'COORDENADOR'] } }
-            },
-            {
-                // Verifica se o usuário já é membro de alguma equipe
-                $lookup: {
-                    from: EquipeMembros.collection.name,
-                    localField: "_id",
-                    foreignField: "usuario_id",
-                    as: "vinculo_membro"
-                }
-            },
-            {
-                // Verifica se o usuário já coordena alguma equipe
-                $lookup: {
-                    from: EquipeGincana.collection.name,
-                    localField: "_id",
-                    foreignField: "coordenador_usuario_id",
-                    as: "vinculo_coordenador"
-                }
-            },
-            {
-                // Mantém apenas usuários que não estão vinculados a nenhuma equipe
-                $match: {
-                    vinculo_membro: { $size: 0 },
-                    vinculo_coordenador: { $size: 0 }
-                }
-            },
-            {
-                // Campos a retornar
-                $project: {
-                    _id: 1,
-                    nome: 1,
-                    email: 1,
-                    tipo: 1,
-                    turma: 1
-                }
-            }
-        ]);
-
-        res.status(200).json(usuariosElegiveis);
-    } catch (error) {
-        console.error('Erro ao listar usuários elegíveis para coordenador:', error);
-        res.status(500).json({ message: 'Erro interno ao buscar usuários elegíveis.' });
-    }
-};
-
-/**
  * [GET] Lista todas as EquipeGincana (para seleção em empréstimos)
  */
 export const listarEquipesGincana = async (req, res) => {

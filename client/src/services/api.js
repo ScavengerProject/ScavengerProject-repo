@@ -175,6 +175,7 @@ export const equipesService = {
   listarCoordenadoresDisponiveis: () =>
     request('/equipes/coordenadores-disponiveis', { method: 'GET' }),
 
+
   criarEquipe: (dados) =>
     request('/equipes', {
       method: 'POST',
@@ -376,15 +377,6 @@ export const usuariosService = {
   // Obter estatísticas
   obterEstatisticas: () => request('/usuarios/estatisticas', { method: 'GET' }),
 };
-
-/**
- * [GET] Lista todos os usuários elegíveis (tipo ALUNO ou COORDENADOR)
- * para serem atribuídos como coordenadores de uma equipe.
- */
-export const listarUsuariosElegiveisCoordenador = () =>
-    request('/usuarios/elegiveis-coordenador', {
-        method: 'GET',
-    });
 
 /**
  * Serviço de Feedbacks (US18)
