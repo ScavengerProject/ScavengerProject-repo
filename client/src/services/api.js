@@ -227,6 +227,15 @@ export const equipesService = {
       body: JSON.stringify({ usuario_id: usuarioId }),
     }),
 
+    /**
+     * [PUT] /api/equipes/:equipeId (Atualiza nome, cor e Coordenador)
+     */
+    atualizarEquipe: (equipeId, dados) =>
+        request(`/equipes/${equipeId}`, {
+            method: 'PUT',
+            body: JSON.stringify(dados),
+        }),
+
   listarMembrosDisponiveis: () =>
     request('/equipes/membros-disponiveis', { method: 'GET' }),
 
@@ -246,6 +255,7 @@ export const equipesService = {
     request(`/equipes/${equipeId}/membros`, { method: 'GET' }),
 
   };
+  
 
 /**
  * Serviço de Testes

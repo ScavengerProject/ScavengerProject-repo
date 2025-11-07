@@ -13,7 +13,8 @@ import {
   listarEquipesParaInscricao,
   inscreverAlunoEmEquipe,
   deletarEquipe,
-  listarMembrosPorEquipe
+  listarMembrosPorEquipe,
+  atualizarEquipe
 } from './equipeController.js';
 import { proteger, autorizar } from '../auth/authPermissions.js';
 
@@ -34,6 +35,8 @@ router.post('/', proteger, autorizar('ADMIN'), criarEquipe);
 router.delete('/:id', proteger, autorizar('ADMIN'), deletarEquipe);
 // [GET] Listar membros por ID da Equipe
 router.get('/:equipeId/membros', proteger, autorizar('ADMIN', 'COORDENADOR', 'PROFESSOR', 'ALUNO'), listarMembrosPorEquipe);
+// [PUT] Atualizar equipe (Admin)
+router.put('/:id', proteger, autorizar('ADMIN'), atualizarEquipe);
 
 router.patch('/:id/membros', proteger, autorizar('ADMIN'), adicionarMembro);
 router.get('/coordenadores-disponiveis', proteger, autorizar('ADMIN'), listarCoordenadoresDisponiveis);

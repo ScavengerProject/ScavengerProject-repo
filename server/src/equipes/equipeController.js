@@ -598,6 +598,104 @@ export const inscreverAlunoEmEquipe = async (req, res) => {
     }
 };
 
+/**
+ * [PUT] Atualiza o nome, cor e, opcionalmente, o coordenador de uma equipe.
+ * Rota: /api/equipes/:id
+ * Quem exerce: ADMIN
+ */
+export const atualizarEquipe = async (req, res) => {
+    try {
+        const { id: equipeId } = req.params;
+        const { nome, cor, coordenador_usuario_id } = req.body;
+        
+        // 1. Validação mínima
+        if (!nome || !cor) {
+            return res.status(400).json({ message: 'Nome e cor são obrigatórios.' });
+        }
+
+        // 2. Busca a Equipe Mestra e o Contexto da Gincana
+        const [equipe, equipeContexto] = await Promise.all([
+            Equipe.findById(equipeId),
+            EquipeGincana.findOne({ equipe_id: equipeId, gincana_id: GINCANA_ATUAL_ID }),
+        ]);
+
+        if (!equipe) return res.status(404).json({ message: 'Equipe não encontrada.' });
+        if (!equipeContexto) return res.status(404).json({ message: 'Contexto da Gincana não encontrado.' });
+        
+        const updates = [];
+        let novoCoordenadorObj = null;
+        const coordenadorAntigoId = equipeContexto.coordenador_usuario_id?.toString();
+
+        // 3. Lógica para MUDANÇA/ATRIBUIÇÃO de Coordenador
+        if (coordenador_usuario_id !== undefined) {
+            
+            // A. Tenta atribuir um novo coordenador
+            if (coordenador_usuario_id && coordenador_usuario_id !== coordenadorAntigoId) {
+                
+                novoCoordenadorObj = await Usuario.findById(coordenador_usuario_id);
+                if (!novoCoordenadorObj) return res.status(404).json({ message: 'Novo coordenador não encontrado.' });
+                if (novoCoordenadorObj.tipo !== 'COORDENADOR') return res.status(403).json({ message: 'Novo coordenador deve ser do tipo COORDENADOR.' });
+
+                // Verifica se o novo coordenador já está em outra equipe (membros)
+                const membroConflito = await EquipeMembros.findOne({ usuario_id: coordenador_usuario_id });
+                if (membroConflito) return res.status(409).json({ message: 'Novo coordenador já é membro de uma equipe.' });
+                
+                // Remove o antigo coordenador da tabela de membros (se houver)
+                if (coordenadorAntigoId) {
+                    updates.push(EquipeMembros.findOneAndDelete({ equipe_id: equipeId, usuario_id: coordenadorAntigoId, is_coordenador: true }));
+                }
+
+                // Adiciona o novo coordenador na tabela de membros
+                updates.push(EquipeMembros.create({
+                    equipe_id: equipeId,
+                    usuario_id: coordenador_usuario_id,
+                    equipe_gincana_id: equipeContexto._id,
+                    is_coordenador: true,
+                }));
+
+                equipeContexto.coordenador_usuario_id = coordenador_usuario_id;
+            
+            // B. O Coordenador está sendo setado para NULO
+            } else if (!coordenador_usuario_id && coordenadorAntigoId) {
+                // Remove o antigo coordenador da tabela de membros
+                updates.push(EquipeMembros.findOneAndDelete({ equipe_id: equipeId, usuario_id: coordenadorAntigoId, is_coordenador: true }));
+                equipeContexto.coordenador_usuario_id = null;
+            }
+        }
+        
+        // 4. Atualiza Nome e Cor (Equipe Mestra)
+        equipe.nome = nome;
+        equipe.cor = cor;
+        
+        // 5. Executa as atualizações transacionais
+        updates.push(equipe.save());
+        updates.push(equipeContexto.save());
+        await Promise.all(updates);
+
+        // 6. Busca a equipe atualizada e populada para o frontend
+        const total_membros = await EquipeMembros.countDocuments({ equipe_id: equipeId });
+        const equipeFinalPop = await EquipeGincana.findOne({ equipe_id: equipeId })
+            .populate('equipe_id', 'nome cor')
+            .populate('coordenador_usuario_id', 'nome email');
+            
+        const equipeFormatada = {
+            id: equipeId,
+            nome: equipeFinalPop.equipe_id.nome,
+            cor: equipeFinalPop.equipe_id.cor,
+            pontos_acumulados: equipeFinalPop.pontos_acumulados,
+            coordenador: equipeFinalPop.coordenador_usuario_id, 
+            total_membros: total_membros,
+        };
+
+        res.status(200).json({ message: 'Equipe atualizada com sucesso.', equipe: equipeFormatada });
+
+    } catch (error) {
+        if (error.code === 11000) return res.status(409).json({ message: 'Nome da equipe já existe.' });
+        console.error('Erro ao atualizar equipe:', error);
+        res.status(500).json({ message: 'Erro interno ao atualizar equipe.' });
+    }
+};
+
 export const listarEquipesPublicas = async (req, res) => {
   try {
     const meId = req.usuario.id;

@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../co
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from '../components/ui/dialog';
 import { Label } from '../components/ui/label';
 import { Input } from '../components/ui/Input';
-import { Plus, Users, ArrowLeft, UserPlus, Zap, Trash2 } from 'lucide-react';
+import { Plus, Users, ArrowLeft, UserPlus, Zap, Trash2, Edit } from 'lucide-react'; 
 import { toast } from '../components/ui/toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 
@@ -20,16 +20,19 @@ const AdminEquipes = () => {
     const [equipes, setEquipes] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     
+    // Listas de Usuários
     const [membrosDisponiveis, setMembrosDisponiveis] = useState([]);
+    const [coordenadoresDisponiveis, setCoordenadoresDisponiveis] = useState([]); // Necessário para Edição
 
-    // Estado do formulário de CRIAÇÃO (Sem coordenador)
+    // Estado do formulário de CRIAÇÃO/EDIÇÃO
     const [isDialogOpen, setIsDialogOpen] = useState(false);
+    const [editingEquipe, setEditingEquipe] = useState(null); 
     const [newEquipeData, setNewEquipeData] = useState({ 
         nome: '', 
         cor: '', 
     });
 
-    // NOVO: Listar membros por equipe (para o modal de visualização)
+    // Estados do Modal de VISUALIZAÇÃO
     const [membrosView, setMembrosView] = useState([]); 
     const [isViewMembersOpen, setIsViewMembersOpen] = useState(false);
     const [currentEquipe, setCurrentEquipe] = useState(null); 
@@ -39,29 +42,23 @@ const AdminEquipes = () => {
     const [selectedUsuarioId, setSelectedUsuarioId] = useState('');
     
     
-    // --- FUNÇÃO DE VISUALIZAÇÃO E BUSCA DE MEMBROS (NOVO) ---
-    const openViewMembersDialog = async (equipe) => {
-        setCurrentEquipe(equipe);
-        setMembrosView([]); // Limpa dados antigos enquanto carrega
-        setIsViewMembersOpen(true);
+    // --- FUNÇÕES DE BUSCA ---
 
+    const fetchCoordenadores = async () => {
         try {
-            const equipeId = equipe.id || equipe._id;
-            // Chama a rota GET /api/equipes/:equipeId/membros
-            const membros = await equipesService.listarMembrosPorIdEquipe(equipeId); 
-            // O backend retorna { id, nome, tipo, isCoordenador, ... }
-            setMembrosView(membros);
+            const usuarios = await equipesService.listarCoordenadoresDisponiveis(); 
+            setCoordenadoresDisponiveis(usuarios.map(u => ({ 
+                _id: u._id, 
+                nome: `${u.nome}`
+            })));
         } catch (error) {
-            toast.error('Erro ao carregar detalhes dos membros da equipe.');
-            console.error('Erro ao buscar membros para visualização:', error);
-        }
+            console.error('Erro ao carregar Coordenadores disponíveis:', error);
+            setCoordenadoresDisponiveis([]);
+        } 
     };
 
-
-    // --- FUNÇÕES DE BUSCA ---
     const fetchMembros = async () => {
         try {
-            // Rota: /api/equipes/membros-disponiveis (que executa listarUsuariosSemEquipe)
             const usuarios = await equipesService.listarMembrosDisponiveis(); 
             setMembrosDisponiveis(usuarios.map(u => ({ 
                 _id: u._id, 
@@ -90,8 +87,8 @@ const AdminEquipes = () => {
             setIsLoading(true);
             await Promise.allSettled([
                 fetchEquipes(),
-                // Removido fetchCoordenadores
                 fetchMembros(),
+                fetchCoordenadores(), 
             ]);
             setIsLoading(false); 
         };
@@ -100,33 +97,96 @@ const AdminEquipes = () => {
     }, [usuario]);
 
 
-    // --- LÓGICA DE CRIAÇÃO (Simplificada) ---
-    const handleCreateEquipe = async (e) => {
+    // --- FUNÇÕES CRUD E LÓGICA DE ESTADO ---
+    
+    const handleOpenDialog = (equipe = null) => {
+        setEditingEquipe(equipe);
+        
+        if (equipe) {
+            const currentCoordId = equipe.coordenador 
+                // Se o objeto existir, pegamos o ID e forçamos para String.
+                ? equipe.coordenador._id?.toString() || equipe.coordenador.id?.toString() 
+                : ''; // Usa string vazia se não houver coordenador
+                
+            // Carrega dados para EDIÇÃO
+            setNewEquipeData({ 
+                nome: equipe.nome, 
+                cor: equipe.cor,
+            });
+        } else {
+            // Reset para CRIAÇÃO
+            setNewEquipeData({ nome: '', cor: '', coordenador_usuario_id: '' });
+        }
+        setIsDialogOpen(true);
+    };
+
+    const handleSubmit = async (e) => {
         e.preventDefault();
+        const isEditing = !!editingEquipe;
+        // O objeto newEquipeData agora contém apenas nome e cor
         const { nome, cor } = newEquipeData; 
 
         if (!nome || !cor) {
             toast.error('Nome e cor são obrigatórios.');
             return;
         }
+        
+        // PREPARA OS DADOS
+        const dataToSend = { nome, cor };
 
         try {
-            const response = await equipesService.criarEquipe(newEquipeData);
+            const response = isEditing 
+                ? await equipesService.atualizarEquipe(editingEquipe.id || editingEquipe._id, dataToSend) // Rota PUT
+                : await equipesService.criarEquipe(dataToSend); // Rota POST
+
+            // Pega o ID da equipe que foi modificada/criada (garantindo que seja string)
+            const updatedEquipeId = response.equipe.id?.toString() || response.equipe._id?.toString(); 
+
+            // ✅ CORREÇÃO: Mapeamento Imutável e Preciso
+            setEquipes(prev => isEditing 
+                ? prev.map(e => {
+                    const currentId = e.id?.toString() || e._id?.toString();
+                    
+                    // Compara o ID da equipe atual no array com o ID que acabou de ser modificado
+                    if (currentId === updatedEquipeId) {
+                        // Retorna o novo objeto POPULADO retornado pelo backend
+                        return response.equipe; 
+                    }
+                    return e;
+                })
+                : [...prev, response.equipe] // Criação: apenas anexa
+            );
             
-            setEquipes((prev) => [...prev, response.equipe]); 
-            toast.success(`Equipe "${response.equipe.nome}" criada com sucesso!`);
+            // Se a edição foi bem-sucedida, re-busca a lista de coordenadores (para caso o antigo coordenador seja liberado)
+            // fetchCoordenadores(); // <-- Reintroduza esta linha se precisar atualizar a lista de coordenadores livres
             
+            toast.success(`Equipe ${isEditing ? 'atualizada' : 'criada'} com sucesso!`);
             setIsDialogOpen(false);
-            setNewEquipeData({ nome: '', cor: '' });
-            
+
         } catch (error) {
-            const msg = error.message || 'Erro desconhecido ao criar equipe.';
+            const msg = error.message || `Erro ao ${isEditing ? 'atualizar' : 'criar'} equipe.`;
             toast.error(msg);
         }
     };
 
 
-    // --- LÓGICA DE ADIÇÃO DE MEMBRO ---
+    // --- FUNÇÕES DE VISUALIZAÇÃO E DELEÇÃO ---
+    
+    const openViewMembersDialog = async (equipe) => {
+        setCurrentEquipe(equipe);
+        setMembrosView([]); 
+        setIsViewMembersOpen(true);
+
+        try {
+            const equipeId = equipe.id || equipe._id;
+            const membros = await equipesService.listarMembrosPorIdEquipe(equipeId); 
+            setMembrosView(membros);
+        } catch (error) {
+            toast.error('Erro ao carregar detalhes dos membros da equipe.');
+            console.error('Erro ao buscar membros para visualização:', error);
+        }
+    };
+    
     const openAddMemberDialog = (equipe) => {
         setCurrentEquipe(equipe);
         setSelectedUsuarioId('');
@@ -151,7 +211,6 @@ const AdminEquipes = () => {
                 })
             );
             
-            // Remove o usuário da lista de Membros Comuns disponíveis
             setMembrosDisponiveis(prev => prev.filter(u => u._id !== selectedUsuarioId));
             
             toast.success('Participante adicionado com sucesso!');
@@ -162,7 +221,6 @@ const AdminEquipes = () => {
         }
     };
     
-    // --- LÓGICA DE EXCLUSÃO ---
     const handleDeleteEquipe = async (equipeId, equipeNome) => {
         if (!window.confirm(`Tem certeza que deseja excluir a equipe "${equipeNome}"? Esta ação é irreversível e removerá todos os registros associados!`)) {
             return;
@@ -175,8 +233,8 @@ const AdminEquipes = () => {
             
             toast.success(`Equipe "${equipeNome}" excluída com sucesso!`);
             
-            // Re-busca a lista de membros para atualizar a lista de disponíveis
-            fetchMembros(); 
+            fetchMembros(); // Re-busca a lista de membros para atualizar a lista de disponíveis
+            fetchCoordenadores(); // Re-busca coordenadores, pois o coordenador pode ter sido liberado
         } catch (error) {
             const msg = error.message || 'Erro ao excluir a equipe.';
             toast.error(msg);
@@ -207,29 +265,35 @@ const AdminEquipes = () => {
                         <p className="text-gray-600">Crie, coordene e gerencie os participantes das equipes</p>
                     </div>
                     
-                    {/* Diálogo de Criação de Equipe (Simplificado) */}
+                    {/* Diálogo de Criação/Edição */}
                     <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                         <DialogTrigger asChild>
-                            <Button className="bg-blue-600 hover:bg-blue-700 text-white">
+                            <Button className="bg-blue-600 hover:bg-blue-700 text-white" onClick={() => handleOpenDialog()}>
                                 <Plus className="h-4 w-4 mr-2" /> Criar Nova Equipe
                             </Button>
                         </DialogTrigger>
                         <DialogContent className="sm:max-w-[450px]">
                             <DialogHeader>
-                                <DialogTitle>Criar Nova Equipe</DialogTitle>
+                                <DialogTitle>{editingEquipe ? 'Editar Equipe' : 'Criar Nova Equipe'}</DialogTitle>
                             </DialogHeader>
-                            <form onSubmit={handleCreateEquipe} className="grid gap-4 py-4">
+                            <form onSubmit={handleSubmit} className="grid gap-4 py-4">
+                                
+                                {/* Campo Nome */}
                                 <div className="grid gap-2">
                                     <Label htmlFor="nome">Nome da Equipe</Label>
                                     <Input id="nome" value={newEquipeData.nome} onChange={(e) => setNewEquipeData({...newEquipeData, nome: e.target.value})} placeholder="Ex: Equipe Falcão" required />
                                 </div>
+                                
+                                {/* Campo Cor */}
                                 <div className="grid gap-2">
                                     <Label htmlFor="cor">Cor (Código HEX, ex: #FF3B82)</Label>
                                     <Input id="cor" type="text" value={newEquipeData.cor} onChange={(e) => setNewEquipeData({...newEquipeData, cor: e.target.value})} placeholder="#33FF57" required />
                                 </div>
                                 
                                 <DialogFooter className="mt-4">
-                                    <Button type="submit" className="bg-blue-600">Criar Equipe</Button>
+                                    <Button type="submit" className="bg-blue-600">
+                                        {editingEquipe ? 'Salvar Alterações' : 'Criar Equipe'}
+                                    </Button>
                                 </DialogFooter>
                             </form>
                         </DialogContent>
@@ -258,7 +322,7 @@ const AdminEquipes = () => {
                                         <Users className='inline h-4 w-4 mr-1 text-gray-500'/> 
                                         Coordenador: {equipe.coordenador?.nome || 'Não definido'}
                                         
-                                        {/* NOVO BOTÃO: Abre o modal de listagem */}
+                                        {/* Botão Ver Membros */}
                                         <Button 
                                             variant="outline"
                                             size="sm"
@@ -270,6 +334,17 @@ const AdminEquipes = () => {
                                     </div>
                                     
                                     <div className="flex gap-2"> 
+                                        {/* Botão de EDIÇÃO */}
+                                        <Button 
+                                            size="sm" 
+                                            variant="outline" 
+                                            className="text-gray-600 hover:bg-gray-100" 
+                                            onClick={() => handleOpenDialog(equipe)} // Abre modal com dados para edição
+                                        >
+                                            <Edit className="h-4 w-4" />
+                                        </Button>
+                                        
+                                        {/* Botão de Excluir */}
                                         <Button 
                                             size="sm" 
                                             variant="ghost" 
@@ -279,6 +354,7 @@ const AdminEquipes = () => {
                                             <Trash2 className="h-4 w-4" />
                                         </Button>
                                         
+                                        {/* Botão Adicionar Membro */}
                                         <Button size="sm" variant="outline" className="text-blue-600 border-blue-300 hover:bg-blue-50" onClick={() => openAddMemberDialog(equipe)}>
                                             <UserPlus className="h-4 w-4 mr-2" /> Adicionar Membro
                                         </Button>
@@ -307,7 +383,7 @@ const AdminEquipes = () => {
                         {/* Lista de Membros */}
                         <div className="space-y-3 max-h-80 overflow-y-auto">
                             {membrosView.length === 0 ? (
-                                <p className="text-gray-500 text-center py-4">Nenhum membro encontrado nesta equipe.</p>
+                                <p className="text-gray-500 text-center py-4">Nenhum membro encontrado.</p>
                             ) : (
                                 membrosView.map(membro => (
                                     <div key={membro.id} className="flex items-center justify-between p-3 border rounded-md shadow-sm">
