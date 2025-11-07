@@ -1,3 +1,4 @@
+// src/pages/AdminEquipes.jsx
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/button';
@@ -22,7 +23,7 @@ const AdminEquipes = () => {
     
     // Listas de Usuários
     const [membrosDisponiveis, setMembrosDisponiveis] = useState([]);
-    const [coordenadoresDisponiveis, setCoordenadoresDisponiveis] = useState([]); // Necessário para Edição
+    const [coordenadoresDisponiveis, setCoordenadoresDisponiveis] = useState([]);
 
     // Estado do formulário de CRIAÇÃO/EDIÇÃO
     const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -32,7 +33,7 @@ const AdminEquipes = () => {
         cor: '', 
     });
 
-    // Estados do Modal de VISUALIZAÇÃO
+    // Estado do modal de VISUALIZAÇÃO
     const [membrosView, setMembrosView] = useState([]); 
     const [isViewMembersOpen, setIsViewMembersOpen] = useState(false);
     const [currentEquipe, setCurrentEquipe] = useState(null); 
@@ -40,10 +41,14 @@ const AdminEquipes = () => {
     // Estado do modal de ADICIONAR MEMBRO
     const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
     const [selectedUsuarioId, setSelectedUsuarioId] = useState('');
-    
+
+    // NOVO ESTADO: Controle do Modal de Atribuição de Coordenador
+    const [isSetCoordinatorOpen, setIsSetCoordinatorOpen] = useState(false);
+    const [coordChangeEquipe, setCoordChangeEquipe] = useState(null);
+    const [selectedNewCoordId, setSelectedNewCoordId] = useState('');
+
     
     // --- FUNÇÕES DE BUSCA ---
-
     const fetchCoordenadores = async () => {
         try {
             const usuarios = await equipesService.listarCoordenadoresDisponiveis(); 
@@ -88,7 +93,7 @@ const AdminEquipes = () => {
             await Promise.allSettled([
                 fetchEquipes(),
                 fetchMembros(),
-                fetchCoordenadores(), 
+                fetchCoordenadores(),
             ]);
             setIsLoading(false); 
         };
@@ -98,24 +103,16 @@ const AdminEquipes = () => {
 
 
     // --- FUNÇÕES CRUD E LÓGICA DE ESTADO ---
-    
     const handleOpenDialog = (equipe = null) => {
         setEditingEquipe(equipe);
         
         if (equipe) {
-            const currentCoordId = equipe.coordenador 
-                // Se o objeto existir, pegamos o ID e forçamos para String.
-                ? equipe.coordenador._id?.toString() || equipe.coordenador.id?.toString() 
-                : ''; // Usa string vazia se não houver coordenador
-                
-            // Carrega dados para EDIÇÃO
             setNewEquipeData({ 
                 nome: equipe.nome, 
                 cor: equipe.cor,
             });
         } else {
-            // Reset para CRIAÇÃO
-            setNewEquipeData({ nome: '', cor: '', coordenador_usuario_id: '' });
+            setNewEquipeData({ nome: '', cor: '' });
         }
         setIsDialogOpen(true);
     };
@@ -123,7 +120,6 @@ const AdminEquipes = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         const isEditing = !!editingEquipe;
-        // O objeto newEquipeData agora contém apenas nome e cor
         const { nome, cor } = newEquipeData; 
 
         if (!nome || !cor) {
@@ -131,34 +127,25 @@ const AdminEquipes = () => {
             return;
         }
         
-        // PREPARA OS DADOS
         const dataToSend = { nome, cor };
 
         try {
             const response = isEditing 
-                ? await equipesService.atualizarEquipe(editingEquipe.id || editingEquipe._id, dataToSend) // Rota PUT
-                : await equipesService.criarEquipe(dataToSend); // Rota POST
+                ? await equipesService.atualizarEquipe(editingEquipe.id || editingEquipe._id, dataToSend)
+                : await equipesService.criarEquipe(dataToSend);
 
-            // Pega o ID da equipe que foi modificada/criada (garantindo que seja string)
             const updatedEquipeId = response.equipe.id?.toString() || response.equipe._id?.toString(); 
 
-            // ✅ CORREÇÃO: Mapeamento Imutável e Preciso
             setEquipes(prev => isEditing 
                 ? prev.map(e => {
                     const currentId = e.id?.toString() || e._id?.toString();
-                    
-                    // Compara o ID da equipe atual no array com o ID que acabou de ser modificado
                     if (currentId === updatedEquipeId) {
-                        // Retorna o novo objeto POPULADO retornado pelo backend
                         return response.equipe; 
                     }
                     return e;
                 })
-                : [...prev, response.equipe] // Criação: apenas anexa
+                : [...prev, response.equipe]
             );
-            
-            // Se a edição foi bem-sucedida, re-busca a lista de coordenadores (para caso o antigo coordenador seja liberado)
-            // fetchCoordenadores(); // <-- Reintroduza esta linha se precisar atualizar a lista de coordenadores livres
             
             toast.success(`Equipe ${isEditing ? 'atualizada' : 'criada'} com sucesso!`);
             setIsDialogOpen(false);
@@ -171,7 +158,6 @@ const AdminEquipes = () => {
 
 
     // --- FUNÇÕES DE VISUALIZAÇÃO E DELEÇÃO ---
-    
     const openViewMembersDialog = async (equipe) => {
         setCurrentEquipe(equipe);
         setMembrosView([]); 
@@ -201,7 +187,6 @@ const AdminEquipes = () => {
         try {
             const response = await equipesService.adicionarMembro(equipeId, selectedUsuarioId);
 
-            // Atualiza a equipe no estado com o objeto POPULADO do backend
             setEquipes((prevEquipes) => 
                 prevEquipes.map((equipe) => {
                     if (equipe.id === equipeId || equipe._id === equipeId) {
@@ -222,7 +207,7 @@ const AdminEquipes = () => {
     };
     
     const handleDeleteEquipe = async (equipeId, equipeNome) => {
-        if (!window.confirm(`Tem certeza que deseja excluir a equipe "${equipeNome}"? Esta ação é irreversível e removerá todos os registros associados!`)) {
+        if (!window.confirm(`Tem certeza que deseja excluir a equipe "${equipeNome}"? Esta ação é irreversível!`)) {
             return;
         }
 
@@ -233,11 +218,46 @@ const AdminEquipes = () => {
             
             toast.success(`Equipe "${equipeNome}" excluída com sucesso!`);
             
-            fetchMembros(); // Re-busca a lista de membros para atualizar a lista de disponíveis
-            fetchCoordenadores(); // Re-busca coordenadores, pois o coordenador pode ter sido liberado
+            fetchMembros(); 
+            fetchCoordenadores();
         } catch (error) {
             const msg = error.message || 'Erro ao excluir a equipe.';
             toast.error(msg);
+        }
+    };
+
+
+    // --- FUNÇÕES DE ATRIBUIÇÃO DE COORDENADOR ---
+    const openSetCoordinatorDialog = (equipe) => {
+        setCoordChangeEquipe(equipe);
+        const currentCoordId = equipe.coordenador 
+            ? equipe.coordenador._id?.toString() || equipe.coordenador.id?.toString() 
+            : ''; 
+        setSelectedNewCoordId(currentCoordId);
+        setIsSetCoordinatorOpen(true);
+    };
+
+    const handleSetCoordinator = async () => {
+        if (!coordChangeEquipe) return;
+        
+        const equipeId = coordChangeEquipe.id || coordChangeEquipe._id;
+        const coordId = selectedNewCoordId === '' ? null : selectedNewCoordId;
+
+        try {
+            const response = await equipesService.atribuirCoordenador(equipeId, coordId);
+
+            setEquipes(prevEquipes => prevEquipes.map(e => 
+                (e.id === equipeId || e._id === equipeId) ? response.equipe : e
+            ));
+            
+            toast.success('Coordenador atribuído/trocado com sucesso.');
+            setIsSetCoordinatorOpen(false);
+            
+            fetchCoordenadores(); 
+            fetchMembros();
+            
+        } catch (error) {
+            toast.error(error.message || 'Erro ao atribuir coordenador.');
         }
     };
 
@@ -277,19 +297,14 @@ const AdminEquipes = () => {
                                 <DialogTitle>{editingEquipe ? 'Editar Equipe' : 'Criar Nova Equipe'}</DialogTitle>
                             </DialogHeader>
                             <form onSubmit={handleSubmit} className="grid gap-4 py-4">
-                                
-                                {/* Campo Nome */}
                                 <div className="grid gap-2">
                                     <Label htmlFor="nome">Nome da Equipe</Label>
                                     <Input id="nome" value={newEquipeData.nome} onChange={(e) => setNewEquipeData({...newEquipeData, nome: e.target.value})} placeholder="Ex: Equipe Falcão" required />
                                 </div>
-                                
-                                {/* Campo Cor */}
                                 <div className="grid gap-2">
-                                    <Label htmlFor="cor">Cor (Código HEX, ex: #FF3B82)</Label>
+                                    <Label htmlFor="cor">Cor (Código HEX)</Label>
                                     <Input id="cor" type="text" value={newEquipeData.cor} onChange={(e) => setNewEquipeData({...newEquipeData, cor: e.target.value})} placeholder="#33FF57" required />
                                 </div>
-                                
                                 <DialogFooter className="mt-4">
                                     <Button type="submit" className="bg-blue-600">
                                         {editingEquipe ? 'Salvar Alterações' : 'Criar Equipe'}
@@ -298,7 +313,6 @@ const AdminEquipes = () => {
                             </form>
                         </DialogContent>
                     </Dialog>
-                    
                 </div>
 
                 {/* Lista de Equipes */}
@@ -321,8 +335,6 @@ const AdminEquipes = () => {
                                     <div className="text-sm text-gray-700 flex items-center gap-3">
                                         <Users className='inline h-4 w-4 mr-1 text-gray-500'/> 
                                         Coordenador: {equipe.coordenador?.nome || 'Não definido'}
-                                        
-                                        {/* Botão Ver Membros */}
                                         <Button 
                                             variant="outline"
                                             size="sm"
@@ -334,17 +346,26 @@ const AdminEquipes = () => {
                                     </div>
                                     
                                     <div className="flex gap-2"> 
-                                        {/* Botão de EDIÇÃO */}
                                         <Button 
                                             size="sm" 
                                             variant="outline" 
                                             className="text-gray-600 hover:bg-gray-100" 
-                                            onClick={() => handleOpenDialog(equipe)} // Abre modal com dados para edição
+                                            onClick={() => handleOpenDialog(equipe)} 
                                         >
                                             <Edit className="h-4 w-4" />
                                         </Button>
+
+                                        {/* NOVO BOTÃO: Trocar Coordenador */}
+                                        <Button 
+                                            size="sm" 
+                                            variant="outline"
+                                            className="text-purple-600 border-purple-300 hover:bg-purple-50"
+                                            onClick={() => openSetCoordinatorDialog(equipe)} 
+                                        >
+                                            <Edit className="h-4 w-4 mr-1" />
+                                            {equipe.coordenador ? 'Trocar Coordenador' : 'Atribuir Coordenador'}
+                                        </Button>
                                         
-                                        {/* Botão de Excluir */}
                                         <Button 
                                             size="sm" 
                                             variant="ghost" 
@@ -354,7 +375,6 @@ const AdminEquipes = () => {
                                             <Trash2 className="h-4 w-4" />
                                         </Button>
                                         
-                                        {/* Botão Adicionar Membro */}
                                         <Button size="sm" variant="outline" className="text-blue-600 border-blue-300 hover:bg-blue-50" onClick={() => openAddMemberDialog(equipe)}>
                                             <UserPlus className="h-4 w-4 mr-2" /> Adicionar Membro
                                         </Button>
@@ -369,8 +389,59 @@ const AdminEquipes = () => {
                         </Card>
                     )}
                 </div>
-                
-                {/* Diálogo de Visualização de Membros (NOVO) */}
+
+                {/* Diálogo de Atribuir/Trocar Coordenador */}
+                <Dialog open={isSetCoordinatorOpen} onOpenChange={setIsSetCoordinatorOpen}>
+                    <DialogContent className="sm:max-w-[450px]">
+                        <DialogHeader>
+                            <DialogTitle>
+                                {coordChangeEquipe?.coordenador 
+                                    ? `Trocar Coordenador da Equipe ${coordChangeEquipe?.nome}`
+                                    : `Atribuir Coordenador à Equipe ${coordChangeEquipe?.nome}`}
+                            </DialogTitle>
+                            <DialogDescription>
+                                Selecione o coordenador desejado entre os usuários disponíveis.
+                            </DialogDescription>
+                        </DialogHeader>
+
+                        <div className="grid gap-4 py-4">
+                            <div className="grid gap-2">
+                                <Label htmlFor="coordenador">Selecionar Coordenador</Label>
+                                <Select
+                                    onValueChange={setSelectedNewCoordId}
+                                    value={selectedNewCoordId}
+                                    disabled={coordenadoresDisponiveis.length === 0}
+                                >
+                                    <SelectTrigger>
+                                        <SelectValue placeholder={
+                                            coordenadoresDisponiveis.length === 0
+                                                ? "Nenhum coordenador disponível"
+                                                : "Selecione um coordenador"
+                                        } />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {coordenadoresDisponiveis.map(coord => (
+                                            <SelectItem key={coord._id} value={coord._id}>
+                                                {coord.nome}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+
+                        <DialogFooter>
+                            <Button 
+                                onClick={handleSetCoordinator} 
+                                disabled={!selectedNewCoordId}
+                                className="bg-purple-600 hover:bg-purple-700 text-white"
+                            >
+                                Confirmar
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+                {/* Diálogo de Visualização de Membros */}
                 <Dialog open={isViewMembersOpen} onOpenChange={setIsViewMembersOpen}>
                     <DialogContent className="sm:max-w-lg">
                         <DialogHeader>
@@ -380,7 +451,6 @@ const AdminEquipes = () => {
                             </DialogDescription>
                         </DialogHeader>
                         
-                        {/* Lista de Membros */}
                         <div className="space-y-3 max-h-80 overflow-y-auto">
                             {membrosView.length === 0 ? (
                                 <p className="text-gray-500 text-center py-4">Nenhum membro encontrado.</p>
@@ -391,7 +461,6 @@ const AdminEquipes = () => {
                                             <p className="font-semibold text-gray-800">{membro.nome}</p>
                                             <p className="text-sm text-gray-500">{membro.email} - ({membro.tipo})</p>
                                         </div>
-                                        {/* Indicador de Coordenador */}
                                         {membro.isCoordenador && (
                                             <span className="text-xs font-semibold px-2 py-1 bg-green-100 text-green-700 rounded-full">
                                                 Coordenador
@@ -407,7 +476,7 @@ const AdminEquipes = () => {
                     </DialogContent>
                 </Dialog>
 
-                {/* Diálogo de Adicionar Membro (Mantido) */}
+                {/* Diálogo de Adicionar Membro */}
                 <Dialog open={isAddMemberOpen} onOpenChange={setIsAddMemberOpen}>
                     <DialogContent className="sm:max-w-[450px]">
                         <DialogHeader>

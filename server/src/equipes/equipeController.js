@@ -205,29 +205,26 @@ export const adicionarMembro = async (req, res) => {
 
 /**
  * [GET] Lista todos os usuários que NÃO estão em nenhuma equipe, e são elegíveis para serem Coordenadores (tipo: COORDENADOR)
+ * Rota utilizada para popular o Select de Coordenadores (Troca/Criação).
  */
 export const listarCoordenadoresDisponiveis = async (req, res) => {
     try {
+        // A agregação é a forma mais robusta de encontrar usuários livres.
         const coordenadoresDisponiveis = await Usuario.aggregate([
+            { $match: { tipo: 'COORDENADOR' } }, // Filtra por tipo COORDENADOR
             {
-                // considerar os usuários que são Coordenadores
-                $match: {
-                    tipo: 'COORDENADOR'
-                }
-            },
-            {
-                // faz a primeira busca na tabela de membros.
+                // Verifica se o usuário já é membro de alguma equipe
                 $lookup: {
-                    from: "Equipes_Membros",
+                    from: EquipeMembros.collection.name, // Nome da sua coleção de membros
                     localField: "_id",
                     foreignField: "usuario_id",
                     as: "vinculo_membro"
                 }
             },
             {
-                // faz a segunda busca na tabela de gincanas para verificar se ele já coordena.
+                // Verifica se o usuário já coordena uma equipe (registro na EquipeGincana)
                 $lookup: {
-                    from: "Equipes_Gincana",
+                    from: EquipeGincana.collection.name, 
                     localField: "_id",
                     foreignField: "coordenador_usuario_id",
                     as: "vinculo_coordenador"
@@ -243,6 +240,57 @@ export const listarCoordenadoresDisponiveis = async (req, res) => {
             {
                 // Seleciona os campos para retornar para o frontend.
                 $project: {
+                    _id: 1, nome: 1, email: 1, tipo: 1, turma: 1
+                }
+            }
+        ]);
+
+        res.status(200).json(coordenadoresDisponiveis);
+    } catch (error) {
+        console.error('Erro ao listar coordenadores disponíveis:', error);
+        res.status(500).json({ message: 'Erro interno ao buscar coordenadores disponíveis.' });
+    }
+};
+
+/**
+ * [GET] Lista todos os usuários elegíveis para serem Coordenadores
+ * (ou seja, tanto ALUNOS quanto COORDENADORES que ainda não estão em equipe).
+ */
+export const listarUsuariosElegiveisCoordenador = async (req, res) => {
+    try {
+        const usuariosElegiveis = await Usuario.aggregate([
+            {
+                // Pega usuários que são ALUNO ou COORDENADOR
+                $match: { tipo: { $in: ['ALUNO', 'COORDENADOR'] } }
+            },
+            {
+                // Verifica se o usuário já é membro de alguma equipe
+                $lookup: {
+                    from: EquipeMembros.collection.name,
+                    localField: "_id",
+                    foreignField: "usuario_id",
+                    as: "vinculo_membro"
+                }
+            },
+            {
+                // Verifica se o usuário já coordena alguma equipe
+                $lookup: {
+                    from: EquipeGincana.collection.name,
+                    localField: "_id",
+                    foreignField: "coordenador_usuario_id",
+                    as: "vinculo_coordenador"
+                }
+            },
+            {
+                // Mantém apenas usuários que não estão vinculados a nenhuma equipe
+                $match: {
+                    vinculo_membro: { $size: 0 },
+                    vinculo_coordenador: { $size: 0 }
+                }
+            },
+            {
+                // Campos a retornar
+                $project: {
                     _id: 1,
                     nome: 1,
                     email: 1,
@@ -252,10 +300,10 @@ export const listarCoordenadoresDisponiveis = async (req, res) => {
             }
         ]);
 
-        res.status(200).json(coordenadoresDisponiveis);
+        res.status(200).json(usuariosElegiveis);
     } catch (error) {
-        console.error('Erro ao listar coordenadores disponíveis:', error);
-        res.status(500).json({ message: 'Erro interno ao buscar coordenadores disponíveis.' });
+        console.error('Erro ao listar usuários elegíveis para coordenador:', error);
+        res.status(500).json({ message: 'Erro interno ao buscar usuários elegíveis.' });
     }
 };
 
@@ -721,6 +769,102 @@ export const listarEquipesPublicas = async (req, res) => {
     return res.status(200).json(equipes);
   } catch (error) {
     return res.status(500).json({ message: 'Erro ao listar equipes públicas.', error: error.message });
+  }
+};
+
+/**
+ * [PATCH] Atribui ou remove um Coordenador de uma equipe existente. (PATCH /api/equipes/:id/coordenador)
+ * Quem exerce: ADMIN
+ * Lógica: Remove o antigo Coordenador da EquipeMembros e adiciona o novo (se fornecido).
+ */
+export const atribuirCoordenador = async (req, res) => {
+  try {
+    const { id: equipeId } = req.params;
+    // aceita vários nomes no body para evitar incompatibilidade com front
+    const novoCoordenadorId = req.body.usuario_id ?? req.body.novoCoordenadorId ?? req.body.coordId ?? null;
+
+    // Busca o contexto da gincana (onde está o coordenador registrado)
+    const equipeContexto = await EquipeGincana.findOne({ equipe_id: equipeId, gincana_id: GINCANA_ATUAL_ID });
+    if (!equipeContexto) {
+      return res.status(404).json({ message: 'Contexto da equipe na gincana não encontrado.' });
+    }
+
+    const coordenadorAntigoId = equipeContexto.coordenador_usuario_id?.toString() || null;
+
+    const updates = [];
+
+    // 1) Se houver um coordenador antigo diferente do novo, apenas alteramos seu TIPO para 'ALUNO'
+    if (coordenadorAntigoId && coordenadorAntigoId !== (novoCoordenadorId || null)) {
+      // Atualiza o tipo do usuário antigo para ALUNO (não removemos da equipe)
+      updates.push(
+        Usuario.findByIdAndUpdate(coordenadorAntigoId, { $set: { tipo: 'ALUNO' } }, { new: true })
+      );
+
+      // Garante que o registro em EquipeMembros para o antigo exista e tenha is_coordenador: false
+      updates.push(
+        EquipeMembros.findOneAndUpdate(
+          { equipe_id: equipeId, usuario_id: coordenadorAntigoId },
+          { $set: { is_coordenador: false } },
+          { upsert: false, new: true }
+        )
+      );
+    }
+
+    // 2) Se um novo coordenador foi indicado (não é null/''), tratamos o novo
+    if (novoCoordenadorId) {
+      const novoUser = await Usuario.findById(novoCoordenadorId);
+      if (!novoUser) {
+        return res.status(404).json({ message: 'Usuário indicado como coordenador não encontrado.' });
+      }
+
+      // 2.a) Atualiza o tipo do novo usuário para 'COORDENADOR' (se necessário)
+      if (novoUser.tipo !== 'COORDENADOR') {
+        updates.push(Usuario.findByIdAndUpdate(novoCoordenadorId, { $set: { tipo: 'COORDENADOR' } }, { new: true }));
+      }
+
+      // 2.b) Garante que exista registro em EquipeMembros com is_coordenador: true
+      // Se existir, atualiza is_coordenador para true. Se não existir, cria (upsert)
+      updates.push(
+        EquipeMembros.findOneAndUpdate(
+          { equipe_id: equipeId, usuario_id: novoCoordenadorId },
+          { $set: { is_coordenador: true, equipe_gincana_id: equipeContexto._id } },
+          { upsert: true, new: true }
+        )
+      );
+
+      // 2.c) Define no contexto quem é o coordenador
+      equipeContexto.coordenador_usuario_id = novoCoordenadorId;
+    } else {
+      // Se novoCoordenadorId for null => estamos removendo o coordenador (set null)
+      equipeContexto.coordenador_usuario_id = null;
+    }
+
+    // 3) Salva o contexto atualizado
+    updates.push(equipeContexto.save());
+
+    // Executa todas as operações em paralelo
+    await Promise.all(updates);
+
+    // 4) Monta resposta populada para o frontend (igual ao padrão que você já usa)
+    const total_membros = await EquipeMembros.countDocuments({ equipe_id: equipeId });
+    const equipeFinalPop = await EquipeGincana.findOne({ equipe_id: equipeId })
+      .populate('equipe_id', 'nome cor')
+      .populate('coordenador_usuario_id', 'nome email');
+
+    const equipeFormatada = {
+      id: equipeId,
+      nome: equipeFinalPop.equipe_id.nome,
+      cor: equipeFinalPop.equipe_id.cor,
+      pontos_acumulados: equipeFinalPop.pontos_acumulados,
+      coordenador: equipeFinalPop.coordenador_usuario_id, // objeto populado ou null
+      total_membros: total_membros,
+    };
+
+    return res.status(200).json({ message: 'Coordenador atribuído/atualizado com sucesso.', equipe: equipeFormatada });
+
+  } catch (error) {
+    console.error('Erro ao atribuir coordenador:', error);
+    return res.status(500).json({ message: 'Erro interno ao atribuir coordenador.', details: error.message });
   }
 };
 

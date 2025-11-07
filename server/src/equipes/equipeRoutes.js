@@ -14,7 +14,9 @@ import {
   inscreverAlunoEmEquipe,
   deletarEquipe,
   listarMembrosPorEquipe,
-  atualizarEquipe
+  atualizarEquipe,
+  atribuirCoordenador,
+  listarUsuariosElegiveisCoordenador
 } from './equipeController.js';
 import { proteger, autorizar } from '../auth/authPermissions.js';
 
@@ -37,6 +39,10 @@ router.delete('/:id', proteger, autorizar('ADMIN'), deletarEquipe);
 router.get('/:equipeId/membros', proteger, autorizar('ADMIN', 'COORDENADOR', 'PROFESSOR', 'ALUNO'), listarMembrosPorEquipe);
 // [PUT] Atualizar equipe (Admin)
 router.put('/:id', proteger, autorizar('ADMIN'), atualizarEquipe);
+// [PATCH] Atribuir/Trocar Coordenador
+router.patch('/:id/coordenador', proteger, autorizar('ADMIN'), atribuirCoordenador);
+// [GET] Usuários elegíveis para serem Coordenadores (ALUNO + COORDENADOR)
+router.get('/elegiveis-coordenador', proteger, autorizar('ADMIN'), listarUsuariosElegiveisCoordenador);
 
 router.patch('/:id/membros', proteger, autorizar('ADMIN'), adicionarMembro);
 router.get('/coordenadores-disponiveis', proteger, autorizar('ADMIN'), listarCoordenadoresDisponiveis);
