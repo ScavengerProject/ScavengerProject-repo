@@ -265,7 +265,13 @@ export const equipesService = {
   listarMembrosPorIdEquipe: (equipeId) =>
     request(`/equipes/${equipeId}/membros`, { method: 'GET' }),
 
+  listarElegiveisParaCoordenador: () =>
+        request('/equipes/alunos-disponiveis', {
+            method: 'GET',
+        }),
+
   };
+
   
 
 /**

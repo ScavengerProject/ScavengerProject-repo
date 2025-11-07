@@ -85,6 +85,21 @@ const AdminEquipes = () => {
         }
     };
 
+    const fetchCoordenadoresElegiveis = async () => {
+    try {
+        const usuarios = await equipesService.listarElegiveisParaCoordenador(); 
+        
+        const coordsDisponiveis = usuarios
+            .filter(u => u.tipo === 'COORDENADOR' || 'ALUNO')
+            .map(u => ({ _id: u._id, nome: u.nome }));
+            
+        setCoordenadoresDisponiveis(coordsDisponiveis);
+
+    } catch (error) {
+        console.error('Erro ao carregar coordenadores elegíveis:', error);
+    } 
+};
+
     // --- USE EFFECT ---
     useEffect(() => {
         const loadAllData = async () => {
@@ -93,6 +108,7 @@ const AdminEquipes = () => {
                 fetchEquipes(),
                 fetchMembros(),
                 fetchCoordenadores(),
+                fetchCoordenadoresElegiveis(),
             ]);
             setIsLoading(false); 
         };

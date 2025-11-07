@@ -859,3 +859,54 @@ export const listarEquipesParaInscricao = async (req, res) => {
     res.status(500).json({ message: 'Erro interno ao listar equipes.' });
   }
 };
+
+/**
+ * [GET] Lista usuários que são ALUNO ou COORDENADOR e que não pertencem a nenhuma equipe.
+ */
+export const listarUsuariosElegiveisCoordenador = async (req, res) => {
+    try {
+        console.log("Executando query para listar ALUNOS e COORDENADORES disponíveis...");
+        const usuariosDisponiveis = await Usuario.aggregate([
+            {
+                // Passo 1: Filtrar pelos tipos de usuário desejados (ALUNO ou COORDENADOR)
+                $match: {
+                    tipo: { $in: ['ALUNO', 'COORDENADOR'] }
+                }
+            },
+            {
+                // Passo 2: Tentar encontrar um vínculo para cada usuário na tabela de membros
+                $lookup: {
+                    from: "Equipes_Membros",
+                    localField: "_id",
+                    foreignField: "usuario_id",
+                    as: "vinculo_equipe"
+                }
+            },
+            {
+                // Passo 3: Filtrar, mantendo apenas os usuários onde o array 'vinculo_equipe' está VAZIO.
+                // Isso garante que o usuário não está em nenhuma equipe.
+                $match: {
+                    vinculo_equipe: { $size: 0 }
+                }
+            },
+            {
+                // Passo 4: Formatar a saída
+                $project: {
+                    _id: 1,
+                    nome: 1,
+                    email: 1,
+                    tipo: 1,
+                    turma: 1
+                }
+            }
+        ]);
+
+        console.log(`Encontrados ${usuariosDisponiveis.length} usuários disponíveis.`);
+
+        res.status(200).json(usuariosDisponiveis);
+
+    } catch (error) {
+        console.error('ERRO FATAL na query de usuários disponíveis para equipe:', error);
+        res.status(500).json({ message: 'Erro interno ao buscar usuários elegíveis.' });
+    }
+};
