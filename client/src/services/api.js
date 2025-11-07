@@ -238,7 +238,14 @@ export const equipesService = {
   listarEquipesGincana: () =>
     request('/equipes/equipes-gincana', { method: 'GET' }),
 
-};
+  /**
+   * [GET] /api/equipes/:equipeId/membros
+   * Lista os membros de uma equipe específica.
+   */
+  listarMembrosPorIdEquipe: (equipeId) =>
+    request(`/equipes/${equipeId}/membros`, { method: 'GET' }),
+
+  };
 
 /**
  * Serviço de Testes

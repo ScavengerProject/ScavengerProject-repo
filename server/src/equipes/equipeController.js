@@ -379,6 +379,56 @@ export const listarUsuariosSemEquipe = async (req, res) => {
 };
 
 /**
+ * [GET] Lista todos os membros (Usuários) de uma equipe específica.
+ * Rota: /api/equipes/:equipeId/membros
+ * Quem exerce: ADMIN, COORDENADOR
+ */
+export const listarMembrosPorEquipe = async (req, res) => {
+    try {
+        const { equipeId } = req.params; 
+
+        // 1. Busca os registros de membros (Corrigido o populate)
+        const registrosMembros = await EquipeMembros.find({ equipe_id: equipeId })
+            // CORRIGIDO: Retirado o .select('is_coordenador usuario_id') daqui, 
+            // pois o find() já retorna o objeto inteiro, e o select dentro do populate é suficiente.
+            .populate('usuario_id', 'nome email tipo turma'); 
+            
+        // Se a busca falhar por um ID mal formado, ela cai no catch com CastError.
+        if (!registrosMembros) {
+             return res.status(500).json({ message: 'Falha na busca de membros no banco de dados.' });
+        }
+
+        // 3. Formata os dados para o frontend
+        const membros = registrosMembros.map(reg => {
+            const usuario = reg.usuario_id;
+            
+            if (!usuario) return null; 
+
+            return {
+                id: usuario._id,
+                nome: usuario.nome,
+                email: usuario.email,
+                tipo: usuario.tipo,
+                turma: usuario.turma,
+                isCoordenador: reg.is_coordenador, // is_coordenador vem do registro EquipeMembros (reg)
+            };
+        }).filter(m => m !== null);
+
+        res.status(200).json(membros);
+
+    } catch (error) {
+        // Loga o erro COMPLETO no servidor (PARA VER O CASTERROR se for o caso)
+        console.error('ERRO FATAL AO LISTAR MEMBROS:', error.message, error); 
+        
+        // Retorna 500 para o frontend
+        return res.status(500).json({ 
+            message: 'Erro interno ao listar membros da equipe.',
+            details: error.message 
+        });
+    }
+};
+
+/**
  * [DELETE] Exclui uma equipe e todos os seus registros associados em todas as collections.
  * Quem pode: ADMIN
  */

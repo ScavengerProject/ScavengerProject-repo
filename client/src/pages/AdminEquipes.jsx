@@ -22,22 +22,46 @@ const AdminEquipes = () => {
     
     const [membrosDisponiveis, setMembrosDisponiveis] = useState([]);
 
-    // Estado do formulário de CRIAÇÃO (Simplificado)
+    // Estado do formulário de CRIAÇÃO (Sem coordenador)
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [newEquipeData, setNewEquipeData] = useState({ 
         nome: '', 
         cor: '', 
     });
+
+    // NOVO: Listar membros por equipe (para o modal de visualização)
+    const [membrosView, setMembrosView] = useState([]); 
+    const [isViewMembersOpen, setIsViewMembersOpen] = useState(false);
+    const [currentEquipe, setCurrentEquipe] = useState(null); 
     
     // Estado do modal de ADICIONAR MEMBRO
     const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
-    const [currentEquipe, setCurrentEquipe] = useState(null);
     const [selectedUsuarioId, setSelectedUsuarioId] = useState('');
     
-    // --- FUNÇÕES DE BUSCA ---
+    
+    // --- FUNÇÃO DE VISUALIZAÇÃO E BUSCA DE MEMBROS (NOVO) ---
+    const openViewMembersDialog = async (equipe) => {
+        setCurrentEquipe(equipe);
+        setMembrosView([]); // Limpa dados antigos enquanto carrega
+        setIsViewMembersOpen(true);
 
+        try {
+            const equipeId = equipe.id || equipe._id;
+            // Chama a rota GET /api/equipes/:equipeId/membros
+            const membros = await equipesService.listarMembrosPorIdEquipe(equipeId); 
+            // O backend retorna { id, nome, tipo, isCoordenador, ... }
+            setMembrosView(membros);
+        } catch (error) {
+            toast.error('Erro ao carregar detalhes dos membros da equipe.');
+            console.error('Erro ao buscar membros para visualização:', error);
+        }
+    };
+
+
+    // --- FUNÇÕES DE BUSCA ---
     const fetchMembros = async () => {
         try {
+            // Rota: /api/equipes/membros-disponiveis (que executa listarUsuariosSemEquipe)
             const usuarios = await equipesService.listarMembrosDisponiveis(); 
             setMembrosDisponiveis(usuarios.map(u => ({ 
                 _id: u._id, 
@@ -60,13 +84,13 @@ const AdminEquipes = () => {
         }
     };
 
-    // --- USE EFFECT (Simplificado) ---
+    // --- USE EFFECT ---
     useEffect(() => {
         const loadAllData = async () => {
             setIsLoading(true);
-            // Chama apenas as 2 funções necessárias
             await Promise.allSettled([
                 fetchEquipes(),
+                // Removido fetchCoordenadores
                 fetchMembros(),
             ]);
             setIsLoading(false); 
@@ -79,7 +103,6 @@ const AdminEquipes = () => {
     // --- LÓGICA DE CRIAÇÃO (Simplificada) ---
     const handleCreateEquipe = async (e) => {
         e.preventDefault();
-        // Recebe apenas nome e cor
         const { nome, cor } = newEquipeData; 
 
         if (!nome || !cor) {
@@ -88,14 +111,13 @@ const AdminEquipes = () => {
         }
 
         try {
-            // O newEquipeData SÓ contém nome e cor
             const response = await equipesService.criarEquipe(newEquipeData);
             
             setEquipes((prev) => [...prev, response.equipe]); 
             toast.success(`Equipe "${response.equipe.nome}" criada com sucesso!`);
             
             setIsDialogOpen(false);
-            setNewEquipeData({ nome: '', cor: '' }); // Reset limpo
+            setNewEquipeData({ nome: '', cor: '' });
             
         } catch (error) {
             const msg = error.message || 'Erro desconhecido ao criar equipe.';
@@ -104,7 +126,7 @@ const AdminEquipes = () => {
     };
 
 
-    // --- LÓGICA DE ADIÇÃO DE MEMBRO (Mantida) ---
+    // --- LÓGICA DE ADIÇÃO DE MEMBRO ---
     const openAddMemberDialog = (equipe) => {
         setCurrentEquipe(equipe);
         setSelectedUsuarioId('');
@@ -119,6 +141,7 @@ const AdminEquipes = () => {
         try {
             const response = await equipesService.adicionarMembro(equipeId, selectedUsuarioId);
 
+            // Atualiza a equipe no estado com o objeto POPULADO do backend
             setEquipes((prevEquipes) => 
                 prevEquipes.map((equipe) => {
                     if (equipe.id === equipeId || equipe._id === equipeId) {
@@ -128,6 +151,7 @@ const AdminEquipes = () => {
                 })
             );
             
+            // Remove o usuário da lista de Membros Comuns disponíveis
             setMembrosDisponiveis(prev => prev.filter(u => u._id !== selectedUsuarioId));
             
             toast.success('Participante adicionado com sucesso!');
@@ -138,7 +162,7 @@ const AdminEquipes = () => {
         }
     };
     
-    // --- LÓGICA DE EXCLUSÃO (Mantida) ---
+    // --- LÓGICA DE EXCLUSÃO ---
     const handleDeleteEquipe = async (equipeId, equipeNome) => {
         if (!window.confirm(`Tem certeza que deseja excluir a equipe "${equipeNome}"? Esta ação é irreversível e removerá todos os registros associados!`)) {
             return;
@@ -151,7 +175,7 @@ const AdminEquipes = () => {
             
             toast.success(`Equipe "${equipeNome}" excluída com sucesso!`);
             
-            // Re-busca as listas de usuários disponíveis (Membro fica livre)
+            // Re-busca a lista de membros para atualizar a lista de disponíveis
             fetchMembros(); 
         } catch (error) {
             const msg = error.message || 'Erro ao excluir a equipe.';
@@ -203,6 +227,7 @@ const AdminEquipes = () => {
                                     <Label htmlFor="cor">Cor (Código HEX, ex: #FF3B82)</Label>
                                     <Input id="cor" type="text" value={newEquipeData.cor} onChange={(e) => setNewEquipeData({...newEquipeData, cor: e.target.value})} placeholder="#33FF57" required />
                                 </div>
+                                
                                 <DialogFooter className="mt-4">
                                     <Button type="submit" className="bg-blue-600">Criar Equipe</Button>
                                 </DialogFooter>
@@ -229,8 +254,19 @@ const AdminEquipes = () => {
                                     </div>
                                 </CardHeader>
                                 <CardContent className="pt-2 flex items-center justify-between">
-                                    <div className="text-sm text-gray-700">
-                                        <Users className='inline h-4 w-4 mr-1 text-gray-500'/> Membros: {equipe.total_membros || 0} | Coordenador: {equipe.coordenador?.nome || 'Não definido'}
+                                    <div className="text-sm text-gray-700 flex items-center gap-3">
+                                        <Users className='inline h-4 w-4 mr-1 text-gray-500'/> 
+                                        Coordenador: {equipe.coordenador?.nome || 'Não definido'}
+                                        
+                                        {/* NOVO BOTÃO: Abre o modal de listagem */}
+                                        <Button 
+                                            variant="outline"
+                                            size="sm"
+                                            className="text-gray-600 hover:bg-gray-100"
+                                            onClick={() => openViewMembersDialog(equipe)}
+                                        >
+                                            Ver Membros ({equipe.total_membros || 0})
+                                        </Button>
                                     </div>
                                     
                                     <div className="flex gap-2"> 
@@ -258,6 +294,43 @@ const AdminEquipes = () => {
                     )}
                 </div>
                 
+                {/* Diálogo de Visualização de Membros (NOVO) */}
+                <Dialog open={isViewMembersOpen} onOpenChange={setIsViewMembersOpen}>
+                    <DialogContent className="sm:max-w-lg">
+                        <DialogHeader>
+                            <DialogTitle>Membros da Equipe: {currentEquipe?.nome}</DialogTitle>
+                            <DialogDescription>
+                                Total de Participantes: {membrosView.length}
+                            </DialogDescription>
+                        </DialogHeader>
+                        
+                        {/* Lista de Membros */}
+                        <div className="space-y-3 max-h-80 overflow-y-auto">
+                            {membrosView.length === 0 ? (
+                                <p className="text-gray-500 text-center py-4">Nenhum membro encontrado nesta equipe.</p>
+                            ) : (
+                                membrosView.map(membro => (
+                                    <div key={membro.id} className="flex items-center justify-between p-3 border rounded-md shadow-sm">
+                                        <div>
+                                            <p className="font-semibold text-gray-800">{membro.nome}</p>
+                                            <p className="text-sm text-gray-500">{membro.email} - ({membro.tipo})</p>
+                                        </div>
+                                        {/* Indicador de Coordenador */}
+                                        {membro.isCoordenador && (
+                                            <span className="text-xs font-semibold px-2 py-1 bg-green-100 text-green-700 rounded-full">
+                                                Coordenador
+                                            </span>
+                                        )}
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                        <DialogFooter>
+                            <Button variant="outline" onClick={() => setIsViewMembersOpen(false)}>Fechar</Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+
                 {/* Diálogo de Adicionar Membro (Mantido) */}
                 <Dialog open={isAddMemberOpen} onOpenChange={setIsAddMemberOpen}>
                     <DialogContent className="sm:max-w-[450px]">
