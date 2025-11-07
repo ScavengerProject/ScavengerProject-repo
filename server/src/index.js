@@ -9,6 +9,7 @@ import migracaoEquipeRoutes from './equipes/migracaoEquipeRoutes.js';
 import emprestimoEquipeRoutes from './equipes/emprestimoEquipeRoutes.js';
 import usuarioRoutes from './usuarios/usuarioRoutes.js';
 import feedbackRoutes from './feedbacks/feedbackRoutes.js';
+import notificacaoRoutes from './notificacoes/notificacaoRoutes.js';
 
 dotenv.config();
 connectDB(); // BD
@@ -28,6 +29,7 @@ app.use('/api/equipes', equipeRoutes); // Rota genérica por último para não i
 app.use('/api/usuarios', usuarioRoutes);
 app.use('/api/equipes', equipeRoutes);
 app.use('/api/feedbacks', feedbackRoutes);
+app.use('/api/notificacoes', notificacaoRoutes);
 
 app.listen(PORT, () => {
   console.log(`Servidor Express rodando na porta ${PORT}`);
