@@ -19,6 +19,7 @@ import MeusFeedbacks from './pages/MeusFeedbacks.jsx';
 import Notificacoes from './pages/Notificacoes.jsx';
 import { useToast } from './components/ui/toast';
 import { ToastContainer } from './components/ui/ToastContainer';
+import Penalidades from './pages/Penalidades.jsx';
 
 function App() {
   const { usuario, isAuthenticated, loading, logout } = useAuth();
@@ -147,6 +148,16 @@ function App() {
           element={
             isAuthenticated
               ? (usuario.tipo === 'COORDENADOR' ? <AprovarMigracoes /> : <Navigate to="/" replace />)
+              : <Navigate to="/login" replace />
+          }
+        />
+
+        {/* Rota para Penalidades (Admin) */}
+        <Route
+          path="/admin/penalidades"
+          element={
+            isAuthenticated
+              ? (usuario.tipo === 'ADMIN' ? <Penalidades /> : <Navigate to="/" replace />)
               : <Navigate to="/login" replace />
           }
         />
