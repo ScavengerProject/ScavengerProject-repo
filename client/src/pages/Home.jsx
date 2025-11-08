@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, User, BookOpen, BarChart3, Settings, Users, UserCheck, Handshake, MessageSquare, History, Gavel } from 'lucide-react';
+import { LogOut, User, BookOpen, BarChart3, Settings, Users, UserCheck, Handshake, MessageSquare, History, Gavel, AlertCircle } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import FeedbackFAB from '../components/EnviarFeedbackModal';
 import NotificacoesDropdown from '../components/NotificacoesDropdown';
@@ -213,14 +213,14 @@ export default function Home({ usuario, onLogout }) {
             </div>
           )}
 
-          {/* Card Penalidades */}
+          {/* Card Penalidades Admin */}
           {isAdmin && (
             <div className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition border border-gray-200 hover:border-red-300">
             <div className="bg-linear-to-br from-red-100 to-red-50 rounded-full w-12 h-12 flex items-center justify-center mb-4">
               <Gavel className="text-red-700" size={24} />
             </div>
             <h3 className="text-xl font-bold text-gray-900 mb-2">Gerenciar Penalidades</h3>
-            <p className="text-gray-600 mb-4">Aplique e consulte penalidades por infrações ao regulamento</p>
+            <p className="text-gray-600 mb-4">Aplique e consulte penalidades por infrações às regras</p>
             <Button 
               variant="outline"
               onClick={() => navigate('/admin/penalidades')}
