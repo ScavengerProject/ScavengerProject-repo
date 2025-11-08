@@ -232,7 +232,7 @@ export default function Home({ usuario, onLogout }) {
           )}
 
           {/* Card Penalidades para Coordenador */}
-          {usuario?.tipo === "COORDENADOR" && (
+          {['COORDENADOR', 'ALUNO', 'PROFESSOR'].includes(usuario?.tipo) && (
             <div 
               className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition border border-gray-200 hover:border-red-300"
             >
@@ -245,7 +245,7 @@ export default function Home({ usuario, onLogout }) {
               </p>
               <Button
                 variant="outline"
-                onClick={() => navigate("/coordenador/penalidades")}
+                onClick={() => navigate("/equipes/penalidades")}
                 className="w-full border-gray-300 hover:bg-gray-100 text-gray-900 font-semibold py-2 rounded-lg transition shadow-md mt-6"
               >
                 Visualizar

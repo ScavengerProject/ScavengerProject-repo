@@ -163,15 +163,16 @@ function App() {
           }
         />
 
-        {/* Rota para Penalidades (Coordenador) */}
+        {/* Rota para Penalidades (Equipe) */}
         <Route
-          path="/coordenador/penalidades"
+          path="/equipes/penalidades"
           element={
             isAuthenticated
-              ? (usuario.tipo === "COORDENADOR" ? <PenalidadesEquipe /> : <Navigate to="/" replace />)
+              ? (['COORDENADOR','ALUNO','PROFESSOR'].includes(usuario.tipo) ? <PenalidadesEquipe /> : <Navigate to="/" replace />)
               : <Navigate to="/login" replace />
           }
         />
+
 
 
         {/* Rota para Gerenciamento de Feedbacks (Admin) */}
