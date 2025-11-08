@@ -224,6 +224,8 @@ const Dashboard = () => {
     } else {
 
       let minhaPosicao = "---";
+      let indexPosicao = -1; // Guardar o índice
+
       if (usuarioEquipeId && ranking.length > 0) {
         const index = ranking.findIndex(eq => eq.equipe_id === usuarioEquipeId);
         
@@ -232,16 +234,20 @@ const Dashboard = () => {
         }
       }
 
+      // 2. Encontrar os DADOS da minha equipe (nome, pontos)
+      const minhaEquipeInfo = (indexPosicao !== -1) ? ranking[indexPosicao] : null;
+
+
       // Para alunos, professores, coordenadores, pais
       return [
         {
-          title: minhaEquipe ? "Minha Equipe" : "Sem Equipe",
-          description: minhaEquipe 
-            ? `${minhaEquipe.pontos_acumulados || 0} pontos acumulados`
+           title: minhaEquipeInfo ? "Minha Equipe" : "Sem Equipe",
+          description: minhaEquipeInfo 
+            ? '${minhaEquipeInfo.pontos || 0} pontos acumulados' // Usar .pontos
             : "Inscreva-se em uma equipe",
           icon: Users,
-          value: minhaEquipe?.nome || "---",
-          color: minhaEquipe ? "text-blue-600" : "text-gray-400",
+          value: minhaEquipeInfo?.nome || "---", // Usar .nome
+          color: minhaEquipeInfo ? "text-blue-600" : "text-gray-400",
         },
         {
           title: "Provas Ativas",
