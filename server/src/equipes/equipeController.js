@@ -910,3 +910,67 @@ export const listarUsuariosElegiveisCoordenador = async (req, res) => {
         res.status(500).json({ message: 'Erro interno ao buscar usuários elegíveis.' });
     }
 };
+
+/**
+ * [GET] Lista a classificação geral das equipes.
+ * Acessível a todos os usuários logados.
+ */
+export const visualizarRankingEquipes = async (req, res) => {
+    try {
+        const rankingRecords = await EquipeGincana.find({ gincana_id: GINCANA_ATUAL_ID })
+            .sort({ pontos_acumulados: -1 })
+            .select('equipe_id pontos_acumulados'); 
+
+        const equipeIds = rankingRecords.map(rec => rec.equipe_id);
+        
+        const equipesMaster = await Equipe.find({ _id: { $in: equipeIds } }).select('nome');
+
+        const equipeNameMap = equipesMaster.reduce((map, equipe) => {
+            map[equipe._id.toString()] = equipe.nome;
+            return map;
+        }, {});
+
+        const ranking = rankingRecords.map((rec, index) => {
+            const equipeIdString = rec.equipe_id.toString();
+            const nomeEquipe = equipeNameMap[equipeIdString];
+
+            // Filtra entradas sem nome (caso a equipe tenha sido deletada)
+            if (!nomeEquipe) return null;
+
+            return {
+                posicao: index + 1, // Posição no ranking
+                nome: nomeEquipe,
+                pontos: rec.pontos_acumulados,
+                equipe_id: rec.equipe_id,
+            };
+        });
+
+        res.status(200).json(ranking.filter(r => r !== null));
+
+    } catch (error) {
+        console.error('Erro ao visualizar ranking (simplificado):', error);
+        res.status(500).json({ message: 'Erro interno ao buscar a classificação.' });
+    }
+};
+
+/**
+ * [GET] Busca o equipe_id do usuário logado.
+ */
+export const buscarMinhaEquipeId = async (req, res) => {
+    try {
+        const usuarioId = req.usuario.id;
+        const membro = await EquipeMembros.findOne({ usuario_id: usuarioId }).select('equipe_id');
+
+        if (!membro) {
+            return res.status(404).json({ message: 'Usuário não está alocado em nenhuma equipe.' });
+        }
+
+        res.status(200).json({
+            equipe_id: membro.equipe_id
+        });
+
+    } catch (error) {
+        console.error('Erro ao buscar ID da equipe do usuário:', error);
+        res.status(500).json({ message: 'Erro interno ao buscar ID da equipe.' });
+    }
+};

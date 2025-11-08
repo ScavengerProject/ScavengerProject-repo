@@ -17,6 +17,7 @@ const Dashboard = () => {
   const [provas, setProvas] = useState([]);
   const [equipes, setEquipes] = useState([]);
   const [minhaEquipe, setMinhaEquipe] = useState(null);
+  const [usuarioEquipeId, setUsuarioEquipeId] = useState(null);
   const [provaSelecionada, setProvaSelecionada] = useState(null);
   const [modalAberto, setModalAberto] = useState(false);
 
@@ -42,6 +43,21 @@ const Dashboard = () => {
         const minha = equipesData.find(eq => eq.isMinhaEquipe);
         setMinhaEquipe(minha || null);
       }
+      const rankingData = await equipesService.visualizarRanking();
+        setRanking(rankingData || []);
+
+      if (usuario) {
+            try {
+                const equipeData = await equipesService.buscarMinhaEquipeId();
+                setUsuarioEquipeId(equipeData.equipe_id);
+            } catch (error) {
+                if (error.message && error.message.includes('não está alocado')) {
+                    setUsuarioEquipeId(null);
+                } else {
+                    console.error("Erro ao buscar equipe do usuário:", error);
+                }
+            }
+        }
     } catch (error) {
       console.error("Erro ao carregar dados do dashboard:", error);
       toast.error("Erro ao carregar dados do dashboard");
@@ -75,10 +91,14 @@ const Dashboard = () => {
   const provasNaoIniciadas = provas.filter(p => p.status === 'NAO_INICIADA').length;
   const provasConcluidas = provas.filter(p => p.status === 'CONCLUIDA').length;
 
+  const [ranking, setRanking] = useState([]);
+/*
   // Ordenar equipes por pontuação
   const equipesOrdenadas = [...equipes].sort((a, b) => 
     (b.pontos_acumulados || 0) - (a.pontos_acumulados || 0)
-  );
+  );*/
+
+  const rankingExibicao = ranking;
 
   // Filtrar provas disponíveis para o usuário
   const provasDisponiveis = provas.filter(prova => {
@@ -195,13 +215,23 @@ const Dashboard = () => {
         },
         {
           title: "Ranking",
-          description: equipesOrdenadas[0]?.nome || "Nenhuma equipe",
+          description: ranking[0]?.nome || "Nenhuma equipe",
           icon: Award,
           value: "1º",
           color: "text-yellow-600",
         },
       ];
     } else {
+
+      let minhaPosicao = "---";
+      if (usuarioEquipeId && ranking.length > 0) {
+        const index = ranking.findIndex(eq => eq.equipe_id === usuarioEquipeId);
+        
+        if (index !== -1) {
+          minhaPosicao = `${index + 1}º`;
+        }
+      }
+
       // Para alunos, professores, coordenadores, pais
       return [
         {
@@ -228,14 +258,12 @@ const Dashboard = () => {
           color: "text-purple-600",
         },
         {
-          title: minhaEquipe ? "Posição no Ranking" : "Ranking Geral",
-          description: minhaEquipe 
-            ? `Entre ${equipes.length} equipes`
+          title: usuarioEquipeId ? "Posição no Ranking" : "Ranking Geral",
+          description: usuarioEquipeId 
+            ? `Entre ${ranking.length} equipes`
             : "Participe de uma equipe",
           icon: Award,
-          value: minhaEquipe 
-            ? `${equipesOrdenadas.findIndex(e => e.id === minhaEquipe.id) + 1}º`
-            : "---",
+          value: minhaPosicao,
           color: "text-yellow-600",
         },
       ];
@@ -403,25 +431,25 @@ const Dashboard = () => {
                 <CardHeader>
                   <CardTitle className="text-gray-900">Ranking de Equipes</CardTitle>
                   <CardDescription className="text-gray-600">
-                    {equipesOrdenadas.length > 0 
+                    {rankingExibicao.length > 0 
                       ? 'Classificação atual'
                       : 'Nenhuma equipe cadastrada'
                     }
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {equipesOrdenadas.length === 0 ? (
+                  {rankingExibicao.length === 0 ? (
                     <div className="text-center py-8 text-gray-500">
                       <Users className="h-12 w-12 mx-auto mb-2 text-gray-300" />
                       <p>Nenhuma equipe cadastrada</p>
                     </div>
                   ) : (
-                    equipesOrdenadas.slice(0, 5).map((equipe, index) => (
+                    rankingExibicao.slice(0, 5).map((equipe, index) => (
                       <div 
-                        key={equipe.id} 
+                        key={equipe.equipe_id} // Agora usa equipe_id da API de ranking
                         className={`flex items-center justify-between p-3 rounded-lg border ${
-                          equipe.isMinhaEquipe
-                            ? 'bg-blue-50 border-blue-200'
+                            usuarioEquipeId && equipe.equipe_id === usuarioEquipeId                            
+                            ? 'bg-blue-50 border-blue-200' 
                             : index === 0
                               ? 'bg-yellow-50 border-yellow-200'
                               : 'bg-gray-50 border-gray-200'
@@ -435,15 +463,10 @@ const Dashboard = () => {
                           </span>
                           <div>
                             <p className="font-semibold text-gray-900">
-                              {equipe.nome}
-                              {equipe.isMinhaEquipe && (
-                                <span className="ml-2 text-xs bg-blue-600 text-white px-2 py-0.5 rounded-full">
-                                  Sua equipe
-                                </span>
-                              )}
+                              {equipe.nome} {/* ✅ Usa apenas o nome */}
                             </p>
                             <p className="text-sm text-gray-600">
-                              {equipe.pontos_acumulados || 0} pontos
+                              {equipe.pontos || 0} pontos {/* ✅ Usa apenas os pontos */}
                             </p>
                           </div>
                         </div>

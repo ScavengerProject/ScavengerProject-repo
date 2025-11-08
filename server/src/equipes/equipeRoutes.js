@@ -16,7 +16,9 @@ import {
   listarMembrosPorEquipe,
   atualizarEquipe,
   atribuirCoordenador,
-  listarUsuariosElegiveisCoordenador
+  listarUsuariosElegiveisCoordenador,
+  visualizarRankingEquipes,
+  buscarMinhaEquipeId
 } from './equipeController.js';
 import { proteger, autorizar } from '../auth/authPermissions.js';
 
@@ -26,7 +28,7 @@ const router = express.Router();
 router.get('/publicas', proteger, listarEquipesPublicas);
 
 // ✅ Lista equipes para inscrição, indicando qual é a equipe atual do aluno
-router.get('/para-inscricao', proteger, autorizar('ALUNO', 'PROFESSOR', 'PAI/MÃE'), listarEquipesParaInscricao);
+router.get('/para-inscricao', proteger, autorizar('ALUNO', 'PROFESSOR', 'PAI/MÃE', 'COORDENADOR'), listarEquipesParaInscricao);
 
 // Lista todas as equipes (Admin, Coordenador, Professor, Aluno)
 router.get('/', proteger, autorizar('ADMIN', 'COORDENADOR', 'PROFESSOR', 'ALUNO'), listarEquipes);
@@ -57,4 +59,6 @@ router.delete('/minha-equipe/membros/:membroId', proteger, autorizar('COORDENADO
 // Aluno autenticado se inscreve em uma equipe
 router.post('/:equipeId/register', proteger, autorizar('ALUNO'), inscreverAlunoEmEquipe);
 
+router.get('/ranking', proteger, visualizarRankingEquipes);
+router.get('/minha-equipe-id', proteger, buscarMinhaEquipeId);
 export default router;

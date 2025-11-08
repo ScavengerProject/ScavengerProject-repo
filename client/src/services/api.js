@@ -270,6 +270,13 @@ export const equipesService = {
             method: 'GET',
         }),
 
+  visualizarRanking: () =>
+        request('/equipes/ranking', {
+            method: 'GET',
+        }),
+  buscarMinhaEquipeId: () =>
+        request('/equipes/minha-equipe-id', { method: 'GET' }),
+
   };
 
   
