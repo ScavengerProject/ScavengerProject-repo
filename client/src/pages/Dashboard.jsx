@@ -226,13 +226,15 @@ const Dashboard = () => {
       let minhaPosicao = "---";
       let indexPosicao = -1; // Guardar o índice
 
-      if (usuarioEquipeId && ranking.length > 0) {
-        const index = ranking.findIndex(eq => eq.equipe_id === usuarioEquipeId);
-        
-        if (index !== -1) {
-          minhaPosicao = `${index + 1}º`;
-        }
-      }
+      // Garantir que os dados existem antes de procurar
+      if (usuarioEquipeId && ranking && ranking.length > 0) {
+        indexPosicao = ranking.findIndex(eq => eq.equipe_id === usuarioEquipeId);
+        
+        if (indexPosicao !== -1) {
+          minhaPosicao = `${indexPosicao + 1}º`;
+        }
+      }
+
 
       // 2. Encontrar os DADOS da minha equipe (nome, pontos)
       const minhaEquipeInfo = (indexPosicao !== -1) ? ranking[indexPosicao] : null;
@@ -243,7 +245,7 @@ const Dashboard = () => {
         {
            title: minhaEquipeInfo ? "Minha Equipe" : "Sem Equipe",
           description: minhaEquipeInfo 
-            ? '${minhaEquipeInfo.pontos || 0} pontos acumulados' // Usar .pontos
+            ? `${minhaEquipeInfo.pontos || 0} pontos acumulados` // Usar .pontos
             : "Inscreva-se em uma equipe",
           icon: Users,
           value: minhaEquipeInfo?.nome || "---", // Usar .nome
@@ -483,34 +485,6 @@ const Dashboard = () => {
                 </CardContent>
               </Card>
             </div>
-
-            {/* Ações rápidas para não-admins sem equipe */}
-            {usuario?.tipo !== 'ADMIN' && !minhaEquipe && (
-              <div className="mt-6">
-                <Card className="bg-blue-50 border-blue-200 shadow-md">
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h3 className="text-lg font-semibold text-blue-900 mb-1">
-                          Você ainda não está em uma equipe
-                        </h3>
-                        <p className="text-sm text-blue-700">
-                          Inscreva-se em uma equipe para começar a participar das provas da gincana
-                        </p>
-                      </div>
-                      {usuario?.tipo === 'ALUNO' && (
-                        <Button 
-                          onClick={() => navigate('/inscricao-equipes')}
-                          className="bg-blue-600 hover:bg-blue-700 text-white"
-                        >
-                          Escolher Equipe
-                        </Button>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            )}
           </>
         )}
       </main>
