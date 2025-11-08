@@ -231,6 +231,29 @@ export default function Home({ usuario, onLogout }) {
           </div>
           )}
 
+          {/* Card Penalidades para Coordenador */}
+          {usuario?.tipo === "COORDENADOR" && (
+            <div 
+              className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition border border-gray-200 hover:border-red-300"
+            >
+              <div className="bg-linear-to-br from-red-100 to-red-50 rounded-full w-12 h-12 flex items-center justify-center mb-4">
+                <AlertCircle className="text-red-700" size={24} />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Penalidades da Equipe</h3>
+              <p className="text-gray-600 mb-4">
+                Visualize as penalidades recebidas pela sua equipe.
+              </p>
+              <Button
+                variant="outline"
+                onClick={() => navigate("/coordenador/penalidades")}
+                className="w-full border-gray-300 hover:bg-gray-100 text-gray-900 font-semibold py-2 rounded-lg transition shadow-md mt-6"
+              >
+                Visualizar
+              </Button>
+            </div>
+          )}
+
+
           {/* Card Resultados */}
           <div className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition border border-gray-200 hover:border-green-300">
             <div className="bg-linear-to-br from-green-100 to-green-50 rounded-full w-12 h-12 flex items-center justify-center mb-4">

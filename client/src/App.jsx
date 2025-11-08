@@ -19,7 +19,8 @@ import MeusFeedbacks from './pages/MeusFeedbacks.jsx';
 import Notificacoes from './pages/Notificacoes.jsx';
 import { useToast } from './components/ui/toast';
 import { ToastContainer } from './components/ui/ToastContainer';
-import Penalidades from './pages/AdminPenalidades.jsx';
+import AdminPenalidades from './pages/AdminPenalidades.jsx';
+import PenalidadesEquipe from "./pages/PenalidadesEquipe";
 
 function App() {
   const { usuario, isAuthenticated, loading, logout } = useAuth();
@@ -157,10 +158,21 @@ function App() {
           path="/admin/penalidades"
           element={
             isAuthenticated
-              ? (usuario.tipo === 'ADMIN' ? <Penalidades /> : <Navigate to="/" replace />)
+              ? (usuario.tipo === 'ADMIN' ? <AdminPenalidades /> : <Navigate to="/" replace />)
               : <Navigate to="/login" replace />
           }
         />
+
+        {/* Rota para Penalidades (Coordenador) */}
+        <Route
+          path="/coordenador/penalidades"
+          element={
+            isAuthenticated
+              ? (usuario.tipo === "COORDENADOR" ? <PenalidadesEquipe /> : <Navigate to="/" replace />)
+              : <Navigate to="/login" replace />
+          }
+        />
+
 
         {/* Rota para Gerenciamento de Feedbacks (Admin) */}
         <Route
