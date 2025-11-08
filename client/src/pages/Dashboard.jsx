@@ -243,12 +243,9 @@ const Dashboard = () => {
       // Para alunos, professores, coordenadores, pais
       return [
         {
-           title: minhaEquipeInfo ? "Minha Equipe" : "Sem Equipe",
-          description: minhaEquipeInfo 
-            ? `${minhaEquipeInfo.pontos || 0} pontos acumulados` // Usar .pontos
-            : "Inscreva-se em uma equipe",
+          title: minhaEquipeInfo ? "Minha Equipe" : "Sem Equipe",
+          value: minhaEquipeInfo?.nome || "---", // Retirei os pontos para os alunos n saberem
           icon: Users,
-          value: minhaEquipeInfo?.nome || "---", // Usar .nome
           color: minhaEquipeInfo ? "text-blue-600" : "text-gray-400",
         },
         {
@@ -473,9 +470,11 @@ const Dashboard = () => {
                             <p className="font-semibold text-gray-900">
                               {equipe.nome} {/* ✅ Usa apenas o nome */}
                             </p>
-                            <p className="text-sm text-gray-600">
-                              {equipe.pontos || 0} pontos {/* ✅ Usa apenas os pontos */}
-                            </p>
+                            {usuario?.tipo === "ADMIN" && (
+                                  <p className="text-sm text-gray-600">
+                                    {equipe.pontos || 0} pontos
+                              </p>
+                            )}
                           </div>
                         </div>
                         {index === 0 && <Trophy className="h-5 w-5 text-yellow-600" />}
