@@ -45,7 +45,7 @@ router.patch('/:id/coordenador', proteger, autorizar('ADMIN'), atribuirCoordenad
 router.patch('/:id/membros', proteger, autorizar('ADMIN'), adicionarMembro);
 router.get('/coordenadores-disponiveis', proteger, autorizar('ADMIN'), listarCoordenadoresDisponiveis);
 router.get('/membros-disponiveis', proteger, autorizar('ADMIN', 'COORDENADOR'), listarUsuariosSemEquipe);
-router.get('/alunos-disponiveis', proteger, autorizar('ADMIN'), listarUsuariosElegiveisCoordenador);
+router.get('/:equipeId/alunos-disponiveis', proteger, autorizar('ADMIN'), listarUsuariosElegiveisCoordenador);
 router.get('/todos-membros', proteger, autorizar('ADMIN'), listarTodosMembros);
 router.get('/equipes-gincana', proteger, autorizar('ADMIN'), listarEquipesGincana);
 

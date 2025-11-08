@@ -865,8 +865,14 @@ export const listarEquipesParaInscricao = async (req, res) => {
  */
 export const listarUsuariosElegiveisCoordenador = async (req, res) => {
     try {
+
+        const { equipeId } = req.params;
+        if (!equipeId) {
+            return res.status(400).json({ message: 'ID da equipe é obrigatório.' });
+         }
+
         console.log("Executando query para listar ALUNOS e COORDENADORES disponíveis...");
-        const usuariosDisponiveis = await Usuario.aggregate([
+        const usuariosLivres = await Usuario.aggregate([
             {
                 // Passo 1: Filtrar pelos tipos de usuário desejados (ALUNO ou COORDENADOR)
                 $match: {
@@ -899,7 +905,28 @@ export const listarUsuariosElegiveisCoordenador = async (req, res) => {
                     turma: 1
                 }
             }
-        ]);
+        ]);     
+
+        // Achar os IDs dos membros desta equipe específica
+        const idsMembrosDaEquipe = await EquipeMembros.find({ equipe_id: equipeId }).distinct('usuario_id');
+
+        // Buscar os Usuários que são ALUNOS e estão nessa lista
+        const alunosDaEquipe = await Usuario.find({
+            _id: { $in: idsMembrosDaEquipe },
+            tipo: 'ALUNO'
+        }).select('nome email tipo turma _id');
+
+        const usuariosMap = new Map();
+        
+        usuariosLivres.forEach(user => {
+            usuariosMap.set(user._id.toString(), user);
+        });
+
+        alunosDaEquipe.forEach(user => {
+            usuariosMap.set(user._id.toString(), user);
+        });
+
+        const usuariosDisponiveis = Array.from(usuariosMap.values());
 
         console.log(`Encontrados ${usuariosDisponiveis.length} usuários disponíveis.`);
 
