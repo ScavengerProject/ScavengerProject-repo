@@ -825,12 +825,8 @@ export const listarEquipesParaInscricao = async (req, res) => {
     let equipeAtualId = null;
 
     if (membroAtual) {
-      const equipeGincana = await EquipeGincana.findById(membroAtual.equipe_id);
-      if (equipeGincana) {
-        equipeAtualId = equipeGincana.equipe_id.toString();
-      }
-    }
-
+      equipeAtualId = membroAtual.equipe_id.toString();
+  }
     // Busca todas as equipes com seus dados
     const gincanaRecords = await EquipeGincana.find({ gincana_id: GINCANA_ATUAL_ID })
       .populate('equipe_id', 'nome cor')
@@ -839,7 +835,7 @@ export const listarEquipesParaInscricao = async (req, res) => {
     const equipes = await Promise.all(gincanaRecords.map(async (rec) => {
       if (!rec.equipe_id) return null;
 
-      const total_membros = await EquipeMembros.countDocuments({ equipe_id: rec._id });
+      const total_membros = await EquipeMembros.countDocuments({ equipe_id: rec.equipe_id._id });
       const isMinhaEquipe = equipeAtualId && rec.equipe_id._id.toString() === equipeAtualId;
 
       return {
