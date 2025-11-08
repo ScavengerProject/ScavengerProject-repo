@@ -85,21 +85,6 @@ const AdminEquipes = () => {
         }
     };
 
-    const fetchCoordenadoresElegiveis = async () => {
-    try {
-        const usuarios = await equipesService.listarElegiveisParaCoordenador(); 
-        
-        const coordsDisponiveis = usuarios
-            .filter(u => u.tipo === 'COORDENADOR' || 'ALUNO')
-            .map(u => ({ _id: u._id, nome: u.nome }));
-            
-        setCoordenadoresDisponiveis(coordsDisponiveis);
-
-    } catch (error) {
-        console.error('Erro ao carregar coordenadores elegíveis:', error);
-    } 
-};
-
     // --- USE EFFECT ---
     useEffect(() => {
         const loadAllData = async () => {
@@ -108,7 +93,6 @@ const AdminEquipes = () => {
                 fetchEquipes(),
                 fetchMembros(),
                 fetchCoordenadores(),
-                fetchCoordenadoresElegiveis(),
             ]);
             setIsLoading(false); 
         };
@@ -243,13 +227,27 @@ const AdminEquipes = () => {
 
 
     // --- FUNÇÕES DE ATRIBUIÇÃO DE COORDENADOR ---
-    const openSetCoordinatorDialog = (equipe) => {
+    const openSetCoordinatorDialog = async (equipe) => {
         setCoordChangeEquipe(equipe);
         const currentCoordId = equipe.coordenador 
             ? equipe.coordenador._id?.toString() || equipe.coordenador.id?.toString() 
             : ''; 
         setSelectedNewCoordId(currentCoordId);
-        setIsSetCoordinatorOpen(true);
+        try {
+            const equipeId = equipe.id || equipe._id;
+            const usuarios = await equipesService.listarElegiveisParaCoordenador(equipeId);
+
+            const coordsDisponiveis = usuarios.map(u => ({ 
+                _id: u._id, 
+                nome: `${u.nome} (${u.tipo})` 
+            }));
+            setCoordenadoresDisponiveis(coordsDisponiveis);
+            setIsSetCoordinatorOpen(true);
+
+        } catch (error) {
+            console.error('Erro ao carregar coordenadores elegíveis:', error);
+            toast.error(`Erro ao carregar lista de usuários: ${error.message}`);
+        }
     };
 
     const handleSetCoordinator = async () => {
