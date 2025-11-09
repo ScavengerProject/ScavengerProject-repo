@@ -277,7 +277,26 @@ export const equipesService = {
 
   };
 
-  
+/**
+ * Serviço de Penalidades
+ */
+export const penalidadesService = {
+  listarEquipes: () =>
+    request("/penalidades/equipes", { method: "GET" }),
+
+  listarPenalidades: () =>
+    request("/penalidades", { method: "GET" }),
+
+  listarMembrosDaEquipe: (equipeId) =>
+  request(`/penalidades/equipes/${equipeId}/membros`, { method: "GET" }),
+
+  criarPenalidade: (dados) =>
+    request("/penalidades", {
+      method: "POST",
+      body: JSON.stringify(dados),
+    }),
+};
+
 
 /**
  * Serviço de Testes

@@ -1,33 +1,61 @@
-import React from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "../components/ui/button";
-import { AlertCircle, ArrowLeft, Plus } from "lucide-react";
+import { Plus, ArrowLeft } from "lucide-react";
+import ModalCriarPenalidade from "../components/ModalCriarPenalidade";
 
 export default function Penalidades() {
   const navigate = useNavigate();
+  const [openModal, setOpenModal] = useState(false);
 
-  // Função de exemplo para voltar à página anterior
+  const handleCriarPenalidade = () => {
+    setOpenModal(true);
+  };
+
+  const handleSubmitPenalidade = async (penalidade) => {
+    try {
+      const res = await fetch("/api/penalidades", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(penalidade),
+      });
+
+      if (res.ok) {
+        alert("Penalidade criada com sucesso!");
+      } else {
+        const err = await res.json().catch(() => null);
+        alert("Erro ao criar penalidade: " + (err?.message || res.statusText));
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Erro de conexão com o servidor.");
+    }
+  };
+
   const handleVoltar = () => {
     navigate(-1);
   };
 
-  // Função de exemplo para criar nova penalidade
-  const handleCriarPenalidade = () => {
-    navigate("/admin/penalidades"); // rota de criação
-  };
-
   return (
     <div className="min-h-screen bg-gray-50 p-6">
-      {/* Cabeçalho */}
-      <div className="flex items-center justify-between mb-6">
+      {/* Cabeçalho com botão voltar e título */}
+      <div className="flex items-center justify-between mb-8">
         <div className="flex items-center gap-3">
-          <ArrowLeft
-            className="text-gray-700 cursor-pointer"
-            size={24}
+          <button
             onClick={handleVoltar}
-          />
-          <h1 className="text-2xl font-bold text-gray-900">Penalidades</h1>
+            className="flex items-center gap-2 text-gray-700 hover:text-gray-900 rounded-lg p-2 transition"
+            aria-label="Voltar"
+          >
+            <ArrowLeft size={20} />
+            <span className="text-base font-medium">Voltar</span>
+          </button>
+
+          {/* Título principal */}
+          <h1 className="text-2xl font-bold text-gray-900 ml-4">
+            Gerenciar Penalidades
+          </h1>
         </div>
+
         <Button
           onClick={handleCriarPenalidade}
           className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white font-semibold"
@@ -37,14 +65,17 @@ export default function Penalidades() {
         </Button>
       </div>
 
-      {/* Lista de penalidades */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {/* Exemplo de card de penalidade vazio */}
-        <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200 flex flex-col items-center justify-center h-40">
-          <AlertCircle className="text-red-700 mb-4" size={32} />
-          <p className="text-gray-600 text-center">Nenhuma penalidade registrada ainda.</p>
-        </div>
+      {/* Conteúdo (placeholder) */}
+      <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200 flex items-center justify-center h-40">
+        <p className="text-gray-600">Nenhuma penalidade cadastrada até o momento.</p>
       </div>
+
+      {/* Modal de criação */}
+      <ModalCriarPenalidade
+        open={openModal}
+        onClose={() => setOpenModal(false)}
+        onSubmit={handleSubmitPenalidade}
+      />
     </div>
   );
 }

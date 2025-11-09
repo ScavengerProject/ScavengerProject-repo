@@ -10,6 +10,7 @@ import emprestimoEquipeRoutes from './equipes/emprestimoEquipeRoutes.js';
 import usuarioRoutes from './usuarios/usuarioRoutes.js';
 import feedbackRoutes from './feedbacks/feedbackRoutes.js';
 import notificacaoRoutes from './notificacoes/notificacaoRoutes.js';
+import penalidadesRoutes from "./penalidades/penalidadesRoutes.js";
 
 dotenv.config();
 connectDB(); // BD
@@ -25,11 +26,11 @@ app.use('/api/provas', provaRoutes);
 app.use('/api/equipes/emprestimos', emprestimoEquipeRoutes);
 app.use('/api/equipes/migracoes', migracaoEquipeRoutes);
 app.use('/api/migracoes-equipe', migracaoEquipeRoutes);
-app.use('/api/equipes', equipeRoutes); // Rota genérica por último para não interceptar as específicas
 app.use('/api/usuarios', usuarioRoutes);
 app.use('/api/equipes', equipeRoutes);
 app.use('/api/feedbacks', feedbackRoutes);
 app.use('/api/notificacoes', notificacaoRoutes);
+app.use("/api/penalidades", penalidadesRoutes);
 
 app.listen(PORT, () => {
   console.log(`Servidor Express rodando na porta ${PORT}`);

@@ -69,30 +69,6 @@ export const criarEquipe = async (req, res) => {
  */
 export const listarEquipes = async (req, res) => {
     try {
-      /*  // busca todos os registros contextuais (equipeGincana) da Gincana ATUAL
-        const gincanaRecords = await EquipeGincana.find({ gincana_id: GINCANA_ATUAL_ID })
-            .populate('equipe_id', 'nome cor membros') // Popula dados mestre
-            .populate('coordenador_usuario_id', 'nome email'); // Popula dados do coordenador
-
-        // mapeia os resultados para o formato final (limpa e junta dados)
-        const equipes = gincanaRecords.map(rec => {
-            const equipeMaster = rec.equipe_id;
-            
-            if (!equipeMaster) return null; // Caso a equipe mestre tenha sido deletada
-            
-            return {
-                id: equipeMaster._id,
-                nome: equipeMaster.nome,
-                cor: equipeMaster.cor,
-                pontos_acumulados: rec.pontos_acumulados,
-                coordenador: rec.coordenador_usuario_id,
-                membros: equipeMaster.membros,
-                total_membros: equipeMaster.membros.length,
-            };
-        }).filter(e => e !== null);
-
-
-        res.status(200).json(equipes);*/
 
         const gincanaRecords = await EquipeGincana.find({ gincana_id: GINCANA_ATUAL_ID })
             .populate('equipe_id', 'nome cor') // Popula apenas nome e cor
@@ -128,45 +104,6 @@ export const listarEquipes = async (req, res) => {
  */
 export const adicionarMembro = async (req, res) => {
     try {
-        /*const { id } = req.params; // ID da Equipe (Equipe._id)
-        const { usuario_id } = req.body;
-
-        if (!usuario_id) {
-            return res.status(400).json({ message: 'O ID do usuário é obrigatório.' });
-        }
-        
-        // Busca Equipe e Usuário simultaneamente
-        const [equipe, usuario] = await Promise.all([
-            Equipe.findById(id),
-            Usuario.findById(usuario_id)
-        ]);
-
-        if (!equipe) return res.status(404).json({ message: 'Equipe não encontrada.' });
-        if (!usuario) return res.status(404).json({ message: 'Usuário não encontrado.' });
-        
-        // Verifica conflitos: Se o usuário já tem outra equipe
-        if (usuario.equipe_id && usuario.equipe_id.toString() !== id) {
-            return res.status(409).json({ message: 'Usuário já pertence a outra equipe.' });
-        }
-        
-        // Verifica conflitos: Se o usuário já está nessa equipe
-        if (equipe.membros.map(m => m.toString()).includes(usuario_id)) {
-            return res.status(409).json({ message: 'Usuário já é membro desta equipe.' });
-        }
-
-        // Executa as atualizações
-        equipe.membros.push(usuario_id);
-        usuario.equipe_id = equipe._id;
-        
-        const [equipeAtualizada] = await Promise.all([
-            equipe.save(),
-            usuario.save()
-        ]);
-        
-        res.status(200).json({ 
-            message: 'Membro adicionado com sucesso.', 
-            equipe: equipeAtualizada
-        });*/
         const { id: equipeId } = req.params; // ID da Equipe (Equipe._id)
         const { usuario_id } = req.body;
 

@@ -220,7 +220,7 @@ export default function Home({ usuario, onLogout }) {
               <Gavel className="text-red-700" size={24} />
             </div>
             <h3 className="text-xl font-bold text-gray-900 mb-2">Gerenciar Penalidades</h3>
-            <p className="text-gray-600 mb-4">Aplique e consulte penalidades por infrações às regras</p>
+            <p className="text-gray-600 mb-4">Aplique e consulte penalidades por infrações ao regulamento</p>
             <Button 
               variant="outline"
               onClick={() => navigate('/admin/penalidades')}
