@@ -7,12 +7,13 @@ import EquipeMembros from "../models/EquipeMembros.js";
 /**
  * 🆕 Função auxiliar para logar todos os dados recebidos ou preenchidos até o momento
  */
-const logFormData = (req, extra = {}) => {
+const logFormData = (req, extra = {}, participanteSelecionado = null) => {
   const data = {
     body: req.body || {},
     params: req.params || {},
     query: req.query || {},
-    ...extra, // permite passar info extra, tipo resultado de buscas
+    participanteSelecionado,
+    ...extra,
   };
   console.log("📌 Dados atuais do form / request:", JSON.stringify(data, null, 2));
 };
@@ -22,7 +23,57 @@ const logFormData = (req, extra = {}) => {
  * Body esperado: { nome?, equipeId, participanteId?, pontos, descricao }
  * Observação: equipeId pode ser o _id de EquipeGincana (recomendado) ou o _id da Equipe mestre.
  */
+/**
+ * [POST] Cria uma penalidade e atualiza pontos na EquipeGincana.
+ * Body esperado: { nome?, equipeId, participanteId?, pontos, descricao }
+ */
 export const criarPenalidade = async (req, res) => {
+  try {
+    const { nome, equipeId, participanteId, pontos, descricao } = req.body;
+
+    if (!equipeId || !pontos) {
+      return res.status(400).json({ message: "Equipe e pontos são obrigatórios." });
+    }
+
+    // Buscar a equipe da gincana
+    const equipeGincana = await EquipeGincana.findById(equipeId);
+    if (!equipeGincana) {
+      return res.status(404).json({ message: "EquipeGincana não encontrada." });
+    }
+
+    // Subtrair os pontos da equipe
+    const pontosAntes = equipeGincana.pontos_acumulados || 0;
+    const pontosRemover = Number(pontos);
+    equipeGincana.pontos_acumulados = Math.max(0, pontosAntes - pontosRemover); // não deixar negativo
+    await equipeGincana.save();
+
+    // Criar penalidade
+    const penalidade = await Penalidade.create({
+      nome,
+      equipe_gincana_id: equipeId,
+      participante_id: participanteId || null,
+      pontos: pontosRemover,
+      descricao,
+      criado_em: new Date(),
+    });
+
+    // Log completo
+    logFormData(req, {
+      pontosAntes,
+      pontosRemover,
+      pontosDepois: equipeGincana.pontos_acumulados,
+      penalidadeCriada: penalidade._id.toString(),
+    });
+
+    return res.status(201).json({
+      message: "Penalidade criada e pontos atualizados com sucesso!",
+      penalidade,
+      pontosEquipe: equipeGincana.pontos_acumulados,
+    });
+  } catch (err) {
+    console.error("Erro criarPenalidade:", err);
+    return res.status(500).json({ message: "Erro interno ao criar penalidade." });
+  }
 };
 
 /**
@@ -133,11 +184,41 @@ export const buscarParticipante = async (req, res) => {
       turma: usuario.turma || "",
     };
 
-    console.log("📌 Participante selecionado:", resultado);
+    //console.log("Participante selecionado:", resultado);
+    logFormData(req, {}, resultado);
 
     return res.status(200).json(resultado);
   } catch (err) {
     console.error("Erro buscarParticipante:", err);
     return res.status(500).json({ message: "Erro interno ao buscar participante." });
+  }
+};
+
+/**
+ * [GET] Retorna os pontos disponíveis de uma equipe
+ * Query esperado: ?equipeId=xxxx
+ */
+export const buscarPontosEquipe = async (req, res) => {
+  try {
+    const { equipeId } = req.query;
+
+    if (!equipeId) {
+      return res.status(400).json({ message: "ID da equipe é obrigatório." });
+    }
+
+    const equipe = await EquipeGincana.findById(equipeId);
+    if (!equipe) {
+      return res.status(404).json({ message: "Equipe não encontrada." });
+    }
+
+    const pontos = equipe.pontos_acumulados || 0;
+
+    // Log para garantir que está capturando os pontos
+    logFormData(req, { pontosEquipe: pontos });
+
+    return res.status(200).json({ equipeId, pontos });
+  } catch (err) {
+    console.error("Erro buscarPontosEquipe:", err);
+    return res.status(500).json({ message: "Erro interno ao buscar pontos da equipe." });
   }
 };

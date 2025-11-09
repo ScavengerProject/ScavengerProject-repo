@@ -12,19 +12,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from "./ui/select";
-import { X, Gavel } from "lucide-react";
+import { X, Gavel, CheckCircle, XCircle } from "lucide-react";
 
 export default function ModalCriarPenalidade({ open, onClose, onSubmit }) {
   const [equipes, setEquipes] = useState([]);
   const [membros, setMembros] = useState([]);
+
   const [form, setForm] = useState({
     equipeId: "",
     participanteId: "",
-    pontos: 1,
+    pontos: 0,
     descricao: "",
   });
 
-  
+  const [pontosEquipe, setPontosEquipe] = useState(0);
+
   useEffect(() => {
     if (open) {
       penalidadesService
@@ -33,6 +35,7 @@ export default function ModalCriarPenalidade({ open, onClose, onSubmit }) {
           const equipesFormatadas = (data || []).map((e) => ({
             id: e.id || e._id || e.equipe_id?._id,
             nome: e.nome || e.equipe_id?.nome || "Sem nome",
+            pontos_acumulados: e.pontos_acumulados || 0,
           }));
           setEquipes(equipesFormatadas);
         })
@@ -40,27 +43,55 @@ export default function ModalCriarPenalidade({ open, onClose, onSubmit }) {
     }
   }, [open]);
 
-  // Quando escolher uma equipe, buscar os membros
+  // Quando selecionar equipe, buscar membros e pontos
   const handleEquipeChange = async (equipeId) => {
     setForm((prev) => ({ ...prev, equipeId, participanteId: "" }));
 
     if (!equipeId) {
       setMembros([]);
+      setPontosEquipe(0);
       return;
     }
 
     try {
-      // Agora usando o service centralizado (rota correta)
-      const data = await penalidadesService.listarMembrosDaEquipe(equipeId);
-      setMembros(data || []);
+      // Membros
+      const membrosData = await penalidadesService.listarMembrosDaEquipe(equipeId);
+      setMembros(membrosData || []);
+
+      // Pontos da equipe
+      const equipeSelecionada = equipes.find((e) => e.id === equipeId);
+      if (equipeSelecionada) {
+        setPontosEquipe(equipeSelecionada.pontos_acumulados || 0);
+      }
     } catch (err) {
-      console.error("Erro ao carregar membros:", err);
+      console.error("Erro ao carregar membros ou pontos:", err);
       setMembros([]);
+      setPontosEquipe(0);
     }
   };
 
+  const handleParticipanteChange = async (usuarioId) => {
+    setForm((prev) => ({ ...prev, participanteId: usuarioId || "" }));
 
-  // Gera nome automático da penalidade (ex: PEN-20251108-xxxx)
+    if (!usuarioId) return;
+
+    try {
+      const data = await penalidadesService.participanteSelecionado(usuarioId);
+      console.log("📌 Participante selecionado:", data);
+    } catch (err) {
+      console.error("Erro ao buscar participante selecionado:", err);
+    }
+  };
+
+  const handlePontosChange = (value) => {
+    const n = parseInt(value, 10);
+    if (isNaN(n)) {
+      setForm((prev) => ({ ...prev, pontos: "" }));
+      return;
+    }
+    setForm((prev) => ({ ...prev, pontos: Math.min(Math.max(1, n), pontosEquipe) }));
+  };
+
   const gerarNomePenalidade = () => {
     const data = new Date();
     const aleatorio = Math.floor(1000 + Math.random() * 9000);
@@ -107,35 +138,12 @@ export default function ModalCriarPenalidade({ open, onClose, onSubmit }) {
     }
   };
 
-  // garantia: componente controlado para participante também
-  const handleParticipanteChange = async (usuarioId) => {
-    setForm((prev) => ({ ...prev, participanteId: usuarioId || "" }));
-
-    if (!usuarioId) return;
-
-    try {
-      const data = await penalidadesService.participanteSelecionado(usuarioId);
-      console.log("📌 Participante selecionado:", data);
-    } catch (err) {
-      console.error("Erro ao buscar participante selecionado:", err);
-    }
-  };
-
-
-
-
-  // input de pontos: garantir número >=1
-  const handlePontosChange = (value) => {
-    const n = parseInt(value, 10);
-    setForm((prev) => ({ ...prev, pontos: isNaN(n) ? "" : Math.max(1, n) }));
-  };
-
   if (!open) return null;
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
       <Card className="w-full max-w-lg bg-white shadow-xl rounded-2xl">
-        <CardHeader className="flex flex-row items-center justify-between border-b pb-3">
+        <CardHeader className="flex flex-row items-center justify-between border-b-2 border-gray-100 pb-3">
           <CardTitle className="flex items-center gap-2 text-red-700 text-lg font-semibold">
             <Gavel size={22} />
             Criar Penalidade
@@ -167,6 +175,23 @@ export default function ModalCriarPenalidade({ open, onClose, onSubmit }) {
             </Select>
           </div>
 
+          {/* Pontuação da equipe */}
+          {form.equipeId && (
+            <div className="mt-1">
+              {pontosEquipe > 0 ? (
+                <li className="flex items-center gap-1 text-blue-700 text-sm list-none">
+                  <CheckCircle className="h-3 w-3 translate-y-[1px]" />
+                  <span>Equipe possui {pontosEquipe} ponto{pontosEquipe !== 1 ? "s" : ""}</span>
+                </li>
+              ) : (
+                <li className="flex items-center gap-1 text-red-600 text-sm list-none">
+                  <XCircle className="h-3 w-3 translate-y-[1px]" />
+                  <span>Não possui pontos</span>
+                </li>
+              )}
+            </div>
+          )}
+
           {/* Seleção de participante */}
           <div>
             <Label>Participante (opcional)</Label>
@@ -190,7 +215,6 @@ export default function ModalCriarPenalidade({ open, onClose, onSubmit }) {
                 ))}
               </SelectContent>
             </Select>
-
           </div>
 
           {/* Pontos a remover */}
@@ -198,7 +222,8 @@ export default function ModalCriarPenalidade({ open, onClose, onSubmit }) {
             <Label>Pontos a remover</Label>
             <Input
               type="number"
-              min="1"
+              min="0"
+              max={pontosEquipe || undefined}
               value={form.pontos}
               onChange={(e) => handlePontosChange(e.target.value)}
               className="mt-1"
