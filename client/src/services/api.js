@@ -295,6 +295,11 @@ export const penalidadesService = {
       method: "POST",
       body: JSON.stringify(dados),
     }),
+
+  participanteSelecionado: (participanteId) =>
+    request(`/penalidades/participante-selecionado?participanteId=${participanteId}`, {
+      method: "GET",
+    }),
 };
 
 

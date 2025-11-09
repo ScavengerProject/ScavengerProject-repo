@@ -108,9 +108,21 @@ export default function ModalCriarPenalidade({ open, onClose, onSubmit }) {
   };
 
   // garantia: componente controlado para participante também
-  const handleParticipanteChange = (usuarioId) => {
+  const handleParticipanteChange = async (usuarioId) => {
     setForm((prev) => ({ ...prev, participanteId: usuarioId || "" }));
+
+    if (!usuarioId) return;
+
+    try {
+      const data = await penalidadesService.participanteSelecionado(usuarioId);
+      console.log("📌 Participante selecionado:", data);
+    } catch (err) {
+      console.error("Erro ao buscar participante selecionado:", err);
+    }
   };
+
+
+
 
   // input de pontos: garantir número >=1
   const handlePontosChange = (value) => {
@@ -178,6 +190,7 @@ export default function ModalCriarPenalidade({ open, onClose, onSubmit }) {
                 ))}
               </SelectContent>
             </Select>
+
           </div>
 
           {/* Pontos a remover */}
