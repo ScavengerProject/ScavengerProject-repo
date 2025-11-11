@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "../components/ui/button";
 import { Plus, ArrowLeft } from "lucide-react";
@@ -7,6 +7,30 @@ import ModalCriarPenalidade from "../components/ModalCriarPenalidade";
 export default function Penalidades() {
   const navigate = useNavigate();
   const [openModal, setOpenModal] = useState(false);
+  const [penalidades, setPenalidades] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  // Função para carregar todas as penalidades
+  const carregarPenalidades = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/penalidades"); // tem q bater com a rota do back
+      if (!res.ok) throw new Error("Erro ao carregar penalidades");
+      const data = await res.json();
+      console.log("Penalidades carregadas:", data); // verifica no console
+      setPenalidades(data);
+    } catch (err) {
+      console.error(err);
+      alert("Erro ao carregar penalidades");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+
+  useEffect(() => {
+    carregarPenalidades();
+  }, []);
 
   const handleCriarPenalidade = () => {
     setOpenModal(true);
@@ -22,6 +46,7 @@ export default function Penalidades() {
 
       if (res.ok) {
         alert("Penalidade criada com sucesso!");
+        carregarPenalidades(); // Atualiza lista
       } else {
         const err = await res.json().catch(() => null);
         alert("Erro ao criar penalidade: " + (err?.message || res.statusText));
@@ -38,7 +63,7 @@ export default function Penalidades() {
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
-      {/* Cabeçalho com botão voltar e título */}
+      {/* Cabeçalho */}
       <div className="flex items-center justify-between mb-8">
         <div className="flex items-center gap-3">
           <button
@@ -49,8 +74,6 @@ export default function Penalidades() {
             <ArrowLeft size={20} />
             <span className="text-base font-medium">Voltar</span>
           </button>
-
-          {/* Título principal */}
           <h1 className="text-2xl font-bold text-gray-900 ml-4">
             Gerenciar Penalidades
           </h1>
@@ -65,9 +88,36 @@ export default function Penalidades() {
         </Button>
       </div>
 
-      {/* Conteúdo (placeholder) */}
-      <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200 flex items-center justify-center h-40">
-        <p className="text-gray-600">Nenhuma penalidade cadastrada até o momento.</p>
+      {/* Conteúdo: tabela de penalidades */}
+      <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
+        {loading ? (
+          <p className="text-gray-600">Carregando penalidades...</p>
+        ) : penalidades.length === 0 ? (
+          <p className="text-gray-600">Nenhuma penalidade cadastrada até o momento.</p>
+        ) : (
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="border-b border-gray-200">
+                <th className="p-2">Equipe</th>
+                <th className="p-2">Participante</th>
+                <th className="p-2">Pontos Removidos</th>
+                <th className="p-2">Descrição</th>
+                <th className="p-2">Criado em</th>
+              </tr>
+            </thead>
+            <tbody>
+              {penalidades.map((p) => (
+                <tr key={p.id} className="border-b border-gray-100">
+                  <td className="p-2">{p.equipe?.nome || "Equipe sem nome"}</td>
+                  <td className="p-2">{p.participante?.nome || "-"}</td>
+                  <td className="p-2">{p.pontos_removidos}</td>
+                  <td className="p-2">{p.descricao}</td>
+                  <td className="p-2">{new Date(p.criado_em).toLocaleString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
 
       {/* Modal de criação */}

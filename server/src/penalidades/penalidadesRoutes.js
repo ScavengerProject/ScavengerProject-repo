@@ -16,4 +16,5 @@ router.get("/equipes/:equipeId/membros", listarMembrosDaEquipe);
 router.get("/participante-selecionado", buscarParticipante);
 
 
+
 export default router;

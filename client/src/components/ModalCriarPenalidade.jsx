@@ -17,14 +17,12 @@ import { X, Gavel, CheckCircle, XCircle } from "lucide-react";
 export default function ModalCriarPenalidade({ open, onClose, onSubmit }) {
   const [equipes, setEquipes] = useState([]);
   const [membros, setMembros] = useState([]);
-
   const [form, setForm] = useState({
     equipeId: "",
     participanteId: "",
     pontos: 0,
     descricao: "",
   });
-
   const [pontosEquipe, setPontosEquipe] = useState(0);
 
   useEffect(() => {
@@ -33,8 +31,8 @@ export default function ModalCriarPenalidade({ open, onClose, onSubmit }) {
         .listarEquipes()
         .then((data) => {
           const equipesFormatadas = (data || []).map((e) => ({
-            id: e.id || e._id || e.equipe_id?._id,
-            nome: e.nome || e.equipe_id?.nome || "Sem nome",
+            id: e.id,
+            nome: e.nome,
             pontos_acumulados: e.pontos_acumulados || 0,
           }));
           setEquipes(equipesFormatadas);
@@ -43,7 +41,6 @@ export default function ModalCriarPenalidade({ open, onClose, onSubmit }) {
     }
   }, [open]);
 
-  // Quando selecionar equipe, buscar membros e pontos
   const handleEquipeChange = async (equipeId) => {
     setForm((prev) => ({ ...prev, equipeId, participanteId: "" }));
 
@@ -54,15 +51,11 @@ export default function ModalCriarPenalidade({ open, onClose, onSubmit }) {
     }
 
     try {
-      // Membros
       const membrosData = await penalidadesService.listarMembrosDaEquipe(equipeId);
       setMembros(membrosData || []);
 
-      // Pontos da equipe
       const equipeSelecionada = equipes.find((e) => e.id === equipeId);
-      if (equipeSelecionada) {
-        setPontosEquipe(equipeSelecionada.pontos_acumulados || 0);
-      }
+      if (equipeSelecionada) setPontosEquipe(equipeSelecionada.pontos_acumulados || 0);
     } catch (err) {
       console.error("Erro ao carregar membros ou pontos:", err);
       setMembros([]);
@@ -70,17 +63,8 @@ export default function ModalCriarPenalidade({ open, onClose, onSubmit }) {
     }
   };
 
-  const handleParticipanteChange = async (usuarioId) => {
+  const handleParticipanteChange = (usuarioId) => {
     setForm((prev) => ({ ...prev, participanteId: usuarioId || "" }));
-
-    if (!usuarioId) return;
-
-    try {
-      const data = await penalidadesService.participanteSelecionado(usuarioId);
-      console.log("📌 Participante selecionado:", data);
-    } catch (err) {
-      console.error("Erro ao buscar participante selecionado:", err);
-    }
   };
 
   const handlePontosChange = (value) => {
@@ -89,15 +73,7 @@ export default function ModalCriarPenalidade({ open, onClose, onSubmit }) {
       setForm((prev) => ({ ...prev, pontos: "" }));
       return;
     }
-    setForm((prev) => ({ ...prev, pontos: Math.min(Math.max(1, n), pontosEquipe) }));
-  };
-
-  const gerarNomePenalidade = () => {
-    const data = new Date();
-    const aleatorio = Math.floor(1000 + Math.random() * 9000);
-    return `PEN-${data.getFullYear()}${String(data.getMonth() + 1).padStart(2, "0")}${String(
-      data.getDate()
-    ).padStart(2, "0")}-${aleatorio}`;
+    setForm((prev) => ({ ...prev, pontos: Math.min(Math.max(0, n), pontosEquipe) }));
   };
 
   const handleSubmit = async (e) => {
@@ -108,33 +84,37 @@ export default function ModalCriarPenalidade({ open, onClose, onSubmit }) {
     }
 
     const penalidade = {
-      nome: gerarNomePenalidade(),
       equipeId: form.equipeId,
       participanteId: form.participanteId || null,
-      pontos: Number(form.pontos) || 1,
+      pontos: Number(form.pontos) || 0,
       descricao: form.descricao,
     };
 
     try {
-      const res = await fetch("/api/penalidades", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(penalidade),
-      });
+      const res = await penalidadesService.criarPenalidade(penalidade);
 
-      if (!res.ok) {
-        const err = await res.json().catch(() => null);
-        throw new Error(err?.message || "Erro ao criar penalidade");
+      // Verifica se o retorno existe e tem os dados esperados
+      if (!res || !res.pontos_restantes) {
+        console.warn("Resposta inesperada do servidor:", res);
       }
-      const data = await res.json();
-      console.log("✅ Penalidade criada:", data);
-      alert("Penalidade criada com sucesso!");
 
-      if (typeof onSubmit === "function") onSubmit(data);
+      console.log("✅ Penalidade criada:", res);
+
+      // Atualiza os pontos da equipe na tela
+      setPontosEquipe(res.pontos_restantes || 0);
+      setEquipes((prev) =>
+        prev.map((e) =>
+          e.id === form.equipeId ? { ...e, pontos_acumulados: res.pontos_restantes || 0 } : e
+        )
+      );
+
+      alert("Penalidade criada com sucesso!");
+      if (typeof onSubmit === "function") onSubmit(res);
       onClose();
     } catch (error) {
-      console.error(error);
-      alert("Erro ao criar penalidade: " + (error.message || ""));
+      // Só mostra erro se for realmente erro
+      console.error("Erro ao criar penalidade:", error);
+      alert("Erro ao criar penalidade: " + (error?.message || "Verifique o console para mais detalhes"));
     }
   };
 
@@ -148,17 +128,12 @@ export default function ModalCriarPenalidade({ open, onClose, onSubmit }) {
             <Gavel size={22} />
             Criar Penalidade
           </CardTitle>
-          <button
-            onClick={onClose}
-            className="text-gray-500 hover:text-gray-700 transition-colors"
-            aria-label="Fechar"
-          >
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-700" aria-label="Fechar">
             <X size={22} />
           </button>
         </CardHeader>
 
         <CardContent className="mt-4 space-y-4">
-          {/* Seleção de equipe */}
           <div>
             <Label>Equipe *</Label>
             <Select onValueChange={handleEquipeChange} value={form.equipeId}>
@@ -167,15 +142,12 @@ export default function ModalCriarPenalidade({ open, onClose, onSubmit }) {
               </SelectTrigger>
               <SelectContent>
                 {equipes.map((e) => (
-                  <SelectItem key={e.id} value={e.id}>
-                    {e.nome}
-                  </SelectItem>
+                  <SelectItem key={e.id} value={e.id}>{e.nome}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
 
-          {/* Pontuação da equipe */}
           {form.equipeId && (
             <div className="mt-1">
               {pontosEquipe > 0 ? (
@@ -192,32 +164,20 @@ export default function ModalCriarPenalidade({ open, onClose, onSubmit }) {
             </div>
           )}
 
-          {/* Seleção de participante */}
           <div>
             <Label>Participante (opcional)</Label>
-            <Select
-              onValueChange={handleParticipanteChange}
-              value={form.participanteId}
-              disabled={!membros.length}
-            >
+            <Select onValueChange={handleParticipanteChange} value={form.participanteId} disabled={!membros.length}>
               <SelectTrigger className="w-full mt-1">
-                <SelectValue
-                  placeholder={
-                    membros.length ? "Selecione o participante" : "Selecione uma equipe primeiro"
-                  }
-                />
+                <SelectValue placeholder={membros.length ? "Selecione o participante" : "Selecione uma equipe primeiro"} />
               </SelectTrigger>
               <SelectContent>
                 {membros.map((m) => (
-                  <SelectItem key={m.id} value={m.id}>
-                    {m.nome}
-                  </SelectItem>
+                  <SelectItem key={m.id} value={m.id}>{m.nome}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
 
-          {/* Pontos a remover */}
           <div>
             <Label>Pontos a remover</Label>
             <Input
@@ -230,7 +190,6 @@ export default function ModalCriarPenalidade({ open, onClose, onSubmit }) {
             />
           </div>
 
-          {/* Descrição */}
           <div>
             <Label>Descrição</Label>
             <Textarea
@@ -241,14 +200,9 @@ export default function ModalCriarPenalidade({ open, onClose, onSubmit }) {
             />
           </div>
 
-          {/* Botões */}
           <div className="flex justify-end gap-3 pt-4 border-t mt-4">
-            <Button variant="outline" onClick={onClose}>
-              Cancelar
-            </Button>
-            <Button onClick={handleSubmit} className="bg-red-600 hover:bg-red-700 text-white">
-              Confirmar Penalidade
-            </Button>
+            <Button variant="outline" onClick={onClose}>Cancelar</Button>
+            <Button onClick={handleSubmit} className="bg-red-600 hover:bg-red-700 text-white">Confirmar Penalidade</Button>
           </div>
         </CardContent>
       </Card>

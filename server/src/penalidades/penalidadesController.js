@@ -27,54 +27,58 @@ const logFormData = (req, extra = {}, participanteSelecionado = null) => {
  * [POST] Cria uma penalidade e atualiza pontos na EquipeGincana.
  * Body esperado: { nome?, equipeId, participanteId?, pontos, descricao }
  */
+/**
+ * [POST] Cria uma penalidade e atualiza pontos na EquipeGincana.
+ * Body esperado: { equipeId, participanteId?, pontos, descricao }
+ */
 export const criarPenalidade = async (req, res) => {
   try {
-    const { nome, equipeId, participanteId, pontos, descricao } = req.body;
+    const { equipeId, participanteId, pontos, descricao } = req.body;
 
-    if (!equipeId || !pontos) {
-      return res.status(400).json({ message: "Equipe e pontos são obrigatórios." });
-    }
+    if (!equipeId) return res.status(400).json({ message: "ID da equipe é obrigatório." });
 
-    // Buscar a equipe da gincana
+    const pontosNumber = parseInt(pontos, 10);
+    if (isNaN(pontosNumber) || pontosNumber <= 0)
+      return res.status(400).json({ message: "Pontos inválidos." });
+
     const equipeGincana = await EquipeGincana.findById(equipeId);
-    if (!equipeGincana) {
-      return res.status(404).json({ message: "EquipeGincana não encontrada." });
-    }
+    if (!equipeGincana) return res.status(404).json({ message: "EquipeGincana não encontrada." });
 
-    // Subtrair os pontos da equipe
-    const pontosAntes = equipeGincana.pontos_acumulados || 0;
-    const pontosRemover = Number(pontos);
-    equipeGincana.pontos_acumulados = Math.max(0, pontosAntes - pontosRemover); // não deixar negativo
+    // Atualiza pontos da equipe
+    const pontosAtualizados = Math.max(0, (equipeGincana.pontos_acumulados || 0) - pontosNumber);
+    equipeGincana.pontos_acumulados = pontosAtualizados;
     await equipeGincana.save();
 
-    // Criar penalidade
-    const penalidade = await Penalidade.create({
-      nome,
+    // Gera nome
+    const gerarNomePenalidade = () => {
+      const d = new Date();
+      const rnd = Math.floor(1000 + Math.random() * 9000);
+      return `PEN-${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(
+        d.getDate()
+      ).padStart(2, "0")}-${rnd}`;
+    };
+
+    // Cria penalidade
+    const penalidade = new Penalidade({
+      nome: gerarNomePenalidade(),
       equipe_gincana_id: equipeId,
       participante_id: participanteId || null,
-      pontos: pontosRemover,
-      descricao,
-      criado_em: new Date(),
+      pontos_removidos: pontosNumber,
+      descricao: descricao || "",
     });
 
-    // Log completo
-    logFormData(req, {
-      pontosAntes,
-      pontosRemover,
-      pontosDepois: equipeGincana.pontos_acumulados,
-      penalidadeCriada: penalidade._id.toString(),
-    });
+    await penalidade.save();
 
     return res.status(201).json({
-      message: "Penalidade criada e pontos atualizados com sucesso!",
-      penalidade,
-      pontosEquipe: equipeGincana.pontos_acumulados,
+      ...penalidade.toObject(),
+      pontos_restantes: pontosAtualizados,
     });
   } catch (err) {
     console.error("Erro criarPenalidade:", err);
-    return res.status(500).json({ message: "Erro interno ao criar penalidade." });
+    return res.status(500).json({ message: "Erro interno ao criar penalidade.", error: err.message });
   }
 };
+
 
 /**
  * [GET] Lista todas as penalidades
@@ -82,19 +86,36 @@ export const criarPenalidade = async (req, res) => {
 export const listarPenalidades = async (req, res) => {
   try {
     const penalidades = await Penalidade.find()
-      .populate({ path: "equipe_gincana_id", populate: { path: "equipe_id", select: "nome cor" } })
+      .populate({
+        path: "equipe_gincana_id",
+        populate: { path: "equipe_id", select: "nome cor" }
+      })
       .populate("participante_id", "nome email tipo")
       .sort({ criado_em: -1 });
 
-    // 🆕 log de dados atuais
-    logFormData(req, { totalPenalidades: penalidades.length });
+    const resultado = penalidades.map((p) => ({
+      id: p._id.toString(),
+      penalidade_id: p.penalidade_id,
+      nome: p.nome,
+      equipe: p.equipe_gincana_id?.equipe_id
+        ? { id: p.equipe_gincana_id.equipe_id._id, nome: p.equipe_gincana_id.equipe_id.nome, cor: p.equipe_gincana_id.equipe_id.cor }
+        : { id: p.equipe_gincana_id?._id, nome: "Equipe sem nome", cor: "#cccccc" },
+      participante: p.participante_id
+        ? { id: p.participante_id._id, nome: p.participante_id.nome, email: p.participante_id.email }
+        : null,
+      pontos_removidos: p.pontos_removidos,
+      descricao: p.descricao,
+      criado_em: p.criado_em,
+    }));
 
-    return res.status(200).json(penalidades);
+    console.log("📌 Penalidades do DB:", penalidades);
+    return res.status(200).json(resultado);
   } catch (err) {
     console.error("Erro listarPenalidades:", err);
     return res.status(500).json({ message: "Erro interno ao listar penalidades." });
   }
 };
+
 
 /**
  * GET /api/penalidades/equipes
@@ -184,41 +205,12 @@ export const buscarParticipante = async (req, res) => {
       turma: usuario.turma || "",
     };
 
-    //console.log("Participante selecionado:", resultado);
+    console.log("Participante selecionado:", resultado);
     logFormData(req, {}, resultado);
 
     return res.status(200).json(resultado);
   } catch (err) {
     console.error("Erro buscarParticipante:", err);
     return res.status(500).json({ message: "Erro interno ao buscar participante." });
-  }
-};
-
-/**
- * [GET] Retorna os pontos disponíveis de uma equipe
- * Query esperado: ?equipeId=xxxx
- */
-export const buscarPontosEquipe = async (req, res) => {
-  try {
-    const { equipeId } = req.query;
-
-    if (!equipeId) {
-      return res.status(400).json({ message: "ID da equipe é obrigatório." });
-    }
-
-    const equipe = await EquipeGincana.findById(equipeId);
-    if (!equipe) {
-      return res.status(404).json({ message: "Equipe não encontrada." });
-    }
-
-    const pontos = equipe.pontos_acumulados || 0;
-
-    // Log para garantir que está capturando os pontos
-    logFormData(req, { pontosEquipe: pontos });
-
-    return res.status(200).json({ equipeId, pontos });
-  } catch (err) {
-    console.error("Erro buscarPontosEquipe:", err);
-    return res.status(500).json({ message: "Erro interno ao buscar pontos da equipe." });
   }
 };
