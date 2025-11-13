@@ -53,7 +53,17 @@ const EnviarFeedback = ({ isOpen, setIsOpen }) => {
                             rows={5}
                             required
                         />
-                        <p className="text-sm text-gray-500">Máximo de 10000 caracteres.</p>
+                        <div className="flex justify-between text-sm">
+                            <p className={descricao.length < 10 ? 'text-red-500' : 'text-gray-500'}>
+                                {descricao.length < 10 
+                                ? `Mínimo de 10 caracteres`
+                                : ''
+                                }
+                            </p>
+                            <p className="text-gray-500">
+                                {descricao.length} / 10000
+                            </p>
+                        </div>
                     </div>
                     <DialogFooter>
                         <Button type="submit" disabled={isSubmitting || descricao.length < 10} className="bg-blue-600 hover:bg-blue-700">
