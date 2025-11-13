@@ -1,7 +1,7 @@
 // src/components/FeedbackFAB.jsx
 
 import React, { useState } from 'react';
-import { MessageSquare } from 'lucide-react';
+import { Megaphone } from 'lucide-react';
 import EnviarFeedback from '../pages/EnviarFeedback';
 
 const FeedbackFAB = () => {
@@ -14,9 +14,9 @@ const FeedbackFAB = () => {
                 <button
                     onClick={() => setIsFeedbackModalOpen(true)}
                     title="Enviar Feedback ou Relatar Problema"
-                    className="p-4 bg-purple-600 text-white rounded-full shadow-2xl hover:bg-purple-700 transition duration-150 transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-purple-300"
+                    className="p-4 bg-blue-600 text-white rounded-full shadow-2xl hover:bg-blue-700 transition duration-150 transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-blue-300"
                 >
-                    <MessageSquare size={28} />
+                    <Megaphone size={28} />
                 </button>
             </div>
 
