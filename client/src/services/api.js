@@ -370,6 +370,95 @@ export const emprestimosService = {
 };
 
 /**
+ * Serviço de Solicitações de Empréstimo
+ */
+export const solicitacoesEmprestimoService = {
+  // Coordenador cria solicitação
+  criar: (prova_id, quantidade_solicitada, criterios, motivo) =>
+    request('/equipes/solicitacoes-emprestimo', {
+      method: 'POST',
+      body: JSON.stringify({ prova_id, quantidade_solicitada, criterios, motivo }),
+    }),
+
+  // Listar solicitações
+  listar: (status, prova_id) => {
+    const params = new URLSearchParams();
+    if (status) params.append('status', status);
+    if (prova_id) params.append('prova_id', prova_id);
+    
+    const queryString = params.toString();
+    return request(`/equipes/solicitacoes-emprestimo${queryString ? '?' + queryString : ''}`, { method: 'GET' });
+  },
+
+  // Obter detalhes de uma solicitação (incluindo ofertas)
+  obter: (id) => request(`/equipes/solicitacoes-emprestimo/${id}`, { method: 'GET' }),
+
+  // Admin aprova solicitação
+  aprovar: (id, justificativa_admin) =>
+    request(`/equipes/solicitacoes-emprestimo/${id}/aprovar`, {
+      method: 'PATCH',
+      body: JSON.stringify({ justificativa_admin }),
+    }),
+
+  // Admin rejeita solicitação
+  rejeitar: (id, justificativa_admin) =>
+    request(`/equipes/solicitacoes-emprestimo/${id}/rejeitar`, {
+      method: 'PATCH',
+      body: JSON.stringify({ justificativa_admin }),
+    }),
+
+  // Coordenador cancela solicitação
+  cancelar: (id, motivo_cancelamento) =>
+    request(`/equipes/solicitacoes-emprestimo/${id}/cancelar`, {
+      method: 'PATCH',
+      body: JSON.stringify({ motivo_cancelamento }),
+    }),
+};
+
+/**
+ * Serviço de Ofertas de Empréstimo
+ */
+export const ofertasEmprestimoService = {
+  // Coordenador cria oferta
+  criar: (solicitacao_id, membros_oferecidos_ids, mensagem) =>
+    request('/equipes/ofertas-emprestimo', {
+      method: 'POST',
+      body: JSON.stringify({ solicitacao_id, membros_oferecidos_ids, mensagem }),
+    }),
+
+  // Listar ofertas
+  listar: (solicitacao_id, status) => {
+    const params = new URLSearchParams();
+    if (solicitacao_id) params.append('solicitacao_id', solicitacao_id);
+    if (status) params.append('status', status);
+    
+    const queryString = params.toString();
+    return request(`/equipes/ofertas-emprestimo${queryString ? '?' + queryString : ''}`, { method: 'GET' });
+  },
+
+  // Coordenador solicitante aceita oferta
+  aceitar: (id, justificativa_decisao) =>
+    request(`/equipes/ofertas-emprestimo/${id}/aceitar`, {
+      method: 'PATCH',
+      body: JSON.stringify({ justificativa_decisao }),
+    }),
+
+  // Coordenador solicitante recusa oferta
+  recusar: (id, justificativa_decisao) =>
+    request(`/equipes/ofertas-emprestimo/${id}/recusar`, {
+      method: 'PATCH',
+      body: JSON.stringify({ justificativa_decisao }),
+    }),
+
+  // Coordenador ofertante cancela oferta
+  cancelar: (id) =>
+    request(`/equipes/ofertas-emprestimo/${id}/cancelar`, {
+      method: 'PATCH',
+      body: JSON.stringify({}),
+    }),
+};
+
+/**
  * Serviço de Usuários (apenas ADMIN)
  */
 export const usuariosService = {

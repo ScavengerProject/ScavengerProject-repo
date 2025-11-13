@@ -21,6 +21,10 @@ import { useToast } from './components/ui/toast';
 import { ToastContainer } from './components/ui/ToastContainer';
 import AdminPenalidades from './pages/AdminPenalidades.jsx';
 import PenalidadesEquipe from "./pages/PenalidadesEquipe";
+import CoordSolicitarEmprestimo from './pages/CoordSolicitarEmprestimo.jsx';
+import AdminAprovarSolicitacoes from './pages/AdminAprovarSolicitacoes.jsx';
+import CoordOferecerMembros from './pages/CoordOferecerMembros.jsx';
+import CoordGerenciarOfertas from './pages/CoordGerenciarOfertas.jsx';
 
 function App() {
   const { usuario, isAuthenticated, loading, logout } = useAuth();
@@ -191,6 +195,48 @@ function App() {
         <Route
           path="/notificacoes"
           element={isAuthenticated ? <Notificacoes /> : <Navigate to="/login" replace />}
+        />
+
+        {/* Rotas para Sistema de Solicitação de Empréstimo */}
+        
+        {/* Coordenador: Solicitar empréstimo */}
+        <Route
+          path="/coord/solicitar-emprestimo"
+          element={
+            isAuthenticated
+              ? (usuario.tipo === 'COORDENADOR' ? <CoordSolicitarEmprestimo /> : <Navigate to="/" replace />)
+              : <Navigate to="/login" replace />
+          }
+        />
+
+        {/* Coordenador: Gerenciar ofertas recebidas */}
+        <Route
+          path="/coord/solicitacoes-emprestimo/:solicitacaoId/ofertas"
+          element={
+            isAuthenticated
+              ? (usuario.tipo === 'COORDENADOR' ? <CoordGerenciarOfertas /> : <Navigate to="/" replace />)
+              : <Navigate to="/login" replace />
+          }
+        />
+
+        {/* Coordenador: Ofertar membros para outras equipes */}
+        <Route
+          path="/coord/ofertar-membros"
+          element={
+            isAuthenticated
+              ? (usuario.tipo === 'COORDENADOR' ? <CoordOferecerMembros /> : <Navigate to="/" replace />)
+              : <Navigate to="/login" replace />
+          }
+        />
+
+        {/* Admin: Aprovar solicitações */}
+        <Route
+          path="/admin/aprovar-solicitacoes"
+          element={
+            isAuthenticated
+              ? (usuario.tipo === 'ADMIN' ? <AdminAprovarSolicitacoes /> : <Navigate to="/" replace />)
+              : <Navigate to="/login" replace />
+          }
         />
       </Routes>
       <ToastContainer toasts={toasts} />

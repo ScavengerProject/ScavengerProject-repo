@@ -10,20 +10,20 @@ import { useAuth } from "../hooks/useAuth.jsx";
 const Login = () => {
   const { login } = useAuth();
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [senha, setSenha] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async (e) => { 
     e.preventDefault();
     
-    if (!email || !password) {
+    if (!email || !senha) {
       toast.error("Por favor, preencha todos os campos");
       return;
     }
 
     setLoading(true);
     try {
-      await login(email, password);
+      await login(email, senha);
       // Redirecionamento fica por conta das rotas (App.jsx)
     } finally {
       setLoading(false);
@@ -56,15 +56,15 @@ const Login = () => {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password" className="text-gray-900 font-medium">
+              <Label htmlFor="senha" className="text-gray-900 font-medium">
                 Senha
               </Label>
               <Input
-                id="password"
+                id="senha"
                 type="password"
                 placeholder="Digite sua senha"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                value={senha}
+                onChange={(e) => setSenha(e.target.value)}
                 className="bg-white border-gray-300 focus:ring-blue-500"
                 disabled={loading}
               />

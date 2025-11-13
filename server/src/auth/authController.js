@@ -6,10 +6,20 @@ import jwt from 'jsonwebtoken';
  * Função que valida as credenciais de login e retorna token de acesso.
  */
 export const login = async (req, res) => {
-  const { email, senha } = req.body;
+  const { email, senha, password } = req.body;
+  
+  // Aceita tanto 'senha' quanto 'password' para compatibilidade
+  const senhaFinal = senha || password;
 
-  if (!email || !senha) {
-    return res.status(400).json({ message: 'Por favor, forneça email e senha.' });
+  if (!email || !senhaFinal) {
+    return res.status(400).json({ 
+      message: 'Por favor, forneça email e senha.',
+      errors: [
+        !email ? { code: 'VALIDATION_ERROR', field: 'email', message: 'Field required' } : null,
+        !senhaFinal ? { code: 'VALIDATION_ERROR', field: 'password', message: 'Field required' } : null
+      ].filter(Boolean),
+      success: false
+    });
   }
 
   try {
@@ -19,7 +29,7 @@ export const login = async (req, res) => {
       return res.status(401).json({ message: 'Credenciais inválidas.' });
     }
 
-    const senhaCorreta = await bcrypt.compare(senha, usuario.senha);
+    const senhaCorreta = await bcrypt.compare(senhaFinal, usuario.senha);
 
     if (!senhaCorreta) {
       return res.status(401).json({ message: 'Credenciais inválidas.' });
