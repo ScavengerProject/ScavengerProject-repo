@@ -108,6 +108,40 @@ export const AuthProvider = ({ children }) => {
     };
   }, [isAuthenticated]);
 
+  // Sincronizar login/logout entre abas
+  useEffect(() => {
+    const handleStorageChange = (event) => {
+        // Só sincroniza se for uma mudança no token ou nos dados do usuário
+        if (event.key === 'token' || event.key === 'usuario') {
+            const token = localStorage.getItem('token');
+            const usuarioData = localStorage.getItem('usuario');
+
+            if (token && usuarioData) {
+                // Se o token existe, sincroniza para logado
+                try {
+                    const parsedUsuario = JSON.parse(usuarioData);
+                    setUsuario(parsedUsuario);
+                    setIsAuthenticated(true);
+                } catch {
+                    // Se os dados estiverem corrompidos desloga
+                    setUsuario(null);
+                    setIsAuthenticated(false);
+                }
+            } else {
+                // Se o token foi removido, desloga esta aba
+                setUsuario(null);
+                setIsAuthenticated(false);
+            }
+        }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+
+    return () => {
+        window.removeEventListener('storage', handleStorageChange);
+    };
+  }, []);
+
   const login = async (email, senha) => {
     try {
       setLoading(true);
