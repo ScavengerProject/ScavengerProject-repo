@@ -44,12 +44,16 @@ export const criarEmprestimo = async (req, res) => {
     const egDestino = await EquipeGincana.findById(equipe_destino_id).select('_id equipe_id gincana_id coordenador_usuario_id');
     if (!egDestino) return res.status(404).json({ message: 'Equipe destino (gincana) não encontrada.' });
 
-    // Origem: equipe atual do usuário (EquipeMembros → equipe_id == _id de EquipeGincana)
+    // Origem: equipe atual do usuário (EquipeMembros → equipe_id)
     const membroAtual = await EquipeMembro.findOne({ usuario_id }).select('_id equipe_id');
     if (!membroAtual) return res.status(422).json({ message: 'Usuário não pertence a nenhuma equipe no momento.' });
 
+    // Buscar o EquipeGincana correspondente à equipe_id do membro
+    const egOrigem = await EquipeGincana.findOne({ equipe_id: membroAtual.equipe_id }).select('_id equipe_id');
+    if (!egOrigem) return res.status(422).json({ message: 'Equipe de origem não encontrada no contexto da gincana.' });
+
     // Evita empréstimo para a mesma equipe
-    if (String(membroAtual.equipe_id) === String(egDestino._id)) {
+    if (String(egOrigem._id) === String(egDestino._id)) {
       return res.status(409).json({ message: 'Usuário já está nesta equipe.' });
     }
 
@@ -60,7 +64,7 @@ export const criarEmprestimo = async (req, res) => {
     // cria
     const doc = await EmprestimoEquipe.create({
       usuario_id,
-      equipe_origem_id: membroAtual.equipe_id,
+      equipe_origem_id: egOrigem._id,
       equipe_destino_id,
       prova_id,
       inicio: inicio ? new Date(inicio) : new Date(),

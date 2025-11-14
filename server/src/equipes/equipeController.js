@@ -419,8 +419,12 @@ export const visualizarEquipe = async (req, res) => {
                 nome: equipe.nome,
                 cor: equipe.cor,
             },
-            // Extrai apenas os dados dos usuários populados
-            membros: membrosDaEquipe.map(membro => membro.usuario_id)
+            // Mantém a estrutura completa com _id e usuario_id populado
+            membros: membrosDaEquipe.map(membro => ({
+                _id: membro._id,
+                usuario_id: membro.usuario_id,
+                equipe_id: membro.equipe_id
+            }))
         };
         
         res.status(200).json(respostaFormatada);

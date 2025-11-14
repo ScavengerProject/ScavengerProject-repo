@@ -164,7 +164,7 @@ export default function Home({ usuario, onLogout }) {
             </div>
           )}
 
-          {/* Card: Gerenciar Empréstimos (Admin) */}
+          {/* Card: Gerenciar Empréstimos - CONSOLIDADO (Admin) */}
           {isAdmin && (
             <div 
               className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition border border-gray-200 hover:border-indigo-300"
@@ -172,15 +172,24 @@ export default function Home({ usuario, onLogout }) {
               <div className="bg-linear-to-br from-indigo-100 to-indigo-50 rounded-full w-12 h-12 flex items-center justify-center mb-4">
                 <Handshake className="text-indigo-700" size={24} />
               </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-2">Empréstimos de Alunos</h3>
-              <p className="text-gray-600 mb-4">Autorize empréstimos temporários entre equipes em provas específicas.</p>
-              <Button
-                variant="outline" 
-                onClick={() => navigate('/admin/emprestimos')}
-                className="w-full border-gray-300 hover:bg-gray-100 text-gray-900 font-semibold py-2 rounded-lg transition shadow-md"
-              >
-                Gerenciar Empréstimos
-              </Button>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Gerenciar Empréstimos</h3>
+              <p className="text-gray-600 mb-4">Gerencie solicitações e empréstimos entre equipes.</p>
+              <div className="space-y-2">
+                <Button
+                  variant="outline" 
+                  onClick={() => navigate('/admin/aprovar-solicitacoes')}
+                  className="w-full border-gray-300 hover:bg-gray-100 text-gray-900 font-semibold py-2 rounded-lg transition shadow-md"
+                >
+                  Aprovar Solicitações
+                </Button>
+                <Button
+                  variant="outline" 
+                  onClick={() => navigate('/admin/emprestimos')}
+                  className="w-full border-gray-300 hover:bg-gray-100 text-gray-900 font-semibold py-2 rounded-lg transition shadow-md"
+                >
+                  Ver Empréstimos Ativos
+                </Button>
+              </div>
             </div>
           )}
 
@@ -208,6 +217,42 @@ export default function Home({ usuario, onLogout }) {
                   className="w-full border-gray-300 hover:bg-gray-100 text-gray-900 font-semibold py-2 rounded-lg transition shadow-md"
                 >
                   Solicitações de migração
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Card: Solicitar Empréstimo (Coordenador) */}
+          {usuario?.tipo === 'COORDENADOR' && (
+            <div 
+              className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition border border-gray-200 hover:border-blue-300"
+            >
+              <div className="bg-linear-to-br from-blue-100 to-blue-50 rounded-full w-12 h-12 flex items-center justify-center mb-4">
+                <Handshake className="text-blue-700" size={24} />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Gerenciar Empréstimos</h3>
+              <p className="text-gray-600 mb-4">Solicite, ofereça e gerencie empréstimos de membros.</p>
+              <div className="space-y-2">
+                <Button
+                  variant="outline" 
+                  onClick={() => navigate('/coord/solicitar-emprestimo')}
+                  className="w-full border-gray-300 hover:bg-gray-100 text-gray-900 font-semibold py-2 rounded-lg transition shadow-md"
+                >
+                  Solicitar Membros
+                </Button>
+                <Button
+                  variant="outline" 
+                  onClick={() => navigate('/coord/ofertar-membros')}
+                  className="w-full border-gray-300 hover:bg-gray-100 text-gray-900 font-semibold py-2 rounded-lg transition shadow-md"
+                >
+                  Ofertar Membros
+                </Button>
+                <Button
+                  variant="outline" 
+                  onClick={() => navigate('/coord/gerenciar-emprestimos')}
+                  className="w-full border-gray-300 hover:bg-gray-100 text-gray-900 font-semibold py-2 rounded-lg transition shadow-md"
+                >
+                  Ver Empréstimos Ativos
                 </Button>
               </div>
             </div>

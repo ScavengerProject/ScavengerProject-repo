@@ -161,8 +161,8 @@ const GerenciarEquipe = () => {
                         <User className="h-6 w-6 text-green-600" />
                       </div>
                       <div>
-                        <p className="font-semibold text-gray-900">{membro.nome}</p>
-                        <p className="text-sm text-gray-600">{membro.email}</p>
+                        <p className="font-semibold text-gray-900">{membro.usuario_id?.nome || '—'}</p>
+                        <p className="text-sm text-gray-600">{membro.usuario_id?.email || '—'}</p>
                       </div>
                     </div>
                     <Button variant="destructive" size="icon" onClick={() => openRemoveMemberDialog(membro)}>
@@ -182,7 +182,7 @@ const GerenciarEquipe = () => {
                     <DialogTitle>Confirmar Remoção</DialogTitle>
                     <DialogDescription>
                         Você tem certeza que deseja remover o participante 
-                        <span className="font-bold text-red-600"> {memberToRemove?.nome} </span> 
+                        <span className="font-bold text-red-600"> {memberToRemove?.usuario_id?.nome || memberToRemove?.nome} </span> 
                         da sua equipe?
                     </DialogDescription>
                 </DialogHeader>
