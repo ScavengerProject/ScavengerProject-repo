@@ -26,13 +26,13 @@ export const login = async (req, res) => {
     const usuario = await Usuario.findOne({ email });
 
     if (!usuario) {
-      return res.status(401).json({ message: 'Email inválido.' });
+      return res.status(401).json({ message: 'Email ou senha inválidos.' });
     }
 
     const senhaCorreta = await bcrypt.compare(senhaFinal, usuario.senha);
 
     if (!senhaCorreta) {
-      return res.status(401).json({ message: 'Senha inválida.' });
+      return res.status(401).json({ message: 'Email ou senha inválidos.' });
     }
 
     // os dados que vão dentro do token
