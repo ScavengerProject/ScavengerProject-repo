@@ -3,16 +3,27 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 import time
+import os
 
 # CONFIGURANDO AS VARIÁVEIS
 URL_LOGIN = "http://localhost:5173/"
-URL_PAINEL_ADMIN_ESPERADA = "http://localhost:5173/"  # Depois do login
+URL_PAINEL_ADMIN_ESPERADA = "http://localhost:5173/"  # Depois do login, coincidência de ser a mesma
 TIMEOUT_MAXIMO = 10  # Tempo máximo de espera para elementos (em segundos)
 TEMPO_LIMITE_RESPOSTA = 3 # Critério de aceitação (3 segundos)
+
+# CONFIGURAÇÃO DO CAMINHO DOS SCREENSHOTS
+DIRETORIO_BASE_SCREENSHOTS = r"C:\Users\User\Documents\grupo-03-1\selenium\primeiro_modulo\screenshots"
+NOME_ARQUIVO_FALHA = "falha_ct_sec_001.png"
+CAMINHO_COMPLETO_FALHA = os.path.join(DIRETORIO_BASE_SCREENSHOTS, NOME_ARQUIVO_FALHA)
 
 # INICIANDO O TESTE CT-SEC-001
 print("Iniciando Teste CT-SEC-001...")
 try:
+    # Garante que o caminho que os screenshots estão sendo direcionados exista
+    if not os.path.exists(DIRETORIO_BASE_SCREENSHOTS):
+        os.makedirs(DIRETORIO_BASE_SCREENSHOTS)
+        print(f"Diretório criado: {DIRETORIO_BASE_SCREENSHOTS}")
+
     # Configura o navegador como o Chrome
     navegador = webdriver.Chrome()
     navegador.maximize_window()
@@ -75,9 +86,10 @@ except Exception as e:
     print(f"❌ FALHOU")
     print(f"Erro durante a execução do teste: {e}")
 
-    # Vai tirar um screenshot da tela, esperando que pegue a falha
-    navegador.save_screenshot("falha_ct_sec_001.png")
-    print("Screenshot salvo como falha_ct_sec_001.png")
+    # Salva um print com o erro (se dermos sorte)
+    if navegador:
+        navegador.save_screenshot(CAMINHO_COMPLETO_FALHA)
+        print(f"Screenshot salvo em: {CAMINHO_COMPLETO_FALHA}")
 
 finally:
     # Do o tempo para a tela ficar aberta e depois fechar
