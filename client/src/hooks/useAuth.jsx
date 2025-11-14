@@ -84,23 +84,6 @@ export const AuthProvider = ({ children }) => {
     setLoading(false);
   }, []);
 
-  // Logout quando a página/aba é fechada
-  useEffect(() => {
-    const handleBeforeUnload = () => {
-      // Remover dados de autenticação
-      localStorage.removeItem('token');
-      localStorage.removeItem('usuario');
-      localStorage.removeItem('sessionStartTime');
-      localStorage.removeItem('sessionExpiryTime');
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-    };
-  }, []);
-
   // Detectar quando a aba/janela perde o foco e volta
   useEffect(() => {
     const handleVisibilityChange = () => {
