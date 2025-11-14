@@ -6,7 +6,7 @@ import time
 import os
 
 # CONFIGURANDO AS VARIÁVEIS
-URL_LOGIN = "http://localhost:5173/"
+URL_LOGIN = "http://localhost:5173/login"
 URL_PAINEL_ADMIN_ESPERADA = "http://localhost:5173/"  # Depois do login, coincidência de ser a mesma
 TIMEOUT_MAXIMO = 10  # Tempo máximo de espera para elementos (em segundos)
 TEMPO_LIMITE_RESPOSTA = 3 # Critério de aceitação (3 segundos)

@@ -7,7 +7,7 @@ import time
 import os
 
 # CONFIGURANDO AS VARIÁVEIS
-URL_LOGIN = "http://localhost:5173/"
+URL_LOGIN = "http://localhost:5173/login"
 URL_ESPERADA_APOS_FALHA = "http://localhost:5173/"  # É a mesma por que o login deve falhar
 TIMEOUT_MAXIMO = 10  # Tempo máximo de espera para elementos (em segundos)
 TEMPO_ESPERA_NAO_REDIRECIONAMENTO = 2 # Tempo de espera extra para garantir que não houve redirecionamento
