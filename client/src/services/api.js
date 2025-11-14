@@ -38,11 +38,24 @@ const request = async (endpoint, options = {}) => {
     });
 
     if (response.status === 401) {
-      localStorage.removeItem('token');
-      localStorage.removeItem('usuario');
-      localStorage.removeItem('sessionStartTime');
-      localStorage.removeItem('sessionExpiryTime');
-      throw new Error('Sua sessão expirou. Por favor, faça login novamente.');
+      if (endpoint !== '/auth/login') {             
+            localStorage.removeItem('token');
+            localStorage.removeItem('usuario');
+            localStorage.removeItem('sessionStartTime');
+            localStorage.removeItem('sessionExpiryTime');
+            
+            throw new Error('Sua sessão expirou. Por favor, faça login novamente.');
+        }
+    }
+
+    if (!response.ok) {
+        let errorMessage = 'Erro na requisição';
+        try {
+            const errorData = await response.json();
+            errorMessage = errorData.message || errorMessage;
+        } catch (_) {
+        }
+        throw new Error(errorMessage);
     }
 
     if (!response.ok) {
