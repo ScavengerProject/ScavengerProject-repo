@@ -72,8 +72,9 @@ export const criarOferta = async (req, res) => {
     }
 
     // Verificar se os membros pertencem à equipe do coordenador
+    // Usar minhaEquipe.equipe_id (ID da Equipe) e não minhaEquipe._id (ID do EquipeGincana)
     const membros = await EquipeMembro.find({
-      equipe_id: minhaEquipe._id,
+      equipe_id: minhaEquipe.equipe_id,
       usuario_id: { $in: membros_oferecidos_ids }
     });
 
@@ -207,8 +208,15 @@ export const aceitarOferta = async (req, res) => {
 
     // Criar empréstimos para cada membro oferecido
     const emprestimos = [];
+    console.log('🔄 Iniciando criação de empréstimos...');
+    console.log('Membros oferecidos:', oferta.membros_oferecidos);
+    console.log('Equipe origem (ofertante):', oferta.equipe_ofertante_id);
+    console.log('Equipe destino (solicitante):', solicitacao.equipe_solicitante_id);
+    console.log('Prova ID:', solicitacao.prova_id);
+    
     for (const membro of oferta.membros_oferecidos) {
       try {
+        console.log(`Criando empréstimo para usuário ${membro.usuario_id}...`);
         const emprestimo = await EmprestimoEquipe.create({
           usuario_id: membro.usuario_id,
           equipe_origem_id: oferta.equipe_ofertante_id,
@@ -219,11 +227,15 @@ export const aceitarOferta = async (req, res) => {
           status: 'ATIVO',
           criado_por: me.id,
         });
+        console.log(`✅ Empréstimo criado com sucesso:`, emprestimo._id);
         emprestimos.push(emprestimo._id);
       } catch (err) {
-        console.error(`Erro ao criar empréstimo para ${membro.usuario_id}:`, err);
+        console.error(`❌ Erro ao criar empréstimo para ${membro.usuario_id}:`, err);
+        console.error('Detalhes do erro:', err.message);
       }
     }
+    
+    console.log(`✅ Total de empréstimos criados: ${emprestimos.length}`);
 
     // Atualizar oferta
     oferta.status = 'ACEITA';
@@ -359,4 +371,5 @@ export const cancelarOferta = async (req, res) => {
     });
   }
 };
+
 

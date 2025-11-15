@@ -103,47 +103,10 @@ const GerenciarEquipe = () => {
       <main className="container mx-auto px-6 py-8">
         <div className="mb-8">
           <h2 className="text-3xl font-bold text-gray-900 mb-2">Gerenciar Equipe: {equipeInfo?.nome}</h2>
-          <p className="text-gray-600">Aprove ou rejeite solicitações e visualize os membros atuais.</p>
+          <p className="text-gray-600">Visualize os membros atuais.</p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Card de Solicitações Pendentes */}
-          <Card className="bg-white border-gray-200 shadow-md">
-            <CardHeader>
-              <CardTitle className="text-gray-900">Solicitações Pendentes</CardTitle>
-              <CardDescription className="text-gray-600">
-                Aprove ou rejeite os pedidos para entrar na equipe.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {solicitacoes.length > 0 ? (
-                solicitacoes.map(sol => (
-                  <div key={sol._id} className="flex items-center justify-between p-3 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">
-                    <div className="flex items-center gap-4">
-                      <div className="p-2 bg-white rounded-full border">
-                        <UserPlus className="h-6 w-6 text-amber-600" />
-                      </div>
-                      <div>
-                        <p className="font-semibold text-gray-900">{sol.usuario_id.nome}</p>
-                        <p className="text-sm text-gray-600">{sol.usuario_id.email}</p>
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button size="icon" variant="outline" className="text-green-600 hover:bg-green-50" onClick={() => handleAceitarSolicitacao(sol._id)}>
-                        <Check size={18} />
-                      </Button>
-                      <Button size="icon" variant="outline" className="text-red-600 hover:bg-red-50" onClick={() => handleRejeitarSolicitacao(sol._id)}>
-                        <X size={18} />
-                      </Button>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <p className="text-center text-gray-500 py-6">Nenhuma solicitação pendente.</p>
-              )}
-            </CardContent>
-          </Card>
-
+        <div className="grid grid-cols-1 lg:grid-cols-1 gap-6">
           {/* Card de Membros da Equipe */}
           <Card className="bg-white border-gray-200 shadow-md">
             <CardHeader>
@@ -161,8 +124,8 @@ const GerenciarEquipe = () => {
                         <User className="h-6 w-6 text-green-600" />
                       </div>
                       <div>
-                        <p className="font-semibold text-gray-900">{membro.nome}</p>
-                        <p className="text-sm text-gray-600">{membro.email}</p>
+                        <p className="font-semibold text-gray-900">{membro.usuario_id?.nome || '—'}</p>
+                        <p className="text-sm text-gray-600">{membro.usuario_id?.email || '—'}</p>
                       </div>
                     </div>
                     <Button variant="destructive" size="icon" onClick={() => openRemoveMemberDialog(membro)}>
@@ -182,7 +145,7 @@ const GerenciarEquipe = () => {
                     <DialogTitle>Confirmar Remoção</DialogTitle>
                     <DialogDescription>
                         Você tem certeza que deseja remover o participante 
-                        <span className="font-bold text-red-600"> {memberToRemove?.nome} </span> 
+                        <span className="font-bold text-red-600"> {memberToRemove?.usuario_id?.nome || memberToRemove?.nome} </span> 
                         da sua equipe?
                     </DialogDescription>
                 </DialogHeader>
