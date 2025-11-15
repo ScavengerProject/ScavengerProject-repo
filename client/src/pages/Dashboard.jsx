@@ -8,7 +8,7 @@ import { provasService, equipesService } from "../services/api";
 import { toast } from "../components/ui/toast";
 import ProvaDetalhesModal from "../components/ProvaDetalhesModal";
 import FeedbackFAB from '../components/EnviarFeedbackModal';
-
+import InfosEquipeModal from "../components/InfosEquipeModal"; 
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -20,6 +20,8 @@ const Dashboard = () => {
   const [usuarioEquipeId, setUsuarioEquipeId] = useState(null);
   const [provaSelecionada, setProvaSelecionada] = useState(null);
   const [modalAberto, setModalAberto] = useState(false);
+  const [InfosEquipeModalOpen, setInfosEquipeModalOpen] = useState(false);
+  const [equipeSelecionada, setequipeSelecionada] = useState(null);
 
   useEffect(() => {
     carregarDados();
@@ -74,6 +76,11 @@ const Dashboard = () => {
   const abrirDetalhesProva = (prova) => {
     setProvaSelecionada(prova);
     setModalAberto(true);
+  };
+
+  const abrirInfosEquipeModal = (minhaEquipe) => {
+    setequipeSelecionada(minhaEquipe);
+    setInfosEquipeModalOpen(true);
   };
 
   const fecharModal = () => {
@@ -134,17 +141,13 @@ const Dashboard = () => {
   const hoje = new Date();
   hoje.setHours(0, 0, 0, 0);
   
-  const proximasProvas = provasDisponiveis
-    .filter(p => {
-      if (!['NAO_INICIADA', 'EM_ANDAMENTO'].includes(p.status)) return false;
-      
-      // Verificar se a data de início é hoje ou no futuro
-      const dataInicio = new Date(p.data_inicio);
-      return dataInicio >= hoje || p.status === 'EM_ANDAMENTO';
-    })
-    .sort((a, b) => new Date(a.data_inicio) - new Date(b.data_inicio))
-    .slice(0, 5);
+  const provasNaoConcluidas = provasDisponiveis
+    .filter(p =>
+      p.status !== 'CONCLUIDA')
+      .sort((a, b) => new Date(a.data_inicio) - new Date(b.data_inicio)); // Ordena por data
 
+// ✅ CÁLCULO DAS PRÓXIMAS PROVAS (O que será exibido no cartão):
+    const provasExibicao = provasNaoConcluidas.slice(0, 5);
   // Formatar data
   const formatarData = (data) => {
     if (!data) return "Data não definida";
@@ -243,10 +246,25 @@ const Dashboard = () => {
       // Para alunos, professores, coordenadores, pais
       return [
         {
-          title: minhaEquipeInfo ? "Minha Equipe" : "Sem Equipe",
-          value: minhaEquipeInfo?.nome || "---", // Retirei os pontos para os alunos n saberem
+          title: minhaEquipe ? "Minha Equipe" : "Sem Equipe",
+          description: minhaEquipe 
+            ? (
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => abrirInfosEquipeModal(minhaEquipe)} 
+                    className={`p-0 h-auto text-sm font-semibold text-gray-700 hover:bg-transparent`}
+                >
+                    Ver informações
+                </Button>
+            )
+            : "Inscreva-se em uma equipe",
+          value: minhaEquipe?.nome || "---", // Retirei os pontos para os alunos n saberem
           icon: Users,
-          color: minhaEquipeInfo ? "text-blue-600" : "text-gray-400",
+          color: minhaEquipe ? "text-blue-600" : "text-gray-400",
+          /*style: minhaEquipe 
+            ? { backgroundColor: `${minhaEquipe.cor}20` } 
+            : {},*/
         },
         {
           title: "Provas Ativas",
@@ -337,7 +355,7 @@ const Dashboard = () => {
             {usuario?.tipo === 'ADMIN' 
               ? 'Acompanhe o andamento da gincana em tempo real'
               : minhaEquipe
-                ? `Você faz parte da equipe ${minhaEquipe.nome}`
+                ? `Confira o desempenho da sua equipe e as próximas provas.`
                 : 'Inscreva-se em uma equipe para participar das provas'
             }
           </p>
@@ -355,7 +373,8 @@ const Dashboard = () => {
             {/* Stats Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
               {stats.map((stat, index) => (
-                <Card key={index} className="bg-white border-gray-200 shadow-md hover:shadow-lg transition-shadow">
+                <Card key={index} style={index === 0 ? stat.style : {}}
+                  className={`bg-white border-gray-200 shadow-md hover:shadow-lg transition-shadow`}>
                   <CardHeader className="flex flex-row items-center justify-between pb-2">
                     <CardTitle className="text-sm font-medium text-gray-600">
                       {stat.title}
@@ -377,23 +396,23 @@ const Dashboard = () => {
               {/* Próximas Provas */}
               <Card className="bg-white border-gray-200 shadow-md">
                 <CardHeader>
-                  <CardTitle className="text-gray-900">Próximas Provas</CardTitle>
+                  <CardTitle className="text-gray-900">Andamento das Provas</CardTitle>
                   <CardDescription className="text-gray-600">
-                    {proximasProvas.length > 0 
-                      ? 'Programadas para os próximos dias'
+                    {provasNaoConcluidas.length > 0 
+                      ? 'Provas programadas, em andamento e concluídas'
                       : 'Nenhuma prova programada no momento'
                     }
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {proximasProvas.length === 0 ? (
+                  {provasNaoConcluidas.length === 0 ? (
                     <div className="text-center py-8 text-gray-500">
                       <Trophy className="h-12 w-12 mx-auto mb-2 text-gray-300" />
                       <p>Nenhuma prova programada</p>
                     </div>
                   ) : (
                     <>
-                      {proximasProvas.map((prova) => (
+                      {provasNaoConcluidas.map((prova) => (
                         <div 
                           key={prova._id} 
                           onClick={() => abrirDetalhesProva(prova)}
@@ -417,13 +436,13 @@ const Dashboard = () => {
                           )}
                         </div>
                       ))}
-                      {provasDisponiveis.length > 5 && (
+                      {provasDisponiveis.length > provasExibicao.length && (
                         <Button
                           variant="outline"
                           className="w-full border-gray-300 hover:bg-gray-100 text-gray-900"
                           onClick={() => navigate('/provas')}
                         >
-                          Ver todas as {provasDisponiveis.length} provas disponíveis
+                          Ver todas as {provasDisponiveis.length} provas
                         </Button>
                       )}
                     </>
@@ -496,6 +515,11 @@ const Dashboard = () => {
         onInscricaoSucesso={handleInscricaoSucesso}
       />
       <FeedbackFAB />
+      <InfosEquipeModal
+        equipe={equipeSelecionada}
+        isOpen={InfosEquipeModalOpen}
+        onClose={() => setInfosEquipeModalOpen(false)}
+    />
     </div>
   );
 };
