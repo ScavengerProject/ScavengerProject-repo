@@ -23,7 +23,7 @@ import {
   DialogTrigger,
 } from "../components/ui/dialog";
 import { toast } from "../components/ui/toast";
-import { Plus, Edit, Trash2, ArrowLeft, Loader } from "lucide-react";
+import { Plus, Edit, Trash2, ArrowLeft, Loader, Award } from "lucide-react";
 import { Checkbox } from "../components/ui/checkbox";
 import { provasService } from "../services/api";
 import ProvaRestricoesForm from "../components/ProvaRestricoesForm";
@@ -348,6 +348,30 @@ const AdminProvas = () => {
     const exigeOrdem = sequenciamento.exigir_ordem ? ' (ordem obrigatória)' : '';
     
     return `${etapas.length} etapa(s) - ${obrigatorias} obrigatória(s)${exigeOrdem}`;
+  };
+
+  //formatar pontuação
+  const formatarPontuacao = (pontuacao) => {
+    if (!pontuacao || Object.keys(pontuacao).length === 0) {
+      return null; // Não mostra nada se não estiver configurado
+    }
+
+    // Tipo Proporcional
+    if (pontuacao.pontos_por_unidade && pontuacao.nome_unidade) {
+      return `${pontuacao.pontos_por_unidade} pts por ${pontuacao.nome_unidade}`;
+    }
+
+    // Tipo Ranking (1º, 2º, 3º)
+    const posicoes = [];
+    if (pontuacao["1"]) posicoes.push(`1º: ${pontuacao["1"]} pts`);
+    if (pontuacao["2"]) posicoes.push(`2º: ${pontuacao["2"]} pts`);
+    if (pontuacao["3"]) posicoes.push(`3º: ${pontuacao["3"]} pts`);
+
+    if (posicoes.length > 0) {
+      return posicoes.join(' | ');
+    }
+
+    return "Pontuação configurada";
   };
 
   return (
@@ -762,6 +786,12 @@ const AdminProvas = () => {
                           <p className="text-sm text-gray-900">{formatarRequisitos(prova.requisito_usuario)}</p>
                         </div>
                       )}
+                      {formatarPontuacao(prova.pontuacao) && (
+                            <div>
+                              <p className="text-xs text-gray-500 uppercase font-semibold">Pontuação</p>
+                              <p className="text-sm text-gray-900">{formatarPontuacao(prova.pontuacao)}</p>
+                            </div>
+                           )}
                     </div>
 
                     {/* Novos critérios US14 */}

@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
-import { ArrowLeft, Trophy, Calendar, Filter, CheckCircle2, Clock, XCircle, AlertCircle } from "lucide-react";
+import { ArrowLeft, Trophy, Calendar, Filter, CheckCircle2, Clock, XCircle, AlertCircle, Award } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { provasService, equipesService } from "../services/api";
 import { toast } from "../components/ui/toast";
@@ -135,6 +135,29 @@ const TodasProvas = () => {
     };
     return formatoMap[formato] || formato;
   };
+  // Traduir pontuação
+  const formatarPontuacao = (pontuacao) => {
+    if (!pontuacao || Object.keys(pontuacao).length === 0) {
+      return null; // Não mostra nada se não estiver configurado
+    }
+
+    // Tipo Proporcional
+    if (pontuacao.pontos_por_unidade && pontuacao.nome_unidade) {
+      return `${pontuacao.pontos_por_unidade} pts por ${pontuacao.nome_unidade}`;
+    }
+
+    // Tipo Ranking (1º, 2º, 3º)
+    const posicoes = [];
+    if (pontuacao["1"]) posicoes.push(`1º: ${pontuacao["1"]} pts`);
+    if (pontuacao["2"]) posicoes.push(`2º: ${pontuacao["2"]} pts`);
+    if (pontuacao["3"]) posicoes.push(`3º: ${pontuacao["3"]} pts`);
+
+    if (posicoes.length > 0) {
+      return posicoes.join(' | ');
+    }
+
+    return null; // Nenhum formato conhecido
+  };
 
   return (
     <div className="min-h-screen bg-white">
@@ -227,7 +250,8 @@ const TodasProvas = () => {
                 provasOrdenadas.map((prova) => {
                   const statusInfo = traduzirStatus(prova.status);
                   const StatusIcon = statusInfo.icon;
-                  
+                  const pontuacaoFormatada = formatarPontuacao(prova.pontuacao);
+
                   return (
                     <Card
                       key={prova._id}
@@ -280,6 +304,12 @@ const TodasProvas = () => {
                               Turmas específicas
                             </Badge>
                           )}
+                          {pontuacaoFormatada && (
+                          <Badge className="bg-yellow-100 text-yellow-800 text-xs flex items-center gap-1">
+                            <Award className="h-3 w-3" />
+                            {pontuacaoFormatada}
+                          </Badge>
+                        )}
                         </div>
 
                         {/* Equipe em primeiro lugar - apenas para provas concluídas */}

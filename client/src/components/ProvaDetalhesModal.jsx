@@ -26,7 +26,7 @@ const ProvaDetalhesModal = ({ prova, isOpen, onClose, onInscricaoSucesso }) => {
   useEffect(() => {
     if (isOpen && prova) {
       verificarInscricao();
-      carregarEquipes();
+      // carregarEquipes(); // comentando por enquanto
     }
   }, [isOpen, prova]);
 
@@ -45,7 +45,7 @@ const ProvaDetalhesModal = ({ prova, isOpen, onClose, onInscricaoSucesso }) => {
     }
   };
 
-  const carregarEquipes = async () => {
+  /*const carregarEquipes = async () => {
     try {
       setCarregandoEquipes(true);
       const equipesData = await equipesService.listarEquipes();
@@ -59,7 +59,7 @@ const ProvaDetalhesModal = ({ prova, isOpen, onClose, onInscricaoSucesso }) => {
     } finally {
       setCarregandoEquipes(false);
     }
-  };
+  };*/
   
   if (!prova) return null;
 
@@ -95,6 +95,27 @@ const ProvaDetalhesModal = ({ prova, isOpen, onClose, onInscricaoSucesso }) => {
       PROVA_ESCRITA: "Prova Escrita",
     };
     return formatoMap[formato] || formato;
+  };
+
+  //formatar pontuação
+  const formatarPontuacao = (pontuacao) => {
+    if (!pontuacao || Object.keys(pontuacao).length === 0) {
+      return "Pontuação não definida para esta prova.";
+    }
+    // Tipo Proporcional
+    if (pontuacao.pontos_por_unidade && pontuacao.nome_unidade) {
+      return `${pontuacao.pontos_por_unidade} pontos por ${pontuacao.nome_unidade}`;
+    }
+    // Tipo Ranking
+    const posicoes = [];
+    if (pontuacao["1"]) posicoes.push(`1º Lugar: ${pontuacao["1"]} pts`);
+    if (pontuacao["2"]) posicoes.push(`2º Lugar: ${pontuacao["2"]} pts`);
+    if (pontuacao["3"]) posicoes.push(`3º Lugar: ${pontuacao["3"]} pts`);
+
+    if (posicoes.length > 0) {
+      return posicoes.join(' | ');
+    }
+    return "Regras de pontuação não especificadas.";
   };
 
   const statusInfo = traduzirStatus(prova.status);
@@ -286,86 +307,94 @@ const ProvaDetalhesModal = ({ prova, isOpen, onClose, onInscricaoSucesso }) => {
               </div>
             </div>
           )}
-
-          {/* Pontuação das Equipes */}
-          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2 text-green-900">
-                <Trophy className="h-5 w-5" />
-                <h4 className="font-semibold">Pontuação das Equipes da Gincana</h4>
-              </div>
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  id="mostrar-pontos"
-                  checked={mostrarPontos}
-                  onCheckedChange={setMostrarPontos}
-                />
-                <label
-                  htmlFor="mostrar-pontos"
-                  className="text-sm font-medium text-green-800 cursor-pointer"
-                >
-                  Mostrar pontos
-                </label>
-              </div>
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+            
+            {/* Título da Seção Dinâmico */}
+            <div className="flex items-center gap-2 text-yellow-900 mb-3">
+              <Trophy className="h-5 w-5" />
+              <h4 className="font-semibold">
+                {prova.status === 'CONCLUIDA' ? "Resultado Final da Prova" : "Regras de Pontuação"}
+              </h4>
             </div>
-            {carregandoEquipes ? (
-              <div className="flex items-center justify-center py-4">
-                <Loader className="h-5 w-5 animate-spin text-green-600" />
-                <span className="ml-2 text-sm text-green-800">Carregando ranking...</span>
-              </div>
-            ) : equipes.length === 0 ? (
-              <p className="text-sm text-green-800 text-center py-2">
-                Nenhuma equipe cadastrada ainda.
-              </p>
-            ) : (
-              <div className="space-y-2">
-                {equipes.map((equipe, index) => (
-                  <div
-                    key={equipe.id || equipe._id}
-                    className={`flex items-center justify-between p-3 rounded-lg border ${
-                      index === 0
-                        ? 'bg-yellow-50 border-yellow-300'
-                        : index === 1
-                        ? 'bg-gray-50 border-gray-300'
-                        : index === 2
-                        ? 'bg-orange-50 border-orange-300'
-                        : 'bg-white border-green-200'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3 flex-1">
-                      <span className={`font-bold text-lg min-w-8 ${
-                        index === 0 ? 'text-yellow-600' : 
-                        index === 1 ? 'text-gray-600' : 
-                        index === 2 ? 'text-orange-600' : 
-                        'text-green-700'
-                      }`}>
-                        {index + 1}º
-                      </span>
-                      <div className="flex items-center gap-2 flex-1">
-                        {equipe.cor && (
-                          <div
-                            className="h-4 w-4 rounded-full border border-gray-300"
-                            style={{ backgroundColor: equipe.cor }}
-                          />
-                        )}
-                        <span className="font-semibold text-gray-900">{equipe.nome}</span>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {mostrarPontos && (
-                        <span className="text-sm font-medium text-gray-700">
-                          {equipe.pontos_acumulados || 0} pontos
-                        </span>
-                      )}
-                      {index === 0 && <Trophy className="h-5 w-5 text-yellow-600" />}
-                    </div>
-                  </div>
-                ))}
+
+            {/* ----- CASO 1: PROVA NÃO CONCLUÍDA (MOSTRAR REGRAS) ----- */}
+            {prova.status !== 'CONCLUIDA' && (
+              <div className="p-3 bg-yellow-100 rounded-lg">
+                <p className="text-sm font-medium text-yellow-900">
+                  {formatarPontuacao(prova.pontuacao)}
+                </p>
+                <p className="text-xs text-yellow-700 mt-1">
+                  A pontuação final das equipes será exibida aqui após a conclusão da prova.
+                </p>
               </div>
             )}
+
+            {/* ----- CASO 2: PROVA CONCLUÍDA (MOSTRAR RESULTADOS) ----- */}
+            {prova.status === 'CONCLUIDA' && (
+              <>
+                {/* Checkbox para mostrar pontos */}
+                <div className="flex items-center gap-2 mb-3">
+                  <Checkbox
+                    id="mostrar-pontos"
+                    checked={mostrarPontos}
+                    onCheckedChange={setMostrarPontos}
+                    className="border-yellow-400" // Cor extra
+                  />
+                  <label
+                    htmlFor="mostrar-pontos"
+                    className="text-sm font-medium text-yellow-800 cursor-pointer"
+                  >
+                    Mostrar pontos
+                  </label>
+                </div>
+
+                {/* Resultados da Prova */}
+                {!prova.resultados || prova.resultados.length === 0 ? (
+                  <p className="text-sm text-yellow-800 text-center py-2">
+                    Resultados ainda não processados para esta prova.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {prova.resultados.map((resultado, index) => (
+                      <div
+                        key={resultado.equipe_id || index}
+                        className={`flex items-center justify-between p-3 rounded-lg border ${
+                          index === 0 ? 'bg-yellow-50 border-yellow-300' : // Mantém 1º lugar
+                          index === 1 ? 'bg-gray-50 border-gray-300' :
+                          index === 2 ? 'bg-orange-50 border-orange-300' :
+                          'bg-white border-yellow-200' // Borda Padrão
+                        }`}
+                      >
+                        <div className="flex items-center gap-3 flex-1">
+                          <span className={`font-bold text-lg min-w-8 ${
+                            index === 0 ? 'text-yellow-600' : 
+                            index === 1 ? 'text-gray-600' : 
+                            index === 2 ? 'text-orange-600' : 
+                            'text-yellow-700' // Cor Padrão
+                          }`}>
+                            {resultado.posicao || index + 1}º
+                          </span>
+                          <div className="flex items-center gap-2 flex-1">
+                            <span className="font-semibold text-gray-900">{resultado.equipe_nome}</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {mostrarPontos && (
+                            <span className="text-sm font-medium text-gray-700">
+                              {resultado.pontos_obtidos || 0} pontos
+                            </span>
+                          )}
+                          {index === 0 && <Trophy className="h-5 w-5 text-yellow-600" />}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+
           </div>
         </div>
-
         {/* Footer com botão de inscrição */}
         <DialogFooter className="mt-6">
           <div className="flex items-center justify-between w-full gap-4">
