@@ -459,7 +459,7 @@ const AdminProvas = () => {
                       Formato da Prova *
                     </Label>
                     <Select value={formData.formato} onValueChange={(value) => setFormData({ ...formData, formato: value })} disabled={submitting}>
-                      <SelectTrigger className="bg-white border-gray-300">
+                      <SelectTrigger id="formato-dropdown" className="bg-white border-gray-300">
                         <SelectValue placeholder="Selecione o formato" />
                       </SelectTrigger>
                       <SelectContent className="bg-white border-gray-300">
