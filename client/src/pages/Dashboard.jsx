@@ -423,7 +423,7 @@ const Dashboard = () => {
                           className="w-full border-gray-300 hover:bg-gray-100 text-gray-900"
                           onClick={() => navigate('/provas')}
                         >
-                          Ver todas as {provasDisponiveis.length} provas disponíveis
+                          Ver todas as provas disponíveis
                         </Button>
                       )}
                     </>
