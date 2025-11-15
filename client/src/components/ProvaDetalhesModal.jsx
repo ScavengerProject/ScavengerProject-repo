@@ -11,7 +11,7 @@ import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Checkbox } from "./ui/checkbox";
 import { Calendar, Clock, Users, Target, AlertCircle, List, CheckCircle2, AlertTriangle, UserPlus, Loader, UserCheck, Trophy } from "lucide-react";
-import { provasService, equipesService } from "../services/api";
+import { provasService, equipesService, resultadosService } from "../services/api";
 import { toast } from "./ui/toast";
 
 const ProvaDetalhesModal = ({ prova, isOpen, onClose, onInscricaoSucesso }) => {
@@ -20,15 +20,36 @@ const ProvaDetalhesModal = ({ prova, isOpen, onClose, onInscricaoSucesso }) => {
   const [verificandoInscricao, setVerificandoInscricao] = useState(false);
   const [equipes, setEquipes] = useState([]);
   const [carregandoEquipes, setCarregandoEquipes] = useState(false);
-  const [mostrarPontos, setMostrarPontos] = useState(false);
+  const [resultadosDaProva, setResultadosDaProva] = useState([]);
+  const [carregandoResultados, setCarregandoResultados] = useState(false);
 
   // Verificar inscrição e carregar equipes quando o modal abrir
   useEffect(() => {
     if (isOpen && prova) {
       verificarInscricao();
       // carregarEquipes(); // comentando por enquanto
+      if (prova.status === 'CONCLUIDA') {
+        carregarResultadosDaProva();
+      } else {
+        // Garante que dados antigos não sejam mostrados
+        setResultadosDaProva([]); 
+      }
     }
   }, [isOpen, prova]);
+
+  const carregarResultadosDaProva = async () => {
+    if (!prova) return;
+    try {
+      setCarregandoResultados(true);
+      const data = await resultadosService.listarResultadosDaProva(prova._id);
+      setResultadosDaProva(data || []);
+    } catch (error) {
+      console.error('Erro ao carregar resultados da prova:', error);
+      toast.error('Não foi possível carregar os resultados da prova.');
+    } finally {
+      setCarregandoResultados(false);
+    }
+  };
 
   const verificarInscricao = async () => {
     if (!prova) return;
@@ -331,67 +352,57 @@ const ProvaDetalhesModal = ({ prova, isOpen, onClose, onInscricaoSucesso }) => {
 
             {/* ----- CASO 2: PROVA CONCLUÍDA (MOSTRAR RESULTADOS) ----- */}
             {prova.status === 'CONCLUIDA' && (
-              <>
-                {/* Checkbox para mostrar pontos */}
-                <div className="flex items-center gap-2 mb-3">
-                  <Checkbox
-                    id="mostrar-pontos"
-                    checked={mostrarPontos}
-                    onCheckedChange={setMostrarPontos}
-                    className="border-yellow-400" // Cor extra
-                  />
-                  <label
-                    htmlFor="mostrar-pontos"
-                    className="text-sm font-medium text-yellow-800 cursor-pointer"
-                  >
-                    Mostrar pontos
-                  </label>
-                </div>
-
-                {/* Resultados da Prova */}
-                {!prova.resultados || prova.resultados.length === 0 ? (
-                  <p className="text-sm text-yellow-800 text-center py-2">
-                    Resultados ainda não processados para esta prova.
-                  </p>
-                ) : (
-                  <div className="space-y-2">
-                    {prova.resultados.map((resultado, index) => (
-                      <div
-                        key={resultado.equipe_id || index}
-                        className={`flex items-center justify-between p-3 rounded-lg border ${
-                          index === 0 ? 'bg-yellow-50 border-yellow-300' : // Mantém 1º lugar
-                          index === 1 ? 'bg-gray-50 border-gray-300' :
-                          index === 2 ? 'bg-orange-50 border-orange-300' :
-                          'bg-white border-yellow-200' // Borda Padrão
-                        }`}
-                      >
-                        <div className="flex items-center gap-3 flex-1">
-                          <span className={`font-bold text-lg min-w-8 ${
-                            index === 0 ? 'text-yellow-600' : 
-                            index === 1 ? 'text-gray-600' : 
-                            index === 2 ? 'text-orange-600' : 
-                            'text-yellow-700' // Cor Padrão
-                          }`}>
-                            {resultado.posicao || index + 1}º
-                          </span>
-                          <div className="flex items-center gap-2 flex-1">
-                            <span className="font-semibold text-gray-900">{resultado.equipe_nome}</span>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {mostrarPontos && (
-                            <span className="text-sm font-medium text-gray-700">
-                              {resultado.pontos_obtidos || 0} pontos
-                            </span>
-                          )}
-                          {index === 0 && <Trophy className="h-5 w-5 text-yellow-600" />}
-                        </div>
-                      </div>
-                    ))}
+               <>
+                {carregandoResultados ? (
+                  <div className="flex items-center justify-center py-4">
+                    <Loader className="h-5 w-5 animate-spin text-yellow-600" />
+                    <span className="ml-2 text-sm text-yellow-800">Carregando resultados...</span>
                   </div>
+                ) : (
+                  <>
+                    {!resultadosDaProva || resultadosDaProva.length === 0 ? (
+                      <p className="text-sm text-yellow-800 text-center py-2">
+                        Resultados ainda não processados para esta prova.
+                      </p>
+                    ) : (
+                      <div className="space-y-2">
+                        {resultadosDaProva.map((resultado, index) => (
+                          <div
+                            key={resultado.equipe_id || index}
+                            className={`flex items-center justify-between p-3 rounded-lg border ${
+                              index === 0 ? 'bg-yellow-50 border-yellow-300' : 
+                              index === 1 ? 'bg-gray-50 border-gray-300' :
+                              index === 2 ? 'bg-orange-50 border-orange-300' :
+                              'bg-white border-yellow-200' 
+                            }`}
+                          >
+                            <div className="flex items-center gap-3 flex-1">
+                              <span className={`font-bold text-lg min-w-8 ${
+                                index === 0 ? 'text-yellow-600' : 
+                                index === 1 ? 'text-gray-600' : 
+                                index === 2 ? 'text-orange-600' : 
+                                'text-yellow-700'
+                              }`}>
+                                {resultado.posicao || index + 1}º
+                              </span>
+                              <div className="flex items-center gap-2 flex-1">
+                                <span className="font-semibold text-gray-900">{resultado.equipe_nome}</span>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-medium text-gray-700">
+                                {resultado.pontos_obtidos || 0} pontos
+                              </span>
+                              {index === 0 && <Trophy className="h-5 w-5 text-yellow-600" />}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </>
                 )}
-              </>
-            )}
+               </>
+             )}
 
           </div>
         </div>
