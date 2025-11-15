@@ -586,11 +586,32 @@ export const notificacoesService = {
         request(`/notificacoes/${id}`, { method: 'DELETE' }),
 };
 
+/**
+ * Serviço de Resultados
+ */
+export const resultadosService = {
+  /**
+   * Lista os resultados de uma prova específica
+   */
+  listarResultadosDaProva: (provaId) =>
+    request(`/resultados?provaId=${provaId}`, { method: 'GET' }),
+
+  /**
+   * Lança os resultados de uma prova
+   */
+  lancarResultados: (provaId, dados) =>
+    request(`/resultados?provaId=${provaId}`, {
+      method: 'POST',
+      body: JSON.stringify(dados),
+    }),
+};
+
 export default {
   authService,
   provasService,
   testesService,
   equipesService,
   feedbacksService,
-  notificacoesService
+  notificacoesService,
+  resultadosService
 };
