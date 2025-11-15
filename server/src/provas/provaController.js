@@ -121,16 +121,70 @@ export const criarProva = async (req, res) => {
  * Acessível a todos os usuários autenticados (ou filtrado por perfil).
  */
 export const listarProvas = async (req, res) => {
-    try {
-        // Encontra todas as provas
-        const provas = await Prova.find({}); 
+  try {
+    const provas = await Prova.aggregate([
+      // Encontra todas as provas
+      { $match: {} }, 
+      
+      // Garante que o campo 'pontuacao' seja incluído
+      { 
+        $addFields: { 
+          pontuacao: "$pontuacao" 
+        } 
+      },
+      
+      // "Junta" os resultados com a prova.
+      {
+        $lookup: {
+          from: 'resultados', 
+          let: { provaId: "$_id" },
+          pipeline: [
+            { 
+              $match: { 
+                $expr: { 
+                  // Encontra resultados que pertencem a esta prova
+                  $eq: ["$prova_id", "$$provaId"] 
+                }
+              } 
+            },
+            { $sort: { pontuacao_obtida: -1 } }, // Ordena do maior para o menor
+            { $limit: 1 }, // Pega APENAS o primeiro (o vencedor)
+            
+            // Agora, busca o nome da equipe vencedora
+            { $lookup: {
+                from: 'Equipes', // O nome da sua coleção de Equipes
+                localField: 'equipe_id',
+                foreignField: '_id',
+                as: 'equipeInfo'
+            }},
+            // $lookup retorna um array, $unwind o transforma em objeto
+            { $unwind: { path: "$equipeInfo", preserveNullAndEmptyArrays: true } }, 
+            
+            // Formata o objeto 'vencedor' final
+            { $project: { 
+                _id: 0,
+                equipe_nome: { $ifNull: ["$equipeInfo.nome", "Equipe Removida"] },
+                pontos_obtidos: "$pontuacao_obtida"
+            }}
+          ],
+          as: 'vencedorArray' // Salva o resultado em um array temporário
+        }
+      },
+      // 4. $addFields: "Achata" o 'vencedorArray' de [vencedor] para apenas {vencedor}
+      {
+        $addFields: {
+          vencedor: { $arrayElemAt: ["$vencedorArray", 0] } // Pega o primeiro (e único) item
+        }
+      },
+      // 5. $project: Limpa o array temporário
+      { $project: { vencedorArray: 0 } } 
+    ]);
 
-        res.status(200).json(provas);
-
-    } catch (error) {
-        console.error('Erro ao listar provas:', error);
-        res.status(500).json({ message: 'Erro interno ao buscar provas.', error: error.message });
-    }
+    res.status(200).json(provas);
+  } catch (error) {
+    console.error('Erro ao listar provas com resultados:', error);
+    res.status(500).json({ message: 'Erro interno ao listar provas' });
+  }
 };
 
 /**
