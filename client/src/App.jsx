@@ -25,6 +25,7 @@ import CoordSolicitarEmprestimo from './pages/CoordSolicitarEmprestimo.jsx';
 import AdminAprovarSolicitacoes from './pages/AdminAprovarSolicitacoes.jsx';
 import CoordOferecerMembros from './pages/CoordOferecerMembros.jsx';
 import CoordGerenciarOfertas from './pages/CoordGerenciarOfertas.jsx';
+import CoordGerenciarEmprestimos from './pages/CoordGerenciarEmprestimos.jsx';
 
 function App() {
   const { usuario, isAuthenticated, loading, logout } = useAuth();
@@ -225,6 +226,16 @@ function App() {
           element={
             isAuthenticated
               ? (usuario.tipo === 'COORDENADOR' ? <CoordOferecerMembros /> : <Navigate to="/" replace />)
+              : <Navigate to="/login" replace />
+          }
+        />
+
+        {/* Coordenador: Gerenciar empréstimos ativos */}
+        <Route
+          path="/coord/gerenciar-emprestimos"
+          element={
+            isAuthenticated
+              ? (usuario.tipo === 'COORDENADOR' ? <CoordGerenciarEmprestimos /> : <Navigate to="/" replace />)
               : <Navigate to="/login" replace />
           }
         />

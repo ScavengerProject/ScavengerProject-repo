@@ -47,9 +47,14 @@ export default function CoordSolicitarEmprestimo() {
         provasService.listar(),
       ]);
 
+      console.log('📊 Solicitações carregadas:', solicitacoesList);
+      console.log('👤 Usuario ID:', usuario._id);
+      console.log('📋 Total de solicitações:', solicitacoesList?.length || 0);
+      
       setSolicitacoes(solicitacoesList || []);
       setProvas(provasList || []);
     } catch (e) {
+      console.error('❌ Erro ao carregar dados:', e);
       toast.error(e?.message || 'Erro ao carregar dados');
     } finally {
       setLoading(false);
@@ -141,12 +146,31 @@ export default function CoordSolicitarEmprestimo() {
     );
   };
 
-  const solicitacoesFiltradas = filtroStatus === 'TODOS' 
-    ? solicitacoes.filter(s => String(s.coordenador_solicitante_id?._id) === String(usuario._id))
-    : solicitacoes.filter(s => 
-        String(s.coordenador_solicitante_id?._id) === String(usuario._id) && 
-        s.status === filtroStatus
-      );
+  const solicitacoesFiltradas = React.useMemo(() => {
+    console.log('🔍 Filtrando solicitações...');
+    console.log('Total de solicitações:', solicitacoes.length);
+    console.log('Filtro Status:', filtroStatus);
+    console.log('Usuário completo:', usuario);
+    
+    // Usar id ou _id, o que estiver disponível
+    const userId = String(usuario._id || usuario.id);
+    console.log('👤 Usuario ID usado:', userId);
+    
+    const filtradas = filtroStatus === 'TODOS' 
+      ? solicitacoes.filter(s => {
+          const solId = String(s.coordenador_solicitante_id?._id);
+          console.log(`Comparando: ${solId} === ${userId}`, solId === userId);
+          return solId === userId;
+        })
+      : solicitacoes.filter(s => {
+          const solId = String(s.coordenador_solicitante_id?._id);
+          return solId === userId && s.status === filtroStatus;
+        });
+    
+    console.log('✅ Solicitações filtradas:', filtradas.length);
+    console.log('Solicitações filtradas:', filtradas);
+    return filtradas;
+  }, [solicitacoes, filtroStatus, usuario]);
 
   if (loading) {
     return (
@@ -429,4 +453,5 @@ export default function CoordSolicitarEmprestimo() {
     </div>
   );
 }
+
 

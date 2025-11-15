@@ -77,6 +77,7 @@ const AdminProvas = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingProva, setEditingProva] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [tipoPontuacao, setTipoPontuacao] = useState('RANKING');
   
   const [formData, setFormData] = useState({
     titulo: "",
@@ -117,6 +118,7 @@ const AdminProvas = () => {
   };
 
   const resetForm = () => {
+    setTipoPontuacao('RANKING');
     setFormData({
       titulo: "",
       descricao: "",
@@ -158,6 +160,14 @@ const AdminProvas = () => {
         };
       }
     });
+  };
+
+  const handleTipoPontuacaoChange = (novoTipo) => {
+    setTipoPontuacao(novoTipo);
+    setFormData(prev => ({
+      ...prev,
+      pontuacao: {}
+    }));
   };
 
   const handleSubmit = async (e) => {
@@ -222,7 +232,16 @@ const AdminProvas = () => {
         'PAI/MÃE': Number(prova.requisito_usuario['PAI/MÃE']) || 0,
       };
     }
+
+    const pontuacaoData = prova.pontuacao || {};
+    let tipoSalvo = 'RANKING'; // Padrão
     
+    // Se tiver a chave 'pontos_por_unidade', é do tipo proporcional
+    if (pontuacaoData.hasOwnProperty('pontos_por_unidade')) {
+      tipoSalvo = 'PROPORCIONAL';
+    }
+    setTipoPontuacao(tipoSalvo);
+
     setFormData({
       titulo: prova.titulo,
       descricao: prova.descricao,
@@ -473,6 +492,126 @@ const AdminProvas = () => {
                       </SelectContent>
                     </Select>
                   </div>
+
+                  <div className="grid gap-4 p-3 border border-gray-300 rounded-md bg-gray-50">
+                  {/*SELETOR DO TIPO DE PONTUAÇÃO */}
+                  <div className="grid gap-2">
+                    <Label htmlFor="tipo_pontuacao" className="text-gray-900 font-medium">
+                      Tipo de Pontuação *
+                    </Label>
+                    <Select 
+                      value={tipoPontuacao} 
+                      onValueChange={handleTipoPontuacaoChange} 
+                      disabled={submitting}
+                    >
+                      <SelectTrigger className="bg-white border-gray-300">
+                        <SelectValue placeholder="Selecione o tipo" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-white border-gray-300">
+                        <SelectItem value="RANKING">Por Posição (1º, 2º, 3º)</SelectItem>
+                        <SelectItem value="PROPORCIONAL">Por Unidade (Ex: por doação)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/*RENDERIZAÇÃO CONDICIONAL */}
+
+                  {/*Inputs para TIPO RANKING */}
+                  {tipoPontuacao === 'RANKING' && (
+                    <div className="grid grid-cols-3 gap-4 pt-2">
+                      {/* 1º Lugar */}
+                      <div className="grid gap-1">
+                        <Label htmlFor="pontos_1" className="text-sm font-normal text-gray-700">1º Lugar</Label>
+                        <Input
+                          id="pontos_1" type="number" min="0"
+                          value={formData.pontuacao["1"] || ""}
+                          onChange={(e) => {
+                            const valor = e.target.value;
+                            const valorNum = parseInt(valor, 10);
+                            if (valor === "") {
+                              setFormData(prev => ({ ...prev, pontuacao: { ...prev.pontuacao, "1": "" } }));
+                            } else if (valorNum < 0) {
+                              setFormData(prev => ({ ...prev, pontuacao: { ...prev.pontuacao, "1": 0 } }));
+                            } else if (!isNaN(valorNum)) {
+                              setFormData(prev => ({ ...prev, pontuacao: { ...prev.pontuacao, "1": valorNum } }));
+                            }
+                          }}
+                          placeholder="Ex: 300" className="bg-white border-gray-300" disabled={submitting}
+                        />
+                      </div>
+                      {/* 2º Lugar */}
+                      <div className="grid gap-1">
+                        <Label htmlFor="pontos_2" className="text-sm font-normal text-gray-700">2º Lugar</Label>
+                        <Input
+                          id="pontos_2" type="number" min="0"
+                          value={formData.pontuacao["2"] || ""}
+                          onChange={(e) => {
+                            const valor = e.target.value;
+                            const valorNum = parseInt(valor, 10);
+                            if (valor === "") {
+                              setFormData(prev => ({ ...prev, pontuacao: { ...prev.pontuacao, "2": "" } }));
+                            } else if (valorNum < 0) {
+                              setFormData(prev => ({ ...prev, pontuacao: { ...prev.pontuacao, "2": 0 } }));
+                            } else if (!isNaN(valorNum)) {
+                              setFormData(prev => ({ ...prev, pontuacao: { ...prev.pontuacao, "2": valorNum } }));
+                            }
+                          }}
+                          placeholder="Ex: 200" className="bg-white border-gray-300" disabled={submitting}
+                        />
+                      </div>
+                      {/* 3º Lugar */}
+                      <div className="grid gap-1">
+                        <Label htmlFor="pontos_3" className="text-sm font-normal text-gray-700">3º Lugar</Label>
+                        <Input
+                          id="pontos_3" type="number" min="0"
+                          value={formData.pontuacao["3"] || ""}
+                          onChange={(e) => {
+                            const valor = e.target.value;
+                            const valorNum = parseInt(valor, 10);
+                            if (valor === "") {
+                              setFormData(prev => ({ ...prev, pontuacao: { ...prev.pontuacao, "3": "" } }));
+                            } else if (valorNum < 0) {
+                              setFormData(prev => ({ ...prev, pontuacao: { ...prev.pontuacao, "3": 0 } }));
+                            } else if (!isNaN(valorNum)) {
+                              setFormData(prev => ({ ...prev, pontuacao: { ...prev.pontuacao, "3": valorNum } }));
+                            }
+                          }}
+                          placeholder="Ex: 100" className="bg-white border-gray-300" disabled={submitting}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 2b. Inputs para TIPO PROPORCIONAL */}
+                  {tipoPontuacao === 'PROPORCIONAL' && (
+                    <div className="grid grid-cols-2 gap-4 pt-2">
+                      {/* Pontos */}
+                      <div className="grid gap-1">
+                        <Label htmlFor="pontos_unidade" className="text-sm font-normal text-gray-700">Pontos por Unidade</Label>
+                        <Input
+                          id="pontos_unidade" type="number"
+                          value={formData.pontuacao.pontos_por_unidade || ""}
+                          onChange={(e) => setFormData(prev => ({
+                            ...prev, pontuacao: { ...prev.pontuacao, pontos_por_unidade: Number(e.target.value) }
+                          }))}
+                          placeholder="Ex: 50" className="bg-white border-gray-300" disabled={submitting}
+                        />
+                      </div>
+                      {/* Nome da Unidade */}
+                      <div className="grid gap-1">
+                        <Label htmlFor="nome_unidade" className="text-sm font-normal text-gray-700">Nome da Unidade (singular)</Label>
+                        <Input
+                          id="nome_unidade" type="text"
+                          value={formData.pontuacao.nome_unidade || ""}
+                          onChange={(e) => setFormData(prev => ({
+                            ...prev, pontuacao: { ...prev.pontuacao, nome_unidade: e.target.value }
+                          }))}
+                          placeholder="Ex: doação" className="bg-white border-gray-300" disabled={submitting}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
 
                   {/* Quesitos de Avaliação (Múltiplos) */}
                   <div className="grid gap-2">

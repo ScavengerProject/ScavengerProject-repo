@@ -84,23 +84,6 @@ export const AuthProvider = ({ children }) => {
     setLoading(false);
   }, []);
 
-  // Logout quando a página/aba é fechada
-  useEffect(() => {
-    const handleBeforeUnload = () => {
-      // Remover dados de autenticação
-      localStorage.removeItem('token');
-      localStorage.removeItem('usuario');
-      localStorage.removeItem('sessionStartTime');
-      localStorage.removeItem('sessionExpiryTime');
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-    };
-  }, []);
-
   // Detectar quando a aba/janela perde o foco e volta
   useEffect(() => {
     const handleVisibilityChange = () => {
@@ -124,6 +107,40 @@ export const AuthProvider = ({ children }) => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [isAuthenticated]);
+
+  // Sincronizar login/logout entre abas
+  useEffect(() => {
+    const handleStorageChange = (event) => {
+        // Só sincroniza se for uma mudança no token ou nos dados do usuário
+        if (event.key === 'token' || event.key === 'usuario') {
+            const token = localStorage.getItem('token');
+            const usuarioData = localStorage.getItem('usuario');
+
+            if (token && usuarioData) {
+                // Se o token existe, sincroniza para logado
+                try {
+                    const parsedUsuario = JSON.parse(usuarioData);
+                    setUsuario(parsedUsuario);
+                    setIsAuthenticated(true);
+                } catch {
+                    // Se os dados estiverem corrompidos desloga
+                    setUsuario(null);
+                    setIsAuthenticated(false);
+                }
+            } else {
+                // Se o token foi removido, desloga esta aba
+                setUsuario(null);
+                setIsAuthenticated(false);
+            }
+        }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+
+    return () => {
+        window.removeEventListener('storage', handleStorageChange);
+    };
+  }, []);
 
   const login = async (email, senha) => {
     try {

@@ -419,8 +419,12 @@ export const visualizarEquipe = async (req, res) => {
                 nome: equipe.nome,
                 cor: equipe.cor,
             },
-            // Extrai apenas os dados dos usuários populados
-            membros: membrosDaEquipe.map(membro => membro.usuario_id)
+            // Mantém a estrutura completa com _id e usuario_id populado
+            membros: membrosDaEquipe.map(membro => ({
+                _id: membro._id,
+                usuario_id: membro.usuario_id,
+                equipe_id: membro.equipe_id
+            }))
         };
         
         res.status(200).json(respostaFormatada);
@@ -454,8 +458,8 @@ export const removerMembroEquipe = async (req, res) => {
 
         // encontra e remove o registro do membro na tabela de ligação
         const resultado = await EquipeMembros.findOneAndDelete({
-            equipe_id: registroGincana.equipe_id, // Garante que é da equipe certa
-            usuario_id: membroId                 // Usa o ID vindo da URL
+            _id: membroId,
+            equipe_id: registroGincana.equipe_id
         });
 
         if (!resultado) {
