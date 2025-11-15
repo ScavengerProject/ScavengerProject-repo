@@ -458,8 +458,8 @@ export const removerMembroEquipe = async (req, res) => {
 
         // encontra e remove o registro do membro na tabela de ligação
         const resultado = await EquipeMembros.findOneAndDelete({
-            equipe_id: registroGincana.equipe_id, // Garante que é da equipe certa
-            usuario_id: membroId                 // Usa o ID vindo da URL
+            _id: membroId,
+            equipe_id: registroGincana.equipe_id
         });
 
         if (!resultado) {
