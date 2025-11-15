@@ -13,6 +13,7 @@ import usuarioRoutes from './usuarios/usuarioRoutes.js';
 import feedbackRoutes from './feedbacks/feedbackRoutes.js';
 import notificacaoRoutes from './notificacoes/notificacaoRoutes.js';
 import penalidadesRoutes from "./penalidades/penalidadesRoutes.js";
+import resultadoRoutes from './resultados/resultadoRoutes.js'
 
 dotenv.config();
 connectDB(); // BD
@@ -35,6 +36,7 @@ app.use('/api/equipes', equipeRoutes);
 app.use('/api/feedbacks', feedbackRoutes);
 app.use('/api/notificacoes', notificacaoRoutes);
 app.use("/api/penalidades", penalidadesRoutes);
+app.use('/api/resultados', resultadoRoutes);
 
 app.listen(PORT, () => {
   console.log(`Servidor Express rodando na porta ${PORT}`);
