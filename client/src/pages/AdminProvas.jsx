@@ -23,13 +23,14 @@ import {
   DialogTrigger,
 } from "../components/ui/dialog";
 import { toast } from "../components/ui/toast";
-import { Plus, Edit, Trash2, ArrowLeft, Loader, Award } from "lucide-react";
+import { Plus, Edit, Trash2, ArrowLeft, Loader, Trophy } from "lucide-react";
 import { Checkbox } from "../components/ui/checkbox";
 import { provasService } from "../services/api";
 import ProvaRestricoesForm from "../components/ProvaRestricoesForm";
 import ProvaElegibilidadeForm from "../components/ProvaElegibilidadeForm";
 import ProvaSequenciamentoForm from "../components/ProvaSequenciamentoForm";
 import ProvaParticipantesForm from "../components/ProvaParticipantesForm";
+import LancarResultadoModal from "../components/LancarResultadoModal";
 
 const QUESITOS_OPCOES = [
   { value: 'TEMPO', label: 'Tempo de Execução' },
@@ -78,6 +79,8 @@ const AdminProvas = () => {
   const [editingProva, setEditingProva] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [tipoPontuacao, setTipoPontuacao] = useState('RANKING');
+  const [modalResultadoOpen, setModalResultadoOpen] = useState(false);
+  const [provaParaResultado, setProvaParaResultado] = useState(null);
   
   const [formData, setFormData] = useState({
     titulo: "",
@@ -270,6 +273,18 @@ const AdminProvas = () => {
         toast.error("Erro ao deletar prova");
       }
     }
+  };
+
+  const abrirModalResultado = (prova) => {
+    setProvaParaResultado(prova);
+    setModalResultadoOpen(true);
+  };
+
+  const fecharModalResultado = () => {
+    setProvaParaResultado(null);
+    setModalResultadoOpen(false);
+    // Recarrega as provas caso os pontos tenham sido atualizados
+    carregarProvas(); 
   };
 
   // Função auxiliar para formatar data
@@ -740,6 +755,20 @@ const AdminProvas = () => {
                         </CardDescription>
                       </div>
                       <div className="flex gap-2">
+                        {prova.status === 'CONCLUIDA' && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation(); // Impede o card de abrir o modal de edição
+                            abrirModalResultado(prova);
+                          }}
+                          className="border-yellow-400 bg-yellow-50 text-yellow-700 hover:bg-yellow-100 hover:text-yellow-800"
+                          disabled={loading}
+                        >
+                          <Trophy className="h-4 w-4" />
+                        </Button>
+                      )}
                         <Button
                           variant="outline"
                           size="sm"
@@ -829,6 +858,11 @@ const AdminProvas = () => {
                 </Card>
               ))
             )}
+            <LancarResultadoModal 
+              prova={provaParaResultado}
+              isOpen={modalResultadoOpen}
+              onClose={fecharModalResultado}
+            />
           </div>
         )}
       </main>

@@ -201,13 +201,17 @@ export const listarEquipesGincana = async (req, res) => {
       .sort({ 'equipe_id.nome': 1 });
 
     // Formata para o frontend
-    const equipesFormatadas = equipesGincana.map(eg => ({
-      _id: eg._id,
-      nome: eg.equipe_id?.nome || 'Sem nome',
-      cor: eg.equipe_id?.cor,
-      coordenador: eg.coordenador_usuario_id?.nome,
-      gincana: eg.gincana_id?.nome,
-    }));
+    const equipesFormatadas = equipesGincana.map(eg => {
+      if (!eg.equipe_id) return null;
+
+      return {
+        _id: eg.equipe_id._id, 
+        nome: eg.equipe_id.nome,
+        cor: eg.equipe_id.cor,
+        coordenador: eg.coordenador_usuario_id?.nome,
+        gincana: eg.gincana_id?.nome,
+      };
+    }).filter(eg => eg !== null);
 
     res.status(200).json(equipesFormatadas);
   } catch (error) {

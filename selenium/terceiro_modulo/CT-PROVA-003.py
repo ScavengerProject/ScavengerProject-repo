@@ -22,6 +22,10 @@ CAMINHO_COMPLETO_SUCESSO = os.path.join(DIRETORIO_BASE_SCREENSHOTS, NOME_ARQUIVO
 NOME_PROVA_BETA = "Prova Beta"
 PERFIL_PERMITIDO = "ALUNOS_FUNDAMENTAL"  # Apenas Fundamental
 PERFIL_NAO_PERMITIDO = "ALUNOS_MEDIO"  # Ensino Médio (aluno que tentará acessar)
+EMAIL_ADMIN = "admin@gincana.com"
+SENHA_ADMIN = "admin123"
+EMAIL_ALUNO = "aluno3@medio.com"
+SENHA_ALUNO = "admin123"
 
 # INICIANDO O TESTE CT-PROVA-003
 print("Iniciando Teste CT-PROVA-003 (Restrição de Participação por Perfil)...")
@@ -155,6 +159,7 @@ try:
     print("Fazendo logout do administrador...")
     # Navegar diretamente para página de login
     navegador.get(URL_LOGIN)
+    botao_sair = navegador.find_element(By.XPATH, "//button[normalize-space()='Sair']").click()
     time.sleep(1)
 
     # Fazer login como aluno do Ensino Médio
@@ -169,9 +174,11 @@ try:
         campo_email = wait.until(EC.presence_of_element_located((By.ID, "email")))
         campo_email.clear()
         campo_email.send_keys(email_aluno)
+        time.sleep(1)  # Aguardar antes de digitar a senha
         campo_senha = navegador.find_element(By.ID, "senha")
         campo_senha.clear()
         campo_senha.send_keys(senha_aluno)
+        time.sleep(1)  # Aguardar antes de clicar no botão
         botao_entrar = navegador.find_element(By.XPATH, "//button[normalize-space()='Entrar']")
         botao_entrar.click()
         time.sleep(1)
