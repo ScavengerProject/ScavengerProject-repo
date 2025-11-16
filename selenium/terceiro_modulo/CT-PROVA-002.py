@@ -8,7 +8,7 @@ import os
 
 # CONFIGURANDO AS VARIÁVEIS
 DIRETORIO_DO_SCRIPT = os.path.dirname(__file__)
-URL_LOGIN = "http://localhost:5173/"
+URL_LOGIN = "http://localhost:5173/login"
 TIMEOUT_MAXIMO = 10
 
 # CONFIGURAÇÃO DO CAMINHO DOS SCREENSHOTS
@@ -19,6 +19,10 @@ CAMINHO_COMPLETO_FALHA = os.path.join(DIRETORIO_BASE_SCREENSHOTS, NOME_ARQUIVO_F
 CAMINHO_COMPLETO_SUCESSO = os.path.join(DIRETORIO_BASE_SCREENSHOTS, NOME_ARQUIVO_SUCESSO)
 
 # DADOS DO TESTE
+EMAIL_ADMIN = "admin@gincana.com"
+SENHA_ADMIN = "admin123"
+EMAIL_ALUNO = "aluno3@medio.com"
+SENHA_ALUNO = "admin123"
 NOME_PROVA_ALPHA = "Prova Alpha"
 TURMA_PERMITIDA = "EF - 8º Ano"  # Turma 8A equivalente
 TURMA_NAO_PERMITIDA = "EF - 9º Ano"  # Turma 8B equivalente (aluno que tentará acessar)
@@ -45,9 +49,9 @@ try:
     # Login como Administrador
     print("Fazendo login como Administrador...")
     campo_email = wait.until(EC.presence_of_element_located((By.ID, "email")))
-    campo_email.send_keys("admin@gincana.com")
+    campo_email.send_keys(EMAIL_ADMIN)
     campo_senha = navegador.find_element(By.ID, "senha")
-    campo_senha.send_keys("admin123")
+    campo_senha.send_keys(SENHA_ADMIN)
     botao_entrar = navegador.find_element(By.XPATH, "//button[normalize-space()='Entrar']")
     botao_entrar.click()
     print("Login como Administrador realizado.")
@@ -145,6 +149,8 @@ try:
 
     time.sleep(2)  # Aguardar processamento
 
+
+
     # ============================================================
     # PASSO 2: PARTICIPANTE DA TURMA 8B (EF - 9º Ano) TENTA ACESSAR
     # ============================================================
@@ -157,24 +163,29 @@ try:
     print("Fazendo logout do administrador...")
     # Navegar diretamente para página de login
     navegador.get(URL_LOGIN)
+    botao_sair = navegador.find_element(By.XPATH, "//button[normalize-space()='Sair']").click()
+
     time.sleep(2)
 
     # Fazer login como aluno de EF - 9º Ano
-    # NOTA: Ajuste as credenciais conforme necessário
     print("Fazendo login como aluno de EF - 9º Ano...")
     print("NOTA: Certifique-se de que existe um usuário aluno com turma 'EF - 9º Ano'")
+   
 
-    
+    time.sleep(3)
+
     try:
         campo_email = wait.until(EC.presence_of_element_located((By.ID, "email")))
         campo_email.clear()
-        campo_email.send_keys("aluno3@medio.com") # Email do aluno de EF - 9º Ano
+        campo_email.send_keys(EMAIL_ALUNO) # Email do aluno de EF - 9º Ano
         campo_senha = navegador.find_element(By.ID, "senha")
         campo_senha.clear()
-        campo_senha.send_keys("admin123") # Senha do aluno
+        time.sleep(1)  # Aguardar antes de digitar a senha
+        campo_senha.send_keys(SENHA_ALUNO) # Senha do aluno
+        time.sleep(1)  # Aguardar antes de clicar no botão
         botao_entrar = navegador.find_element(By.XPATH, "//button[normalize-space()='Entrar']")
         botao_entrar.click()
-        time.sleep(3)
+        time.sleep(2)
         print("Login como aluno realizado.")
     except Exception as e:
         print(f"ERRO: Não foi possível fazer login como aluno. Verifique se o usuário existe.")

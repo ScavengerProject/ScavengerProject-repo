@@ -22,6 +22,10 @@ NOME_ARQUIVO_SUCESSO = "sucesso_ct_sec_004.png"
 CAMINHO_COMPLETO_FALHA = os.path.join(DIRETORIO_BASE_SCREENSHOTS, NOME_ARQUIVO_FALHA)
 CAMINHO_COMPLETO_SUCESSO = os.path.join(DIRETORIO_BASE_SCREENSHOTS, NOME_ARQUIVO_SUCESSO)
 
+# DADOS DO TESTE
+EMAIL_ADMIN = "admin@gincana.com"
+SENHA_ADMIN = "admin123"
+
 # INÍCIO DO TESTE CT-SEC-004
 print("Iniciando Teste CT-SEC-004 (Criação de Prova)...")
 
@@ -38,8 +42,8 @@ try:
     
     # --- LOGIN ---
     print("Executando pré-condição: Login como Admin...")
-    wait.until(EC.presence_of_element_located((By.ID, "email"))).send_keys("admin@gincana.com")
-    navegador.find_element(By.ID, "senha").send_keys("admin123")
+    wait.until(EC.presence_of_element_located((By.ID, "email"))).send_keys(EMAIL_ADMIN)
+    navegador.find_element(By.ID, "senha").send_keys(SENHA_ADMIN)
     navegador.find_element(By.XPATH, "//button[normalize-space()='Entrar']").click()
     print("Login enviado.")
 
