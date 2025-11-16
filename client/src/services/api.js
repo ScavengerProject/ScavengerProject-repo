@@ -48,15 +48,6 @@ const request = async (endpoint, options = {}) => {
         }
     }
 
-    if (!response.ok) {
-        let errorMessage = 'Erro na requisição';
-        try {
-            const errorData = await response.json();
-            errorMessage = errorData.message || errorMessage;
-        } catch (_) {
-        }
-        throw new Error(errorMessage);
-    }
 
     if (!response.ok) {
       // tenta parsear JSON; se vier HTML (erro do Express padrão), evita quebrar com "<!DOCTYPE"

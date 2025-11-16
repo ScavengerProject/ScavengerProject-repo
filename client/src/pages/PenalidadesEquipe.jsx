@@ -1,76 +1,109 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, AlertCircle, CheckCircle2 } from "lucide-react";
 import { Button } from "../components/ui/button";
+import { Plus, ArrowLeft } from "lucide-react";
+import ModalCriarPenalidade from "../components/ModalCriarPenalidade";
 
-export default function PenalidadesEquipe() {
-  const navigate = useNavigate();
+import { penalidadesService } from "../services/api"; 
 
-  // Voltar para página anterior
-  const handleVoltar = () => {
-    navigate(-1);
-  };
+export default function Penalidades() {
+  const navigate = useNavigate();
+  const [openModal, setOpenModal] = useState(false);
+  const [penalidades, setPenalidades] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  // Função de exemplo para marcar penalidade como visualizada
-  const handleVisualizada = (id) => {
-    console.log("Penalidade visualizada:", id);
-  };
+  // 2. FUNÇÃO ATUALIZADA (carregarPenalidades)
+  const carregarPenalidades = async () => {
+    setLoading(true);
+    try {
+      // Usa o serviço centralizado
+      const data = await penalidadesService.listarPenalidades(); 
+      console.log("Penalidades carregadas:", data);
+      setPenalidades(data);
+    } catch (err) {
+      console.error(err);
+      // O 'api.js' já lança um erro com a mensagem correta
+      alert(`Erro ao carregar penalidades: ${err.message}`); 
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  // Lista de penalidades de exemplo (vazia por enquanto)
-  const penalidades = [
-    // Exemplo
-    // { id: 1, descricao: "Atraso na entrega", data: "2025-11-08", status: "pendente" }
-  ];
+  useEffect(() => {
+    carregarPenalidades();
+  }, []);
 
-  return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      {/* Cabeçalho */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <ArrowLeft
-            className="text-gray-700 cursor-pointer"
-            size={24}
-            onClick={handleVoltar}
-          />
-          <h1 className="text-2xl font-bold text-gray-900">Penalidades da Equipe</h1>
-        </div>
-      </div>
+  const handleCriarPenalidade = () => {
+    setOpenModal(true);
+  };
 
-      {/* Lista de penalidades */}
-      {penalidades.length === 0 ? (
-        <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200 flex flex-col items-center justify-center h-40">
-          <AlertCircle className="text-red-700 mb-4" size={32} />
-          <p className="text-gray-600 text-center">
-            Nenhuma penalidade registrada para sua equipe.
-          </p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {penalidades.map((p) => (
-            <div
-              key={p.id}
-              className="bg-white rounded-xl shadow-lg p-6 border border-gray-200 flex flex-col justify-between"
-            >
-              <div>
-                <p className="text-gray-800 font-semibold mb-2">{p.descricao}</p>
-                <p className="text-gray-500 text-sm mb-4">Data: {p.data}</p>
-                <p className={`text-sm font-medium ${p.status === "pendente" ? "text-red-600" : "text-green-600"}`}>
-                  {p.status === "pendente" ? "Pendente" : "Visualizada"}
-                </p>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                className="mt-4 flex items-center gap-2"
-                onClick={() => handleVisualizada(p.id)}
-              >
-                <CheckCircle2 size={16} />
-                Marcar como visualizada
-              </Button>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
+  // 3. FUNÇÃO ATUALIZADA (handleSubmitPenalidade)
+  const handleSubmitPenalidade = async (penalidade) => {
+    try {
+      // Usa o serviço centralizado
+      await penalidadesService.criarPenalidade(penalidade); 
+
+      alert("Penalidade criada com sucesso!");
+      carregarPenalidades(); // Atualiza lista
+    } catch (err) {
+      console.error(err);
+      alert(`Erro ao criar penalidade: ${err.message}`);
+    }
+    // Não precisa de 'finally' aqui, o modal é fechado pelo componente filho
+  };
+
+  const handleVoltar = () => {
+    navigate(-1);
+  };
+
+  return (
+    // ... O restante do seu JSX continua igual ...
+    <div className="min-h-screen bg-gray-50 p-6">
+      {/* Cabeçalho */}
+      <div className="flex items-center justify-between mb-8">
+        {/* ... */}
+      </div>
+
+      {/* Conteúdo: tabela de penalidades */}
+      <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
+        {loading ? (
+          <p className="text-gray-600">Carregando penalidades...</p>
+        ) : penalidades.length === 0 ? (
+          <p className="text-gray-600">Nenhuma penalidade cadastrada até o momento.</p>
+        ) : (
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="border-b border-gray-200">
+                <th className="p-2">Equipe</th>
+                <th className="p-2">Participante</th>
+                <th className="p-2">Pontos Removidos</th>
+                <th className="p-2">Descrição</th>
+                <th className="p-2">Criado em</th>
+              </tr>
+            </thead>
+            <tbody>
+                {/* 4. CORREÇÃO DE DADOS (opcional mas recomendado) */}
+                {/* O controller retorna 'equipe.nome', não 'equipe?.nome' */}
+              {penalidades.map((p) => (
+                <tr key={p.id} className="border-b border-gray-100">
+                  <td className="p-2">{p.equipe?.nome || "Equipe sem nome"}</td>
+                  <td className="p-2">{p.participante?.nome || "-"}</td>
+                  <td className="p-2">{p.pontos_removidos}</td>
+                  <td className="p-2">{p.descricao}</td>
+                  <td className="p-2">{new Date(p.criado_em).toLocaleString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {/* Modal de criação */}
+      <ModalCriarPenalidade
+        open={openModal}
+        onClose={() => setOpenModal(false)}
+        onSubmit={handleSubmitPenalidade}
+      />
+    </div>
+  );
 }

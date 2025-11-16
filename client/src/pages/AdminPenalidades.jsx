@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "../components/ui/button";
 import { Plus, ArrowLeft } from "lucide-react";
 import ModalCriarPenalidade from "../components/ModalCriarPenalidade";
+import { penalidadesService } from "../services/api";
 
 export default function Penalidades() {
   const navigate = useNavigate();
@@ -14,14 +15,12 @@ export default function Penalidades() {
   const carregarPenalidades = async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/penalidades"); // tem q bater com a rota do back
-      if (!res.ok) throw new Error("Erro ao carregar penalidades");
-      const data = await res.json();
-      console.log("Penalidades carregadas:", data); // verifica no console
+      const data = await penalidadesService.listarPenalidades();
+      console.log("Penalidades carregadas:", data);
       setPenalidades(data);
     } catch (err) {
       console.error(err);
-      alert("Erro ao carregar penalidades");
+      alert(`Erro ao carregar penalidades: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -38,22 +37,12 @@ export default function Penalidades() {
 
   const handleSubmitPenalidade = async (penalidade) => {
     try {
-      const res = await fetch("/api/penalidades", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(penalidade),
-      });
-
-      if (res.ok) {
-        alert("Penalidade criada com sucesso!");
-        carregarPenalidades(); // Atualiza lista
-      } else {
-        const err = await res.json().catch(() => null);
-        alert("Erro ao criar penalidade: " + (err?.message || res.statusText));
-      }
+      await penalidadesService.criarPenalidade(penalidade);
+      alert("Penalidade criada com sucesso!");
+      carregarPenalidades(); // Atualiza lista
     } catch (err) {
       console.error(err);
-      alert("Erro de conexão com o servidor.");
+      alert(`Erro ao criar penalidade: ${err.message}`);
     }
   };
 

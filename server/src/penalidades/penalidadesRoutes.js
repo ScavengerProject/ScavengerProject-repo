@@ -5,15 +5,17 @@ import {
   listarEquipesParaPenalidade,
   listarMembrosDaEquipe,
   buscarParticipante,
-} from "../penalidades/penalidadesController.js"; 
+} from "../penalidades/penalidadesController.js";
+import { proteger, autorizar } from "../auth/authPermissions.js";
 
 const router = express.Router();
 
-router.post("/", criarPenalidade);
-router.get("/", listarPenalidades);
-router.get("/equipes", listarEquipesParaPenalidade);
-router.get("/equipes/:equipeId/membros", listarMembrosDaEquipe);
-router.get("/participante-selecionado", buscarParticipante);
+// Todas as rotas de penalidades requerem autenticação e permissão de ADMIN
+router.post("/", proteger, autorizar('ADMIN'), criarPenalidade);
+router.get("/", proteger, autorizar('ADMIN'), listarPenalidades);
+router.get("/equipes", proteger, autorizar('ADMIN'), listarEquipesParaPenalidade);
+router.get("/equipes/:equipeId/membros", proteger, autorizar('ADMIN'), listarMembrosDaEquipe);
+router.get("/participante-selecionado", proteger, autorizar('ADMIN'), buscarParticipante);
 
 
 
