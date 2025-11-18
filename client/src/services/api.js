@@ -597,6 +597,17 @@ export const resultadosService = {
     }),
 };
 
+/**
+ * Serviço de Configurações
+ */
+export const configuracoesService = {
+  obter: () => request('/configuracoes', { method: 'GET' }),
+  atualizar: (dados) => request('/configuracoes', {
+    method: 'PUT',
+    body: JSON.stringify(dados),
+  }),
+};
+
 export default {
   authService,
   provasService,
@@ -604,5 +615,6 @@ export default {
   equipesService,
   feedbacksService,
   notificacoesService,
-  resultadosService
+  resultadosService,
+  configuracoesService
 };

@@ -27,7 +27,8 @@ import {
 import { toast } from "../components/ui/toast";
 import { Plus, Edit, Trash2, ArrowLeft, Loader, Trophy } from "lucide-react";
 import { Checkbox } from "../components/ui/checkbox";
-import { provasService } from "../services/api";
+import Switch from "../components/ui/switch";
+import { provasService, configuracoesService } from "../services/api";
 import ProvaRestricoesForm from "../components/ProvaRestricoesForm";
 import ProvaElegibilidadeForm from "../components/ProvaElegibilidadeForm";
 import ProvaSequenciamentoForm from "../components/ProvaSequenciamentoForm";
@@ -84,6 +85,8 @@ const AdminProvas = () => {
   const [tipoPontuacao, setTipoPontuacao] = useState('RANKING');
   const [modalResultadoOpen, setModalResultadoOpen] = useState(false);
   const [provaParaResultado, setProvaParaResultado] = useState(null);
+  const [mostrarNotasRanking, setMostrarNotasRanking] = useState(false);
+  const [salvandoConfiguracao, setSalvandoConfiguracao] = useState(false);
   
   const [formData, setFormData] = useState({
     titulo: "",
@@ -108,7 +111,31 @@ const AdminProvas = () => {
   // Carregar provas ao montar o componente
   useEffect(() => {
     carregarProvas();
+    carregarConfiguracao();
   }, []);
+
+  const carregarConfiguracao = async () => {
+    try {
+      const config = await configuracoesService.obter();
+      setMostrarNotasRanking(config?.mostrar_notas_ranking || false);
+    } catch (error) {
+      console.error("Erro ao carregar configuração:", error);
+    }
+  };
+
+  const handleToggleMostrarNotas = async (checked) => {
+    try {
+      setSalvandoConfiguracao(true);
+      await configuracoesService.atualizar({ mostrar_notas_ranking: checked });
+      setMostrarNotasRanking(checked);
+      toast.success(checked ? "Notas do ranking agora são visíveis para todos" : "Notas do ranking ocultadas");
+    } catch (error) {
+      console.error("Erro ao atualizar configuração:", error);
+      toast.error("Erro ao atualizar configuração");
+    } finally {
+      setSalvandoConfiguracao(false);
+    }
+  };
 
   const carregarProvas = async () => {
     try {
@@ -400,16 +427,32 @@ const AdminProvas = () => {
             <h2 className="text-3xl font-bold text-gray-900 mb-2">Provas da Gincana</h2>
             <p className="text-gray-600">Crie e gerencie as provas do evento</p>
           </div>
-          <Dialog open={isDialogOpen} onOpenChange={(open) => {
-            setIsDialogOpen(open);
-            if (!open) resetForm();
-          }}>
-            <DialogTrigger asChild>
-              <Button className="bg-blue-600 hover:bg-blue-700 text-white">
-                <Plus className="h-4 w-4 mr-2" />
-                Criar Nova Prova
-              </Button>
-            </DialogTrigger>
+          <div className="flex items-center gap-4">
+            {/* Switch para mostrar notas no ranking */}
+            <div className="flex items-center gap-3 px-4 py-2 bg-gray-50 rounded-lg border border-gray-200">
+              <Switch
+                id="mostrar-notas-ranking"
+                checked={mostrarNotasRanking}
+                onCheckedChange={handleToggleMostrarNotas}
+                disabled={salvandoConfiguracao}
+              />
+              <label
+                htmlFor="mostrar-notas-ranking"
+                className="text-sm font-medium text-gray-700 cursor-pointer select-none"
+              >
+                Mostrar pontuação de cada equipe no ranking geral
+              </label>
+            </div>
+            <Dialog open={isDialogOpen} onOpenChange={(open) => {
+              setIsDialogOpen(open);
+              if (!open) resetForm();
+            }}>
+              <DialogTrigger asChild>
+                <Button className="bg-blue-600 hover:bg-blue-700 text-white">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Criar Nova Prova
+                </Button>
+              </DialogTrigger>
             <DialogContent className="sm:max-w-[600px] bg-white border-gray-300 max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle className="text-gray-900">
@@ -706,6 +749,7 @@ const AdminProvas = () => {
               </form>
             </DialogContent>
           </Dialog>
+          </div>
         </div>
 
         {/* Loading State */}

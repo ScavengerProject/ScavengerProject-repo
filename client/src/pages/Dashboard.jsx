@@ -45,8 +45,10 @@ const Dashboard = () => {
         const minha = equipesData.find(eq => eq.isMinhaEquipe);
         setMinhaEquipe(minha || null);
       }
-      const rankingData = await equipesService.visualizarRanking();
-        setRanking(rankingData || []);
+      const rankingResponse = await equipesService.visualizarRanking();
+        // A resposta agora vem como { ranking: [...], mostrar_notas: boolean, is_admin: boolean }
+        const rankingData = rankingResponse?.ranking || rankingResponse || [];
+        setRanking(rankingData);
 
       if (usuario) {
             try {
@@ -434,11 +436,12 @@ const Dashboard = () => {
                           </span>
                           <div>
                             <p className="font-semibold text-gray-900">
-                              {equipe.nome} {/* ✅ Usa apenas o nome */}
+                              {equipe.nome}
                             </p>
-                            {usuario?.tipo === "ADMIN" && (
-                                  <p className="text-sm text-gray-600">
-                                    {equipe.pontos || 0} pontos
+                            {/* Admin sempre vê as notas, outros usuários só se a configuração permitir */}
+                            {(usuario?.tipo === 'ADMIN' || equipe.pontos !== undefined) && (
+                              <p className="text-sm text-gray-600">
+                                {equipe.pontos !== undefined ? equipe.pontos : 0} pontos
                               </p>
                             )}
                           </div>

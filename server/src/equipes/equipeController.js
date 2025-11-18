@@ -2,6 +2,7 @@ import Equipe from '../models/Equipe.js';
 import EquipeGincana from '../models/EquipeGincana.js';
 import EquipeMembros from '../models/EquipeMembros.js';
 import Usuario from '../models/Usuario.js';
+import ConfiguracaoGincana from '../models/ConfiguracaoGincana.js';
 
 const GINCANA_ATUAL_ID = 'GINCANA_PRINCIPAL'; 
 
@@ -885,6 +886,14 @@ export const listarUsuariosElegiveisCoordenador = async (req, res) => {
  */
 export const visualizarRankingEquipes = async (req, res) => {
     try {
+        // Verificar configuração de mostrar notas
+        let config = await ConfiguracaoGincana.findOne({ gincana_id: GINCANA_ATUAL_ID });
+        const mostrarNotas = config?.mostrar_notas_ranking || false;
+        
+        // Admin sempre vê as notas, independente da configuração
+        const isAdmin = req.usuario?.tipo === 'ADMIN';
+        const deveMostrarNotas = mostrarNotas || isAdmin;
+
         const rankingRecords = await EquipeGincana.find({ gincana_id: GINCANA_ATUAL_ID })
             .sort({ pontos_acumulados: -1 })
             .select('equipe_id pontos_acumulados'); 
@@ -905,15 +914,25 @@ export const visualizarRankingEquipes = async (req, res) => {
             // Filtra entradas sem nome (caso a equipe tenha sido deletada)
             if (!nomeEquipe) return null;
 
-            return {
+            const item = {
                 posicao: index + 1, // Posição no ranking
                 nome: nomeEquipe,
-                pontos: rec.pontos_acumulados,
                 equipe_id: rec.equipe_id,
             };
+
+            // Incluir pontos se a configuração permitir OU se for admin
+            if (deveMostrarNotas) {
+                item.pontos = rec.pontos_acumulados;
+            }
+
+            return item;
         });
 
-        res.status(200).json(ranking.filter(r => r !== null));
+        res.status(200).json({
+            ranking: ranking.filter(r => r !== null),
+            mostrar_notas: mostrarNotas,
+            is_admin: isAdmin
+        });
 
     } catch (error) {
         console.error('Erro ao visualizar ranking (simplificado):', error);
