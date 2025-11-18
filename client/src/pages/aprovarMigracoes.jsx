@@ -5,11 +5,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Input } from '../components/ui/Input';
 import { toast } from '../components/ui/toast';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../hooks/useAuth';
+import MainLayout from '../components/MainLayout';
 import { migracoesService } from '../services/api';
 import { ArrowLeft, Check, X } from 'lucide-react';
 
 export default function AprovarMigracoes() {
   const navigate = useNavigate();
+  const { usuario, logout } = useAuth();
   const [pendentes, setPendentes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [openRejeitar, setOpenRejeitar] = useState(false);
@@ -62,24 +65,17 @@ export default function AprovarMigracoes() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin w-8 h-8 border-4 border-gray-300 border-t-transparent rounded-full" />
-      </div>
+      <MainLayout usuario={usuario} onLogout={logout}>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="animate-spin w-8 h-8 border-4 border-gray-300 border-t-transparent rounded-full" />
+        </div>
+      </MainLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-white">
-      <header className="bg-white border-b border-gray-200 shadow-sm">
-        <div className="container mx-auto px-6 py-4 flex items-center gap-4">
-          <Button variant="ghost" size="sm" onClick={() => navigate('/')} className="text-gray-900 hover:bg-gray-100">
-            <ArrowLeft className="h-4 w-4 mr-2" />
-          </Button>
-          <h1 className="text-2xl font-bold text-gray-900">Solicitações de migração</h1>
-        </div>
-      </header>
-
-      <main className="container mx-auto px-6 py-8">
+    <MainLayout usuario={usuario} onLogout={logout}>
+      <div className="container mx-auto px-6 py-8">
         <Card className="bg-white border-gray-200 shadow-md">
           <CardHeader>
             <CardTitle className="text-gray-900">Pendentes</CardTitle>
@@ -107,27 +103,27 @@ export default function AprovarMigracoes() {
             ))}
           </CardContent>
         </Card>
-      </main>
 
-      <Dialog open={openRejeitar} onOpenChange={setOpenRejeitar}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Rejeitar solicitação</DialogTitle>
-            <DialogDescription>Opcionalmente, informe uma justificativa para o aluno.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-2">
-            <Input
-              placeholder="Justificativa (opcional)"
-              value={justificativa}
-              onChange={(e) => setJustificativa(e.target.value)}
-            />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setOpenRejeitar(false)}>Cancelar</Button>
-            <Button className="bg-red-600 hover:bg-red-700 text-white" onClick={rejeitar}>Rejeitar</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
+        <Dialog open={openRejeitar} onOpenChange={setOpenRejeitar}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Rejeitar solicitação</DialogTitle>
+              <DialogDescription>Opcionalmente, informe uma justificativa para o aluno.</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-2">
+              <Input
+                placeholder="Justificativa (opcional)"
+                value={justificativa}
+                onChange={(e) => setJustificativa(e.target.value)}
+              />
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setOpenRejeitar(false)}>Cancelar</Button>
+              <Button className="bg-red-600 hover:bg-red-700 text-white" onClick={rejeitar}>Rejeitar</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+    </MainLayout>
   );
 }

@@ -5,14 +5,14 @@ import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
 import { ArrowLeft, Trophy, Calendar, Clock, AlertCircle, CheckCircle2, XCircle } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
+import MainLayout from "../components/MainLayout";
 import { provasService } from "../services/api";
 import { toast } from "../components/ui/toast";
 import ProvaDetalhesModal from "../components/ProvaDetalhesModal";
-import FeedbackFAB from '../components/EnviarFeedbackModal';
 
 const MinhasInscricoes = () => {
   const navigate = useNavigate();
-  const { usuario } = useAuth();
+  const { usuario, logout } = useAuth();
   const [loading, setLoading] = useState(true);
   const [provas, setProvas] = useState([]);
   const [provaSelecionada, setProvaSelecionada] = useState(null);
@@ -90,26 +90,8 @@ const MinhasInscricoes = () => {
   });
 
   return (
-    <div className="min-h-screen bg-white">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200 shadow-sm">
-        <div className="container mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => navigate("/dashboard")}
-              className="text-gray-900 hover:bg-gray-100"
-            >
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Voltar ao Dashboard
-            </Button>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="container mx-auto px-6 py-8">
+    <MainLayout usuario={usuario} onLogout={logout}>
+      <div className="container mx-auto px-6 py-8">
         <div className="mb-8">
           <h2 className="text-3xl font-bold text-gray-900 mb-2">Minhas Inscrições</h2>
           <p className="text-gray-600">
@@ -202,7 +184,6 @@ const MinhasInscricoes = () => {
             )}
           </>
         )}
-      </main>
 
       {/* Modal de Detalhes da Prova */}
       <ProvaDetalhesModal 
@@ -211,8 +192,8 @@ const MinhasInscricoes = () => {
         onClose={fecharModal}
         onInscricaoSucesso={handleInscricaoSucesso}
       />
-            <FeedbackFAB />
-    </div>
+      </div>
+    </MainLayout>
   );
 };
 

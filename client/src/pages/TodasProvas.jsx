@@ -8,10 +8,11 @@ import { useAuth } from "../hooks/useAuth";
 import { provasService, equipesService, resultadosService } from "../services/api";
 import { toast } from "../components/ui/toast";
 import ProvaDetalhesModal from "../components/ProvaDetalhesModal";
+import MainLayout from "../components/MainLayout";
 
 const TodasProvas = () => {
   const navigate = useNavigate();
-  const { usuario } = useAuth();
+  const { usuario, logout } = useAuth();
   const [loading, setLoading] = useState(true);
   const [provas, setProvas] = useState([]);
   const [provaSelecionada, setProvaSelecionada] = useState(null);
@@ -139,26 +140,8 @@ const TodasProvas = () => {
   };
 
   return (
-    <div className="min-h-screen bg-white">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200 shadow-sm">
-        <div className="container mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => navigate("/dashboard")}
-              className="text-gray-900 hover:bg-gray-100"
-            >
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Voltar ao Dashboard
-            </Button>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="container mx-auto px-6 py-8">
+    <MainLayout usuario={usuario} onLogout={logout}>
+      <div className="container mx-auto px-6 py-8">
         <div className="mb-8">
           <h2 className="text-3xl font-bold text-gray-900 mb-2">Todas as Provas</h2>
           <p className="text-gray-600">
@@ -320,7 +303,7 @@ const TodasProvas = () => {
             )}
           </>
         )}
-      </main>
+      </div>
 
       {/* Modal de Detalhes da Prova */}
       <ProvaDetalhesModal 
@@ -329,7 +312,7 @@ const TodasProvas = () => {
         onClose={fecharModal}
         onInscricaoSucesso={handleInscricaoSucesso}
       />
-    </div>
+    </MainLayout>
   );
 };
 

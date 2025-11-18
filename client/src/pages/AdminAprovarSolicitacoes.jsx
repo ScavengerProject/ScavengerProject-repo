@@ -8,12 +8,13 @@ import { Textarea } from '../components/ui/textarea';
 import { toast } from '../components/ui/toast';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import MainLayout from '../components/MainLayout';
 import { solicitacoesEmprestimoService } from '../services/api';
 import { ArrowLeft, Check, X, Clock, Users } from 'lucide-react';
 
 export default function AdminAprovarSolicitacoes() {
   const navigate = useNavigate();
-  const { usuario } = useAuth();
+  const { usuario, logout } = useAuth();
   const [solicitacoes, setSolicitacoes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [openDecisao, setOpenDecisao] = useState(false);
@@ -108,31 +109,14 @@ export default function AdminAprovarSolicitacoes() {
   }
 
   return (
-    <div className="min-h-screen bg-white">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200 shadow-sm">
-        <div className="container mx-auto px-6 py-4 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => navigate('/')}
-              className="text-gray-900 hover:bg-gray-100"
-            >
-              <ArrowLeft className="h-4 w-4 mr-2" />
-            </Button>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Aprovar Solicitações de Empréstimo</h1>
-              <p className="text-sm text-gray-600">
-                Revise e aprove solicitações de empréstimo entre equipes
-              </p>
-            </div>
-          </div>
+    <MainLayout usuario={usuario} onLogout={logout}>
+      <div className="container mx-auto px-6 py-8">
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold text-gray-900">Aprovar Solicitações de Empréstimo</h1>
+          <p className="text-sm text-gray-600">
+            Revise e aprove solicitações de empréstimo entre equipes
+          </p>
         </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="container mx-auto px-6 py-8">
         {/* Filtros */}
         <div className="mb-6 flex gap-4 items-center">
           <div className="flex items-center gap-2">
@@ -264,7 +248,6 @@ export default function AdminAprovarSolicitacoes() {
             ))
           )}
         </div>
-      </main>
 
       {/* Dialog: Decisão */}
       <Dialog open={openDecisao} onOpenChange={setOpenDecisao}>
@@ -328,7 +311,8 @@ export default function AdminAprovarSolicitacoes() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+      </div>
+    </MainLayout>
   );
 }
 

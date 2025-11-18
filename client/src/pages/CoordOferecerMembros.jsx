@@ -8,12 +8,13 @@ import { Textarea } from '../components/ui/textarea';
 import { toast } from '../components/ui/toast';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import MainLayout from '../components/MainLayout';
 import { solicitacoesEmprestimoService, ofertasEmprestimoService, equipesService } from '../services/api';
 import { ArrowLeft, Users, Clock, Send } from 'lucide-react';
 
 export default function CoordOferecerMembros() {
   const navigate = useNavigate();
-  const { usuario } = useAuth();
+  const { usuario, logout } = useAuth();
   const [solicitacoes, setSolicitacoes] = useState([]);
   const [minhaEquipe, setMinhaEquipe] = useState(null);
   const [membrosDisponiveis, setMembrosDisponiveis] = useState([]);
@@ -131,38 +132,23 @@ export default function CoordOferecerMembros() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin w-8 h-8 border-4 border-gray-300 border-t-transparent rounded-full" />
-      </div>
+      <MainLayout usuario={usuario} onLogout={logout}>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="animate-spin w-8 h-8 border-4 border-gray-300 border-t-transparent rounded-full" />
+        </div>
+      </MainLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-white">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200 shadow-sm">
-        <div className="container mx-auto px-6 py-4 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => navigate('/')}
-              className="text-gray-900 hover:bg-gray-100"
-            >
-              <ArrowLeft className="h-4 w-4 mr-2" />
-            </Button>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Ofertar Membros</h1>
-              <p className="text-sm text-gray-600">
-                Ajude outras equipes oferecendo membros da sua equipe
-              </p>
-            </div>
-          </div>
+    <MainLayout usuario={usuario} onLogout={logout}>
+      <div className="container mx-auto px-6 py-8">
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold text-gray-900">Ofertar Membros</h1>
+          <p className="text-sm text-gray-600">
+            Ajude outras equipes oferecendo membros da sua equipe
+          </p>
         </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="container mx-auto px-6 py-8">
         {/* Lista de Solicitações */}
         <div className="grid gap-4">
           {solicitacoes.length === 0 ? (
@@ -250,7 +236,6 @@ export default function CoordOferecerMembros() {
             ))
           )}
         </div>
-      </main>
 
       {/* Dialog: Ofertar Membros */}
       <Dialog open={openOfertar} onOpenChange={setOpenOfertar}>
@@ -383,7 +368,8 @@ export default function CoordOferecerMembros() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+      </div>
+    </MainLayout>
   );
 }
 

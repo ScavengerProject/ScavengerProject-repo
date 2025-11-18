@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-
+import { useAuth } from '../hooks/useAuth';
+import MainLayout from '../components/MainLayout';
 // Componentes da UI
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
@@ -10,6 +11,7 @@ import { equipesService } from '../services/api';
 
 const GerenciarEquipe = () => {
   const navigate = useNavigate();
+  const { usuario, logout } = useAuth();
 
   const [equipeInfo, setEquipeInfo] = useState(null);
   const [membros, setMembros] = useState([]);
@@ -81,26 +83,17 @@ const GerenciarEquipe = () => {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center h-screen bg-white">
-        <Loader className="h-8 w-8 animate-spin text-blue-600" />
-      </div>
+      <MainLayout usuario={usuario} onLogout={logout}>
+        <div className="flex justify-center items-center min-h-[60vh]">
+          <Loader className="h-8 w-8 animate-spin text-blue-600" />
+        </div>
+      </MainLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-white">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200 shadow-sm">
-                <div className="container mx-auto px-6 py-4 flex items-center gap-4">
-                    <Button variant="ghost" size="sm" onClick={() => navigate("/")} className="text-gray-900 hover:bg-gray-100">
-                        <ArrowLeft className="h-4 w-4 mr-2" />
-                    </Button>
-                    <h1 className="text-2xl font-bold text-gray-900">Gerenciamento de Equipes</h1>
-                </div>
-            </header>
-
-      {/* Main Content */}
-      <main className="container mx-auto px-6 py-8">
+    <MainLayout usuario={usuario} onLogout={logout}>
+      <div className="container mx-auto px-6 py-8">
         <div className="mb-8">
           <h2 className="text-3xl font-bold text-gray-900 mb-2">Gerenciar Equipe: {equipeInfo?.nome}</h2>
           <p className="text-gray-600">Visualize os membros atuais.</p>
@@ -160,8 +153,8 @@ const GerenciarEquipe = () => {
                 </DialogFooter>
             </DialogContent>
         </Dialog>
-      </main>
-    </div>
+      </div>
+    </MainLayout>
   );
 };
 

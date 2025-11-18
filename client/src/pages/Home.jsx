@@ -26,8 +26,8 @@ export default function Home({ usuario, onLogout }) {
       <nav className="bg-white shadow-md border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
           <div>
-            <h1 className="text-2xl font-bold text-blue-700">RPVI</h1>
-            <p className="text-xs text-gray-600">Sistema de Provas</p>
+            <h1 className="text-2xl font-bold text-blue-700">Site de Gincanas</h1>
+            <p className="text-xs text-gray-600">Gerenciador de Gincanas</p>
           </div>
 
           <div className="flex items-center gap-4">
@@ -66,7 +66,7 @@ export default function Home({ usuario, onLogout }) {
               Olá, {usuario?.nome}! 👋
             </h2>
             <p className="text-gray-700 text-lg">
-              Bem-vindo ao Sistema de Provas RPVI. Aqui você pode gerenciar suas provas e avaliar seus conhecimentos.
+              Bem-vindo ao Site de Gincanas! Aqui você pode acompanhar seus desafios, gerenciar sua equipe e participar de todas as atividades da gincana.
             </p>
           </div>
 
@@ -75,14 +75,14 @@ export default function Home({ usuario, onLogout }) {
             <div className="bg-linear-to-br from-blue-100 to-blue-50 rounded-full w-12 h-12 flex items-center justify-center mb-4">
               <BookOpen className="text-blue-700" size={24} />
             </div>
-            <h3 className="text-xl font-bold text-gray-900 mb-2">Minhas Provas</h3>
-            <p className="text-gray-600 mb-4">Acesse todas as suas provas e acompanhe seu progresso.</p>
+            <h3 className="text-xl font-bold text-gray-900 mb-2">Dashboard</h3>
+            <p className="text-gray-600 mb-4">Acesse seu painel de atividades e acompanhe seu progresso na gincana.</p>
             <Button
               variant="outline" 
               onClick={() => navigate('/dashboard')}
               className="w-full border-gray-300 hover:bg-gray-100 text-gray-900 font-semibold py-2 rounded-lg transition shadow-md"
             >
-              Ver Provas
+              Acessar Dashboard
             </Button>
           </div>
 

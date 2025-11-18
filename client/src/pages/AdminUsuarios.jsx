@@ -27,12 +27,13 @@ import {
   Shield
 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
+import MainLayout from "../components/MainLayout";
 import { usuariosService } from "../services/api";
 import { toast } from "../components/ui/toast";
 
 const AdminUsuarios = () => {
   const navigate = useNavigate();
-  const { usuario: usuarioLogado } = useAuth();
+  const { usuario: usuarioLogado, logout } = useAuth();
   const [loading, setLoading] = useState(true);
   const [usuarios, setUsuarios] = useState([]);
   const [filteredUsuarios, setFilteredUsuarios] = useState([]);
@@ -304,42 +305,20 @@ const AdminUsuarios = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
-        <div className="flex items-center gap-3">
-          <Loader className="h-8 w-8 animate-spin text-blue-600" />
-          <span className="text-lg text-gray-600">Carregando usuários...</span>
+      <MainLayout usuario={usuarioLogado} onLogout={logout}>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="flex items-center gap-3">
+            <Loader className="h-8 w-8 animate-spin text-blue-600" />
+            <span className="text-lg text-gray-600">Carregando usuários...</span>
+          </div>
         </div>
-      </div>
+      </MainLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-white">
-      <header className="bg-white border-b border-gray-200 shadow-sm">
-        <div className="container mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={() => navigate("/")} 
-              className="text-gray-900 hover:bg-gray-100"
-            >
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Voltar
-            </Button>
-            <h1 className="text-2xl font-bold text-gray-900">Gerenciar Usuários</h1>
-          </div>
-          <Button 
-            onClick={abrirModalCriar}
-            className="bg-blue-600 hover:bg-blue-700 text-white"
-          >
-            <UserPlus className="h-4 w-4 mr-2" />
-            Novo Usuário
-          </Button>
-        </div>
-      </header>
-
-      <main className="container mx-auto px-6 py-8">
+    <MainLayout usuario={usuarioLogado} onLogout={logout}>
+      <div className="container mx-auto px-6 py-8">
         {/* Estatísticas */}
         {estatisticas && (
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
@@ -476,6 +455,17 @@ const AdminUsuarios = () => {
           </CardContent>
         </Card>
 
+        {/* Botão Criar Novo Usuário */}
+        <div className="mb-6 flex justify-end">
+          <Button
+            onClick={abrirModalCriar}
+            className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2"
+          >
+            <UserPlus className="h-4 w-4" />
+            Criar Novo Usuário
+          </Button>
+        </div>
+
         {/* Lista de usuários */}
         <div className="space-y-3">
           {filteredUsuarios.length === 0 ? (
@@ -556,7 +546,6 @@ const AdminUsuarios = () => {
             ))
           )}
         </div>
-      </main>
 
       {/* Modal de Criar/Editar */}
       <Dialog open={modalAberto} onOpenChange={setModalAberto}>
@@ -761,7 +750,8 @@ const AdminUsuarios = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+      </div>
+    </MainLayout>
   );
 };
 

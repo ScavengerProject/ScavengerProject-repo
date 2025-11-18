@@ -1,6 +1,8 @@
 import React from "react";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../hooks/useAuth";
+import MainLayout from "../components/MainLayout";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/Input";
 import { Label } from "../components/ui/label";
@@ -73,6 +75,7 @@ const formatarRequisitos = (requisitos) => {
 
 const AdminProvas = () => {
   const navigate = useNavigate();
+  const { usuario, logout } = useAuth();
   const [provas, setProvas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -390,27 +393,8 @@ const AdminProvas = () => {
   };
 
   return (
-    <div className="min-h-screen bg-white">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200 shadow-sm">
-        <div className="container mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => navigate("/")}
-              className="text-gray-900 hover:bg-gray-100"
-            >
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Voltar
-            </Button>
-            <h1 className="text-2xl font-bold text-gray-900">Gerenciamento de Provas</h1>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="container mx-auto px-6 py-8">
+    <MainLayout usuario={usuario} onLogout={logout}>
+      <div className="container mx-auto px-6 py-8">
         <div className="flex items-center justify-between mb-6">
           <div>
             <h2 className="text-3xl font-bold text-gray-900 mb-2">Provas da Gincana</h2>
@@ -865,8 +849,8 @@ const AdminProvas = () => {
             />
           </div>
         )}
-      </main>
-    </div>
+      </div>
+    </MainLayout>
   );
 };
 

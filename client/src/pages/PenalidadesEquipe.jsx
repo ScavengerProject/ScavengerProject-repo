@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../hooks/useAuth";
+import MainLayout from "../components/MainLayout";
 import { Button } from "../components/ui/button";
 import { Plus, ArrowLeft } from "lucide-react";
 import ModalCriarPenalidade from "../components/ModalCriarPenalidade";
@@ -7,7 +9,8 @@ import ModalCriarPenalidade from "../components/ModalCriarPenalidade";
 import { penalidadesService } from "../services/api"; 
 
 export default function Penalidades() {
-  const navigate = useNavigate();
+  const navigate = useNavigate();
+  const { usuario, logout } = useAuth();
   const [openModal, setOpenModal] = useState(false);
   const [penalidades, setPenalidades] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -56,9 +59,9 @@ export default function Penalidades() {
     navigate(-1);
   };
 
-  return (
-    // ... O restante do seu JSX continua igual ...
-    <div className="min-h-screen bg-gray-50 p-6">
+  return (
+    <MainLayout usuario={usuario} onLogout={logout}>
+      <div className="container mx-auto px-6 py-8">
       {/* Cabeçalho */}
       <div className="flex items-center justify-between mb-8">
         {/* ... */}
@@ -99,11 +102,12 @@ export default function Penalidades() {
       </div>
 
       {/* Modal de criação */}
-      <ModalCriarPenalidade
-        open={openModal}
-        onClose={() => setOpenModal(false)}
-        onSubmit={handleSubmitPenalidade}
-      />
-    </div>
-  );
+      <ModalCriarPenalidade
+        open={openModal}
+        onClose={() => setOpenModal(false)}
+        onSubmit={handleSubmitPenalidade}
+      />
+      </div>
+    </MainLayout>
+  );
 }

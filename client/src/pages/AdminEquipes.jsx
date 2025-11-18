@@ -11,11 +11,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 
 import { equipesService } from '../services/api'; 
 import { useAuth } from '../hooks/useAuth.jsx';
+import MainLayout from '../components/MainLayout';
 
 
 const AdminEquipes = () => {
     const navigate = useNavigate();
-    const { usuario } = useAuth();
+    const { usuario, logout } = useAuth();
     
     const [equipes, setEquipes] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -281,17 +282,8 @@ const AdminEquipes = () => {
     }
 
     return (
-        <div className="min-h-screen bg-white">
-            <header className="bg-white border-b border-gray-200 shadow-sm">
-                <div className="container mx-auto px-6 py-4 flex items-center gap-4">
-                    <Button variant="ghost" size="sm" onClick={() => navigate("/")} className="text-gray-900 hover:bg-gray-100">
-                        <ArrowLeft className="h-4 w-4 mr-2" /> Voltar
-                    </Button>
-                    <h1 className="text-2xl font-bold text-gray-900">Gerenciamento de Equipes</h1>
-                </div>
-            </header>
-
-            <main className="container mx-auto px-6 py-8">
+        <MainLayout usuario={usuario} onLogout={logout}>
+            <div className="container mx-auto px-6 py-8">
                 <div className="flex items-center justify-between mb-6">
                     <div>
                         <h2 className="text-3xl font-bold text-gray-900 mb-2">Equipes da Gincana</h2>
@@ -520,8 +512,8 @@ const AdminEquipes = () => {
                         </DialogFooter>
                     </DialogContent>
                 </Dialog>
-            </main>
-        </div>
+            </div>
+        </MainLayout>
     );
 };
 

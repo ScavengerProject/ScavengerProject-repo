@@ -2,13 +2,13 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
-import { Trophy, Users, Bell, TrendingUp, Settings, LogOut, Calendar, Target, Award, CheckCircle2 } from "lucide-react";
+import { Trophy, Users, Calendar, Target, Award, CheckCircle2 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { provasService, equipesService } from "../services/api";
 import { toast } from "../components/ui/toast";
 import ProvaDetalhesModal from "../components/ProvaDetalhesModal";
-import FeedbackFAB from '../components/EnviarFeedbackModal';
-import InfosEquipeModal from "../components/InfosEquipeModal"; 
+import InfosEquipeModal from "../components/InfosEquipeModal";
+import MainLayout from "../components/MainLayout"; 
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -68,10 +68,6 @@ const Dashboard = () => {
     }
   };
 
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
-  };
 
   const abrirDetalhesProva = (prova) => {
     setProvaSelecionada(prova);
@@ -296,57 +292,8 @@ const Dashboard = () => {
   const stats = getStats();
 
   return (
-    <div className="min-h-screen bg-white">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200 shadow-sm">
-        <div className="container mx-auto px-6 py-4 flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-gray-900">Sistema de Gincana</h1>
-          <div className="flex items-center gap-3">
-            {usuario?.tipo === 'ADMIN' && (
-              <>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => navigate("/admin/provas")}
-                  className="border-gray-300 hover:bg-gray-100"
-                >
-                  <Settings className="h-4 w-4 mr-2" />
-                  Gerenciar Provas
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => navigate("/admin/equipes")}
-                  className="border-gray-300 hover:bg-gray-100"
-                >
-                  <Users className="h-4 w-4 mr-2" />
-                  Gerenciar Equipes
-                </Button>
-              </>
-            )}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => navigate("/")}
-              className="border-gray-300 hover:bg-gray-100"
-            >
-              Voltar à Home
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleLogout}
-              className="text-gray-600 hover:text-gray-900"
-            >
-              <LogOut className="h-4 w-4 mr-2" />
-              Sair
-            </Button>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="container mx-auto px-6 py-8">
+    <MainLayout usuario={usuario} onLogout={logout}>
+      <div className="container mx-auto px-6 py-8">
         <div className="mb-8">
           <h2 className="text-3xl font-bold text-gray-900 mb-2">
             Olá, {usuario?.nome}! 👋
@@ -505,7 +452,7 @@ const Dashboard = () => {
             </div>
           </>
         )}
-      </main>
+      </div>
 
       {/* Modal de Detalhes da Prova */}
       <ProvaDetalhesModal 
@@ -514,13 +461,12 @@ const Dashboard = () => {
         onClose={fecharModal}
         onInscricaoSucesso={handleInscricaoSucesso}
       />
-      <FeedbackFAB />
       <InfosEquipeModal
         equipe={equipeSelecionada}
         isOpen={InfosEquipeModalOpen}
         onClose={() => setInfosEquipeModalOpen(false)}
-    />
-    </div>
+      />
+    </MainLayout>
   );
 };
 

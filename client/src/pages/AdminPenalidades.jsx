@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../hooks/useAuth";
+import MainLayout from "../components/MainLayout";
 import { Button } from "../components/ui/button";
 import { Plus, ArrowLeft } from "lucide-react";
 import ModalCriarPenalidade from "../components/ModalCriarPenalidade";
@@ -7,6 +9,7 @@ import { penalidadesService } from "../services/api";
 
 export default function Penalidades() {
   const navigate = useNavigate();
+  const { usuario, logout } = useAuth();
   const [openModal, setOpenModal] = useState(false);
   const [penalidades, setPenalidades] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -51,31 +54,22 @@ export default function Penalidades() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      {/* Cabeçalho */}
-      <div className="flex items-center justify-between mb-8">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={handleVoltar}
-            className="flex items-center gap-2 text-gray-700 hover:text-gray-900 rounded-lg p-2 transition"
-            aria-label="Voltar"
-          >
-            <ArrowLeft size={20} />
-            <span className="text-base font-medium">Voltar</span>
-          </button>
-          <h1 className="text-2xl font-bold text-gray-900 ml-4">
+    <MainLayout usuario={usuario} onLogout={logout}>
+      <div className="container mx-auto px-6 py-8">
+        {/* Cabeçalho */}
+        <div className="flex items-center justify-between mb-8">
+          <h1 className="text-2xl font-bold text-gray-900">
             Gerenciar Penalidades
           </h1>
-        </div>
 
-        <Button
-          onClick={handleCriarPenalidade}
-          className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white font-semibold"
-        >
-          <Plus size={16} />
-          Criar Penalidade
-        </Button>
-      </div>
+          <Button
+            onClick={handleCriarPenalidade}
+            className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white font-semibold"
+          >
+            <Plus size={16} />
+            Criar Penalidade
+          </Button>
+        </div>
 
       {/* Conteúdo: tabela de penalidades */}
       <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
@@ -115,6 +109,7 @@ export default function Penalidades() {
         onClose={() => setOpenModal(false)}
         onSubmit={handleSubmitPenalidade}
       />
-    </div>
+      </div>
+    </MainLayout>
   );
 }

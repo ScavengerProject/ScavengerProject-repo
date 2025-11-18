@@ -6,12 +6,12 @@ import { ArrowLeft, Users, LogIn, Zap, CheckCircle2 } from 'lucide-react';
 import { toast } from '../components/ui/toast';
 import { equipesService } from '../services/api';
 import { useAuth } from '../hooks/useAuth.jsx';
-import FeedbackFAB from '../components/EnviarFeedbackModal';
+import MainLayout from '../components/MainLayout';
 
 
 const InscricaoEquipes = () => {
   const navigate = useNavigate();
-  const { usuario } = useAuth();
+  const { usuario, logout } = useAuth();
 
   const [equipes, setEquipes] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -62,35 +62,20 @@ const InscricaoEquipes = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-700 text-lg font-semibold">Carregando equipes...</p>
+      <MainLayout usuario={usuario} onLogout={logout}>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="text-center">
+            <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+            <p className="text-gray-700 text-lg font-semibold">Carregando equipes...</p>
+          </div>
         </div>
-      </div>
+      </MainLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-white">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200 shadow-sm">
-        <div className="container mx-auto px-6 py-4 flex items-center gap-4">
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            onClick={() => navigate("/")} 
-            className="text-gray-900 hover:bg-gray-100"
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Voltar
-          </Button>
-          <h1 className="text-2xl font-bold text-gray-900">Inscrição em Equipes</h1>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="container mx-auto px-6 py-8">
+    <MainLayout usuario={usuario} onLogout={logout}>
+      <div className="container mx-auto px-6 py-8">
         {/* Informações da página */}
         <div className="mb-8">
           <h2 className="text-3xl font-bold text-gray-900 mb-2">
@@ -208,9 +193,8 @@ const InscricaoEquipes = () => {
             </Button>
           </Card>
         )}
-      </main>
-      <FeedbackFAB />
-    </div>
+      </div>
+    </MainLayout>
   );
 };
 

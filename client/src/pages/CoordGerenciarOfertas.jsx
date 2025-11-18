@@ -7,13 +7,14 @@ import { Textarea } from '../components/ui/textarea';
 import { toast } from '../components/ui/toast';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import MainLayout from '../components/MainLayout';
 import { solicitacoesEmprestimoService, ofertasEmprestimoService } from '../services/api';
 import { ArrowLeft, Check, X, Users, Clock } from 'lucide-react';
 
 export default function CoordGerenciarOfertas() {
   const navigate = useNavigate();
   const { solicitacaoId } = useParams();
-  const { usuario } = useAuth();
+  const { usuario, logout } = useAuth();
   const [solicitacao, setSolicitacao] = useState(null);
   const [ofertas, setOfertas] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -102,46 +103,33 @@ export default function CoordGerenciarOfertas() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin w-8 h-8 border-4 border-gray-300 border-t-transparent rounded-full" />
-      </div>
+      <MainLayout usuario={usuario} onLogout={logout}>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="animate-spin w-8 h-8 border-4 border-gray-300 border-t-transparent rounded-full" />
+        </div>
+      </MainLayout>
     );
   }
 
   if (!solicitacao) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p className="text-gray-600">Solicitação não encontrada.</p>
-      </div>
+      <MainLayout usuario={usuario} onLogout={logout}>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <p className="text-gray-600">Solicitação não encontrada.</p>
+        </div>
+      </MainLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-white">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200 shadow-sm">
-        <div className="container mx-auto px-6 py-4 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => navigate('/coord/solicitar-emprestimo')}
-              className="text-gray-900 hover:bg-gray-100"
-            >
-              <ArrowLeft className="h-4 w-4 mr-2" />
-            </Button>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Gerenciar Ofertas</h1>
-              <p className="text-sm text-gray-600">
-                Revise e aceite ofertas para sua solicitação
-              </p>
-            </div>
-          </div>
+    <MainLayout usuario={usuario} onLogout={logout}>
+      <div className="container mx-auto px-6 py-8">
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold text-gray-900">Gerenciar Ofertas</h1>
+          <p className="text-sm text-gray-600">
+            Revise e aceite ofertas para sua solicitação
+          </p>
         </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="container mx-auto px-6 py-8 space-y-6">
         {/* Detalhes da Solicitação */}
         <Card className="bg-blue-50 border-blue-200">
           <CardContent className="py-4">
@@ -320,7 +308,6 @@ export default function CoordGerenciarOfertas() {
             </div>
           </div>
         )}
-      </main>
 
       {/* Dialog: Decisão */}
       <Dialog open={openDecisao} onOpenChange={setOpenDecisao}>
@@ -390,7 +377,8 @@ export default function CoordGerenciarOfertas() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+      </div>
+    </MainLayout>
   );
 }
 

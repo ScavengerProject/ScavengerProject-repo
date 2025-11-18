@@ -5,13 +5,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Textarea } from '../components/ui/textarea';
 import { toast } from '../components/ui/toast';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../hooks/useAuth';
+import MainLayout from '../components/MainLayout';
 import { equipesService, migracoesService } from '../services/api';
 import { ArrowLeft, AlertCircle } from 'lucide-react';
-import FeedbackFAB from '../components/EnviarFeedbackModal';
 
 
 export default function SolicitarMigracao() {
   const navigate = useNavigate();
+  const { usuario, logout } = useAuth();
   const [equipes, setEquipes] = useState([]);
   const [destino, setDestino] = useState('');   // controlado
   const [motivo, setMotivo] = useState('');
@@ -57,24 +59,17 @@ export default function SolicitarMigracao() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin w-8 h-8 border-4 border-gray-300 border-t-transparent rounded-full" />
-      </div>
+      <MainLayout usuario={usuario} onLogout={logout}>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="animate-spin w-8 h-8 border-4 border-gray-300 border-t-transparent rounded-full" />
+        </div>
+      </MainLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-white">
-      <header className="bg-white border-b border-gray-200 shadow-sm">
-        <div className="container mx-auto px-6 py-4 flex items-center gap-4">
-          <Button variant="ghost" size="sm" onClick={() => navigate('/')} className="text-gray-900 hover:bg-gray-100">
-            <ArrowLeft className="h-4 w-4 mr-2" />
-          </Button>
-          <h1 className="text-2xl font-bold text-gray-900">Solicitar migração de equipe</h1>
-        </div>
-      </header>
-
-      <main className="container mx-auto px-6 py-8 grid gap-6 lg:grid-cols-2">
+    <MainLayout usuario={usuario} onLogout={logout}>
+      <div className="container mx-auto px-6 py-8 grid gap-6 lg:grid-cols-2">
         {/* Card de novo pedido ou aviso */}
         <Card className="bg-white border-gray-200 shadow-md">
           <CardHeader>
@@ -173,8 +168,7 @@ export default function SolicitarMigracao() {
             ))}
           </CardContent>
         </Card>
-      </main>
-      <FeedbackFAB />
-    </div>
+      </div>
+    </MainLayout>
   );
 }

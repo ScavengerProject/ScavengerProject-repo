@@ -9,12 +9,13 @@ import { Textarea } from '../components/ui/textarea';
 import { toast } from '../components/ui/toast';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import MainLayout from '../components/MainLayout';
 import { emprestimosService, equipesService, provasService } from '../services/api';
 import { ArrowLeft, Plus, X, Clock } from 'lucide-react';
 
 export default function AdminEmprestimos() {
   const navigate = useNavigate();
-  const { usuario } = useAuth();
+  const { usuario, logout } = useAuth();
   const [emprestimos, setEmprestimos] = useState([]);
   const [usuariosDisponiveis, setUsuariosDisponiveis] = useState([]);
   const [equipes, setEquipes] = useState([]);
@@ -135,39 +136,28 @@ export default function AdminEmprestimos() {
   }
 
   return (
-    <div className="min-h-screen bg-white">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200 shadow-sm">
-        <div className="container mx-auto px-6 py-4 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => navigate('/')}
-              className="text-gray-900 hover:bg-gray-100"
-            >
-              <ArrowLeft className="h-4 w-4 mr-2" />
-            </Button>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Empréstimos de Alunos</h1>
-              <p className="text-sm text-gray-600">
-                {filtroStatus === 'ATIVO' && (
-                  <span className="text-blue-600 font-semibold">
-                    {emprestimos.length} pendentes
-                  </span>
-                )}
-                {filtroStatus === 'ENCERRADO' && (
-                  <span className="text-gray-600">
-                    {emprestimos.length} encerrados
-                  </span>
-                )}
-                {filtroStatus === 'CANCELADO' && (
-                  <span className="text-red-600">
-                    {emprestimos.length} cancelados
-                  </span>
-                )}
-              </p>
-            </div>
+    <MainLayout usuario={usuario} onLogout={logout}>
+      <div className="container mx-auto px-6 py-8">
+        <div className="mb-6 flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Empréstimos de Alunos</h1>
+            <p className="text-sm text-gray-600">
+              {filtroStatus === 'ATIVO' && (
+                <span className="text-blue-600 font-semibold">
+                  {emprestimos.length} pendentes
+                </span>
+              )}
+              {filtroStatus === 'ENCERRADO' && (
+                <span className="text-gray-600">
+                  {emprestimos.length} encerrados
+                </span>
+              )}
+              {filtroStatus === 'CANCELADO' && (
+                <span className="text-red-600">
+                  {emprestimos.length} cancelados
+                </span>
+              )}
+            </p>
           </div>
           <Button
             size="sm"
@@ -177,10 +167,6 @@ export default function AdminEmprestimos() {
             <Plus className="h-4 w-4 mr-2" /> Novo Empréstimo
           </Button>
         </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="container mx-auto px-6 py-8">
         {/* Filtros */}
         <div className="mb-6 flex gap-4 items-center">
           <div className="flex items-center gap-2">
@@ -293,7 +279,6 @@ export default function AdminEmprestimos() {
             ))
           )}
         </div>
-      </main>
 
       {/* Dialog: Criar Empréstimo */}
       <Dialog open={openCriar} onOpenChange={setOpenCriar}>
@@ -458,6 +443,7 @@ export default function AdminEmprestimos() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+      </div>
+    </MainLayout>
   );
 }

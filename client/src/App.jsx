@@ -2,7 +2,6 @@ import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth.jsx';
 import Login from './pages/Login';
-import Home from './pages/Home';
 import Dashboard from './pages/Dashboard';
 import TodasProvas from './pages/TodasProvas';
 import MinhasInscricoes from './pages/MinhasInscricoes';
@@ -17,6 +16,8 @@ import AdminUsuarios from './pages/AdminUsuarios.jsx';
 import AdminFeedbacks from './pages/AdminFeedbacks.jsx';
 import MeusFeedbacks from './pages/MeusFeedbacks.jsx';
 import Notificacoes from './pages/Notificacoes.jsx';
+import Resultados from './pages/Resultados.jsx';
+import Configuracoes from './pages/Configuracoes.jsx';
 import { useToast } from './components/ui/toast';
 import { ToastContainer } from './components/ui/ToastContainer';
 import AdminPenalidades from './pages/AdminPenalidades.jsx';
@@ -49,26 +50,20 @@ function App() {
   return (
     <>
       <Routes>
-        {/* Login: se autenticado, manda para home */}
+        {/* Login: se autenticado, manda para dashboard */}
         <Route
           path="/login"
           element={isAuthenticated ? <Navigate to="/" replace /> : <Login />}
         />
 
-        {/* Home protegida */}
+        {/* Dashboard como página inicial */}
         <Route
           path="/"
           element={isAuthenticated ? (
-            <Home usuario={usuario} onLogout={handleLogout} />
+            <Dashboard usuario={usuario} onLogout={handleLogout} />
           ) : (
             <Navigate to="/login" replace />
           )}
-        />
-
-        {/* Dashboard protegida - acessível a todos os usuários autenticados */}
-        <Route
-          path="/dashboard"
-          element={isAuthenticated ? <Dashboard /> : <Navigate to="/login" replace />}
         />
 
         {/* Todas as Provas - acessível a todos os usuários autenticados */}
@@ -248,6 +243,18 @@ function App() {
               ? (usuario.tipo === 'ADMIN' ? <AdminAprovarSolicitacoes /> : <Navigate to="/" replace />)
               : <Navigate to="/login" replace />
           }
+        />
+
+        {/* Resultados - Todos os usuários */}
+        <Route
+          path="/resultados"
+          element={isAuthenticated ? <Resultados /> : <Navigate to="/login" replace />}
+        />
+
+        {/* Configurações - Todos os usuários */}
+        <Route
+          path="/configuracoes"
+          element={isAuthenticated ? <Configuracoes /> : <Navigate to="/login" replace />}
         />
       </Routes>
       <ToastContainer toasts={toasts} />

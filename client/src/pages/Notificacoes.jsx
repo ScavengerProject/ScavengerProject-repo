@@ -6,10 +6,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { toast } from '../components/ui/toast';
 import { notificacoesService } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
+import MainLayout from '../components/MainLayout';
 
 export default function Notificacoes() {
   const navigate = useNavigate();
-  const { usuario } = useAuth();
+  const { usuario, logout } = useAuth();
   const [notificacoes, setNotificacoes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filtro, setFiltro] = useState('todas'); // 'todas', 'lidas', 'nao-lidas'
@@ -121,30 +122,7 @@ export default function Notificacoes() {
   const naoLidas = notificacoes.filter(n => !n.lida).length;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-      {/* Navbar */}
-      <nav className="bg-white shadow-md border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
-          <div className="flex items-center gap-4">
-            <Button
-              variant="outline"
-              onClick={() => navigate('/')}
-              className="flex items-center gap-2"
-            >
-              <ArrowLeft size={18} />
-              Voltar
-            </Button>
-            <div>
-              <h1 className="text-2xl font-bold text-blue-700 flex items-center gap-2">
-                <Bell size={28} />
-                Notificações
-              </h1>
-              <p className="text-xs text-gray-600">Gerencie suas notificações</p>
-            </div>
-          </div>
-        </div>
-      </nav>
-
+    <MainLayout usuario={usuario} onLogout={logout}>
       {/* Conteúdo */}
       <div className="max-w-7xl mx-auto px-6 py-8">
         {/* Filtros e ações */}
@@ -286,7 +264,7 @@ export default function Notificacoes() {
           </div>
         )}
       </div>
-    </div>
+    </MainLayout>
   );
 }
 
