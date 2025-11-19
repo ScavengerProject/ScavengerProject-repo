@@ -41,10 +41,8 @@ try:
     # LOGIN GABRIELA (Equipe Alfa)
     wait.until(EC.presence_of_element_located((By.ID, CAMPO_EMAIL))).send_keys(EMAIL_GABRIELA)
     navegador.find_element(By.ID, CAMPO_SENHA).send_keys(SENHA_ADMIN)
-
     # Marca o tempo antes do clique para medir tempo de resposta
     tempo_inicio = time.time()
-
     navegador.find_element(By.XPATH, BOTAO_LOGIN).click()
 
     # MEDIÇÃO DO TEMPO DE RESPOSTA PARA CARREGAR O RANKING
