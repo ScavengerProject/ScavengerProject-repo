@@ -295,12 +295,12 @@ const Dashboard = () => {
 
   return (
     <MainLayout usuario={usuario} onLogout={logout}>
-      <div className="container mx-auto px-6 py-8">
-        <div className="mb-8">
-          <h2 className="text-3xl font-bold text-gray-900 mb-2">
+      <div className="container mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-6 md:py-8">
+        <div className="mb-6 sm:mb-8">
+          <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">
             Olá, {usuario?.nome}! 👋
           </h2>
-          <p className="text-gray-600">
+          <p className="text-sm sm:text-base text-gray-600">
             {usuario?.tipo === 'ADMIN' 
               ? 'Acompanhe o andamento da gincana em tempo real'
               : minhaEquipe
@@ -313,26 +313,26 @@ const Dashboard = () => {
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <div className="text-center">
-              <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-              <p className="text-gray-600">Carregando dados...</p>
+              <div className="w-12 h-12 sm:w-16 sm:h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+              <p className="text-sm sm:text-base text-gray-600">Carregando dados...</p>
             </div>
           </div>
         ) : (
           <>
             {/* Stats Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
               {stats.map((stat, index) => (
                 <Card key={index} style={index === 0 ? stat.style : {}}
                   className={`bg-white border-gray-200 shadow-md hover:shadow-lg transition-shadow`}>
-                  <CardHeader className="flex flex-row items-center justify-between pb-2">
-                    <CardTitle className="text-sm font-medium text-gray-600">
+                  <CardHeader className="flex flex-row items-center justify-between pb-2 p-4 sm:pb-2">
+                    <CardTitle className="text-sm sm:text-base font-medium text-gray-600">
                       {stat.title}
                     </CardTitle>
-                    <stat.icon className={`h-5 w-5 ${stat.color}`} />
+                    <stat.icon className={`h-6 w-6 sm:h-5 sm:w-5 ${stat.color}`} />
                   </CardHeader>
-                  <CardContent>
-                    <div className="text-3xl font-bold text-gray-900 mb-1">{stat.value}</div>
-                    <CardDescription className="text-xs text-gray-600">
+                  <CardContent className="p-4 pt-0">
+                    <div className="text-3xl sm:text-3xl font-bold text-gray-900 mb-1">{stat.value}</div>
+                    <CardDescription className="text-xs sm:text-sm text-gray-600">
                       {stat.description}
                     </CardDescription>
                   </CardContent>
@@ -341,23 +341,23 @@ const Dashboard = () => {
             </div>
 
             {/* Activity Summary */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
               {/* Próximas Provas */}
               <Card className="bg-white border-gray-200 shadow-md">
-                <CardHeader>
-                  <CardTitle className="text-gray-900">Andamento das Provas</CardTitle>
-                  <CardDescription className="text-gray-600">
+                <CardHeader className="p-4 sm:p-6">
+                  <CardTitle className="text-lg sm:text-xl text-gray-900">Andamento das Provas</CardTitle>
+                  <CardDescription className="text-sm sm:text-base text-gray-600">
                     {provasNaoConcluidas.length > 0 
                       ? 'Provas programadas, em andamento e concluídas'
                       : 'Nenhuma prova programada no momento'
                     }
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4">
+                <CardContent className="space-y-3 sm:space-y-4 p-4 sm:p-6 pt-0">
                   {provasNaoConcluidas.length === 0 ? (
                     <div className="text-center py-8 text-gray-500">
-                      <Trophy className="h-12 w-12 mx-auto mb-2 text-gray-300" />
-                      <p>Nenhuma prova programada</p>
+                      <Trophy className="h-10 w-10 sm:h-12 sm:w-12 mx-auto mb-2 text-gray-300" />
+                      <p className="text-sm sm:text-base">Nenhuma prova programada</p>
                     </div>
                   ) : (
                     <>
@@ -365,15 +365,15 @@ const Dashboard = () => {
                         <div 
                           key={prova._id} 
                           onClick={() => abrirDetalhesProva(prova)}
-                          className={`flex items-center justify-between p-3 rounded-lg cursor-pointer transition-all ${
+                          className={`flex items-center justify-between p-3 sm:p-4 rounded-lg cursor-pointer transition-all gap-2 ${
                             prova.status === 'EM_ANDAMENTO' 
                               ? 'bg-green-50 border border-green-200 hover:bg-green-100 hover:shadow-md' 
                               : 'bg-gray-50 border border-gray-200 hover:bg-gray-100 hover:shadow-md'
                           }`}
                         >
-                          <div>
-                            <p className="font-semibold text-gray-900">{prova.titulo}</p>
-                            <p className="text-sm text-gray-600">
+                          <div className="overflow-hidden flex-1">
+                            <p className="font-semibold text-sm sm:text-base text-gray-900 break-words">{prova.titulo}</p>
+                            <p className="text-xs sm:text-sm text-gray-600 break-words">
                               {traduzirFormato(prova.formato)} • {formatarData(prova.data_inicio)}
                             </p>
                             <p className="text-xs text-gray-500 mt-1">
@@ -381,14 +381,14 @@ const Dashboard = () => {
                             </p>
                           </div>
                           {prova.status === 'EM_ANDAMENTO' && (
-                            <CheckCircle2 className="h-5 w-5 text-green-600" />
+                            <CheckCircle2 className="h-5 w-5 sm:h-6 sm:w-6 text-green-600 shrink-0" />
                           )}
                         </div>
                       ))}
                       {provasDisponiveis.length > provasExibicao.length && (
                         <Button
                           variant="outline"
-                          className="w-full border-gray-300 hover:bg-gray-100 text-gray-900"
+                          className="w-full border-gray-300 hover:bg-gray-100 text-gray-900 h-11 sm:h-10 text-base sm:text-sm"
                           onClick={() => navigate('/provas')}
                         >
                           Ver todas as provas disponíveis
@@ -401,26 +401,26 @@ const Dashboard = () => {
 
               {/* Ranking de Equipes */}
               <Card className="bg-white border-gray-200 shadow-md">
-                <CardHeader>
-                  <CardTitle className="text-gray-900">Ranking de Equipes</CardTitle>
-                  <CardDescription className="text-gray-600">
+                <CardHeader className="p-4 sm:p-6">
+                  <CardTitle className="text-lg sm:text-xl text-gray-900">Ranking de Equipes</CardTitle>
+                  <CardDescription className="text-sm sm:text-base text-gray-600">
                     {rankingExibicao.length > 0 
                       ? 'Classificação atual'
                       : 'Nenhuma equipe cadastrada'
                     }
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4">
+                <CardContent className="space-y-3 sm:space-y-4 p-4 sm:p-6 pt-0">
                   {rankingExibicao.length === 0 ? (
                     <div className="text-center py-8 text-gray-500">
-                      <Users className="h-12 w-12 mx-auto mb-2 text-gray-300" />
-                      <p>Nenhuma equipe cadastrada</p>
+                      <Users className="h-10 w-10 sm:h-12 sm:w-12 mx-auto mb-2 text-gray-300" />
+                      <p className="text-sm sm:text-base">Nenhuma equipe cadastrada</p>
                     </div>
                   ) : (
                     rankingExibicao.slice(0, 5).map((equipe, index) => (
                       <div 
                         key={equipe.equipe_id} // Agora usa equipe_id da API de ranking
-                        className={`flex items-center justify-between p-3 rounded-lg border ${
+                        className={`flex items-center justify-between p-3 sm:p-4 rounded-lg border gap-2 ${
                             usuarioEquipeId && equipe.equipe_id === usuarioEquipeId                            
                             ? 'bg-blue-50 border-blue-200' 
                             : index === 0
@@ -428,25 +428,25 @@ const Dashboard = () => {
                               : 'bg-gray-50 border-gray-200'
                         }`}
                       >
-                        <div className="flex items-center gap-3">
-                          <span className={`font-bold text-lg ${
+                        <div className="flex items-center gap-3 overflow-hidden flex-1">
+                          <span className={`font-bold text-lg sm:text-xl shrink-0 ${
                             index === 0 ? 'text-yellow-600' : 'text-gray-900'
                           }`}>
                             {index + 1}º
                           </span>
-                          <div>
-                            <p className="font-semibold text-gray-900">
+                          <div className="overflow-hidden flex-1">
+                            <p className="font-semibold text-sm sm:text-base text-gray-900 break-words">
                               {equipe.nome}
                             </p>
                             {/* Admin sempre vê as notas, outros usuários só se a configuração permitir */}
                             {(usuario?.tipo === 'ADMIN' || equipe.pontos !== undefined) && (
-                              <p className="text-sm text-gray-600">
+                              <p className="text-xs sm:text-sm text-gray-600">
                                 {equipe.pontos !== undefined ? equipe.pontos : 0} pontos
                               </p>
                             )}
                           </div>
                         </div>
-                        {index === 0 && <Trophy className="h-5 w-5 text-yellow-600" />}
+                        {index === 0 && <Trophy className="h-5 w-5 sm:h-6 sm:w-6 text-yellow-600 shrink-0" />}
                       </div>
                     ))
                   )}

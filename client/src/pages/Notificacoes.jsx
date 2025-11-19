@@ -124,9 +124,9 @@ export default function Notificacoes() {
   return (
     <MainLayout usuario={usuario} onLogout={logout}>
       {/* Conteúdo */}
-      <div className="max-w-7xl mx-auto px-6 py-8">
+      <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-6 md:py-8">
         {/* Filtros e ações */}
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+        <div className="mb-4 sm:mb-6 flex flex-wrap items-center justify-between gap-3 sm:gap-4">
           <div className="flex gap-2">
             <Button
               variant={filtro === 'todas' ? 'default' : 'outline'}

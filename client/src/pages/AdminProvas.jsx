@@ -421,15 +421,15 @@ const AdminProvas = () => {
 
   return (
     <MainLayout usuario={usuario} onLogout={logout}>
-      <div className="container mx-auto px-6 py-8">
-        <div className="flex items-center justify-between mb-6">
+      <div className="container mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-6 md:py-8">
+        <div className="mb-4 sm:mb-6 flex flex-col gap-3 sm:gap-4">
           <div>
-            <h2 className="text-3xl font-bold text-gray-900 mb-2">Provas da Gincana</h2>
-            <p className="text-gray-600">Crie e gerencie as provas do evento</p>
+            <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Provas da Gincana</h2>
+            <p className="text-sm sm:text-base text-gray-600">Crie e gerencie as provas do evento</p>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4">
             {/* Switch para mostrar notas no ranking */}
-            <div className="flex items-center gap-3 px-4 py-2 bg-gray-50 rounded-lg border border-gray-200">
+            <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2 bg-gray-50 rounded-lg border border-gray-200 w-full sm:w-auto">
               <Switch
                 id="mostrar-notas-ranking"
                 checked={mostrarNotasRanking}
@@ -438,9 +438,9 @@ const AdminProvas = () => {
               />
               <label
                 htmlFor="mostrar-notas-ranking"
-                className="text-sm font-medium text-gray-700 cursor-pointer select-none"
+                className="text-xs sm:text-sm font-medium text-gray-700 cursor-pointer select-none"
               >
-                Mostrar pontuação de cada equipe no ranking geral
+                Mostrar pontuação no ranking
               </label>
             </div>
             <Dialog open={isDialogOpen} onOpenChange={(open) => {
@@ -775,14 +775,14 @@ const AdminProvas = () => {
               provas.map((prova) => (
                 <Card key={prova._id} className="bg-white border-gray-200 shadow-md hover:shadow-lg transition-shadow">
                   <CardHeader>
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <CardTitle className="text-gray-900 text-xl mb-1">{prova.titulo}</CardTitle>
-                        <CardDescription className="text-gray-600">
+                    <div className="flex flex-col sm:flex-row items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <CardTitle className="text-lg sm:text-xl text-gray-900 mb-1 break-words">{prova.titulo}</CardTitle>
+                        <CardDescription className="text-xs sm:text-sm text-gray-600">
                           {traduzirFormato(prova.formato)} • {traduzirStatus(prova.status)}
                         </CardDescription>
                       </div>
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 shrink-0">
                         {prova.status === 'CONCLUIDA' && (
                         <Button
                           variant="outline"
@@ -794,7 +794,7 @@ const AdminProvas = () => {
                           className="border-yellow-400 bg-yellow-50 text-yellow-700 hover:bg-yellow-100 hover:text-yellow-800"
                           disabled={loading}
                         >
-                          <Trophy className="h-4 w-4" />
+                          <Trophy className="h-3 w-3 sm:h-4 sm:w-4" />
                         </Button>
                       )}
                         <Button
@@ -804,7 +804,7 @@ const AdminProvas = () => {
                           className="border-gray-300 hover:bg-gray-100"
                           disabled={loading}
                         >
-                          <Edit className="h-4 w-4" />
+                          <Edit className="h-3 w-3 sm:h-4 sm:w-4" />
                         </Button>
                         <Button
                           variant="outline"
@@ -813,40 +813,40 @@ const AdminProvas = () => {
                           className="border-gray-300 hover:bg-red-50 hover:text-red-600"
                           disabled={loading}
                         >
-                          <Trash2 className="h-4 w-4" />
+                          <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
                         </Button>
                       </div>
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-3">
-                    <p className="text-gray-900">{prova.descricao}</p>
+                    <p className="text-sm sm:text-base text-gray-900 break-words">{prova.descricao}</p>
                     
                     {/* Data e informações adicionais */}
-                    <div className="grid grid-cols-2 gap-4 pt-3 border-t border-gray-200">
+                    <div className="grid grid-cols-2 gap-3 sm:gap-4 pt-3 border-t border-gray-200">
                       <div>
                         <p className="text-xs text-gray-500 uppercase font-semibold">Início</p>
-                        <p className="text-sm text-gray-900">{formatarData(prova.data_inicio)}</p>
+                        <p className="text-xs sm:text-sm text-gray-900">{formatarData(prova.data_inicio)}</p>
                       </div>
                       <div>
                         <p className="text-xs text-gray-500 uppercase font-semibold">Término</p>
-                        <p className="text-sm text-gray-900">{formatarData(prova.data_fim)}</p>
+                        <p className="text-xs sm:text-sm text-gray-900">{formatarData(prova.data_fim)}</p>
                       </div>
                       {prova.quesitos_de_avaliacao && prova.quesitos_de_avaliacao.length > 0 && (
-                        <div>
+                        <div className="col-span-2">
                           <p className="text-xs text-gray-500 uppercase font-semibold">Quesitos</p>
-                          <p className="text-sm text-gray-900">{prova.quesitos_de_avaliacao.join(", ")}</p>
+                          <p className="text-xs sm:text-sm text-gray-900 break-words">{prova.quesitos_de_avaliacao.join(", ")}</p>
                         </div>
                       )}
                       {prova.requisito_usuario && (
-                        <div>
+                        <div className="col-span-2">
                           <p className="text-xs text-gray-500 uppercase font-semibold">Requisito</p>
-                          <p className="text-sm text-gray-900">{formatarRequisitos(prova.requisito_usuario)}</p>
+                          <p className="text-xs sm:text-sm text-gray-900 break-words">{formatarRequisitos(prova.requisito_usuario)}</p>
                         </div>
                       )}
                       {formatarPontuacao(prova.pontuacao) && (
-                            <div>
+                            <div className="col-span-2">
                               <p className="text-xs text-gray-500 uppercase font-semibold">Pontuação</p>
-                              <p className="text-sm text-gray-900">{formatarPontuacao(prova.pontuacao)}</p>
+                              <p className="text-xs sm:text-sm text-gray-900 break-words">{formatarPontuacao(prova.pontuacao)}</p>
                             </div>
                            )}
                     </div>

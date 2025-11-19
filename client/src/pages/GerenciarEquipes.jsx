@@ -93,7 +93,7 @@ const GerenciarEquipe = () => {
 
   return (
     <MainLayout usuario={usuario} onLogout={logout}>
-      <div className="container mx-auto px-6 py-8">
+      <div className="container mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-6 md:py-8">
         <div className="mb-8">
           <h2 className="text-3xl font-bold text-gray-900 mb-2">Gerenciar Equipe: {equipeInfo?.nome}</h2>
           <p className="text-gray-600">Visualize os membros atuais.</p>

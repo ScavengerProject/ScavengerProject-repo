@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { Button } from './ui/button';
 
-export default function Sidebar({ usuario, isOpen, onToggle }) {
+export default function Sidebar({ usuario, isOpen, onToggle, isMobile }) {
   const navigate = useNavigate();
   const location = useLocation();
   const isAdmin = usuario?.tipo === 'ADMIN';
@@ -207,31 +207,38 @@ export default function Sidebar({ usuario, isOpen, onToggle }) {
     pink: 'bg-pink-100 text-pink-700 hover:bg-pink-200 border-pink-200'
   };
 
+  const handleNavigation = (path) => {
+    navigate(path);
+    if (isMobile) {
+      onToggle(); // Fechar sidebar automaticamente no mobile após navegação
+    }
+  };
+
   return (
     <>
       {/* Sidebar */}
       <aside
         className={`
-          sticky top-0 h-screen bg-white border-r border-gray-200 
-          transition-all duration-300 ease-in-out z-40 flex-shrink-0
-          ${isOpen ? 'w-72' : 'w-0'}
+          ${isMobile ? 'fixed' : 'sticky'} top-0 h-screen bg-white border-r border-gray-200 
+          transition-all duration-300 ease-in-out z-40 shrink-0
+          ${isOpen ? (isMobile ? 'w-80' : 'w-72') : 'w-0'}
           ${isOpen ? 'overflow-y-auto' : 'overflow-hidden'}
         `}
       >
-        <div className={`p-6 whitespace-nowrap transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0'}`}>
+        <div className={`p-4 sm:p-6 transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0'}`}>
           {/* Header com Logo e Botão Fechar */}
           {isOpen && (
             <div className="mb-6 flex items-center justify-between">
               <div>
-                <h1 className="text-2xl font-bold text-blue-700">Arena</h1>
-                <p className="text-xs text-gray-600">Gerenciador de Gincanas</p>
+                <h1 className="text-2xl sm:text-3xl font-bold text-blue-700">Arena</h1>
+                <p className="text-xs sm:text-sm text-gray-600">Gerenciador de Gincanas</p>
               </div>
               <button
                 onClick={onToggle}
-                className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors shrink-0"
                 title="Ocultar menu"
               >
-                <X size={18} className="text-gray-600" />
+                <X size={isMobile ? 24 : 18} className="text-gray-600" />
               </button>
             </div>
           )}
@@ -252,21 +259,21 @@ export default function Sidebar({ usuario, isOpen, onToggle }) {
                     <button
                       onClick={() => toggleSection(item.sectionKey)}
                       className={`
-                        w-full flex items-center gap-3 p-3 rounded-lg transition-all
+                        w-full flex items-center gap-3 p-3 sm:p-4 rounded-lg transition-all
                         ${hasActiveSubItem 
                           ? `${colorClasses[item.color]} shadow-md` 
                           : 'hover:bg-gray-100 text-gray-700 border border-transparent'
                         }
                       `}
                     >
-                      <Icon size={20} className="flex-shrink-0" />
-                      <div className="flex-1 text-left min-w-0">
-                        <p className="text-sm font-semibold truncate">{item.title}</p>
-                        <p className="text-xs opacity-75 truncate">{item.description}</p>
+                      <Icon size={isMobile ? 24 : 20} className="shrink-0" />
+                      <div className="flex-1 text-left overflow-hidden">
+                        <p className={`${isMobile ? 'text-base' : 'text-sm'} font-semibold break-words`}>{item.title}</p>
+                        <p className={`${isMobile ? 'text-sm' : 'text-xs'} opacity-75 break-words`}>{item.description}</p>
                       </div>
                       <ChevronDown 
-                        size={16} 
-                        className={`flex-shrink-0 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                        size={isMobile ? 20 : 16} 
+                        className={`shrink-0 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
                       />
                     </button>
                     
@@ -279,20 +286,17 @@ export default function Sidebar({ usuario, isOpen, onToggle }) {
                           return (
                             <button
                               key={subItem.id}
-                              onClick={() => {
-                                navigate(subItem.path);
-                                if (window.innerWidth < 1024) onToggle();
-                              }}
+                              onClick={() => handleNavigation(subItem.path)}
                               className={`
-                                w-full flex items-center gap-2 p-2 px-3 rounded-lg transition-all text-left
+                                w-full flex items-center gap-2 p-3 sm:p-2.5 px-3 rounded-lg transition-all text-left
                                 ${isActive 
                                   ? 'bg-gray-200 text-gray-900 font-semibold' 
                                   : 'hover:bg-gray-100 text-gray-600'
                                 }
                               `}
                             >
-                              <span className="text-sm truncate">{subItem.title}</span>
-                              {isActive && <ChevronRight size={14} className="flex-shrink-0 ml-auto" />}
+                              <span className={`${isMobile ? 'text-base' : 'text-sm'} break-words flex-1`}>{subItem.title}</span>
+                              {isActive && <ChevronRight size={isMobile ? 18 : 14} className="shrink-0" />}
                             </button>
                           );
                         })}
@@ -308,24 +312,21 @@ export default function Sidebar({ usuario, isOpen, onToggle }) {
               return (
                 <button
                   key={item.id}
-                  onClick={() => {
-                    navigate(item.path);
-                    if (window.innerWidth < 1024) onToggle();
-                  }}
+                  onClick={() => handleNavigation(item.path)}
                   className={`
-                    w-full flex items-center gap-3 p-3 rounded-lg transition-all
+                    w-full flex items-center gap-3 p-3 sm:p-4 rounded-lg transition-all
                     ${isActive 
                       ? `${colorClasses[item.color]} shadow-md` 
                       : 'hover:bg-gray-100 text-gray-700 border border-transparent'
                     }
                   `}
                 >
-                  <Icon size={20} className="flex-shrink-0" />
-                  <div className="flex-1 text-left min-w-0">
-                    <p className="text-sm font-semibold truncate">{item.title}</p>
-                    <p className="text-xs opacity-75 truncate">{item.description}</p>
+                  <Icon size={isMobile ? 24 : 20} className="shrink-0" />
+                  <div className="flex-1 text-left overflow-hidden">
+                    <p className={`${isMobile ? 'text-base' : 'text-sm'} font-semibold break-words`}>{item.title}</p>
+                    <p className={`${isMobile ? 'text-sm' : 'text-xs'} opacity-75 break-words`}>{item.description}</p>
                   </div>
-                  {isActive && <ChevronRight size={16} className="flex-shrink-0" />}
+                  {isActive && <ChevronRight size={isMobile ? 20 : 16} className="shrink-0" />}
                 </button>
               );
             })}
