@@ -124,25 +124,31 @@ export default function Notificacoes() {
   return (
     <MainLayout usuario={usuario} onLogout={logout}>
       {/* Conteúdo */}
-      <div className="max-w-7xl mx-auto px-6 py-8">
+      <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-6 md:py-8">
         {/* Filtros e ações */}
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-          <div className="flex gap-2">
+        <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+          <div className="flex flex-wrap gap-2">
             <Button
               variant={filtro === 'todas' ? 'default' : 'outline'}
               onClick={() => setFiltro('todas')}
+              size="sm"
+              className="text-xs sm:text-sm"
             >
               Todas ({notificacoes.length})
             </Button>
             <Button
               variant={filtro === 'nao-lidas' ? 'default' : 'outline'}
               onClick={() => setFiltro('nao-lidas')}
+              size="sm"
+              className="text-xs sm:text-sm"
             >
               Não lidas ({naoLidas})
             </Button>
             <Button
               variant={filtro === 'lidas' ? 'default' : 'outline'}
               onClick={() => setFiltro('lidas')}
+              size="sm"
+              className="text-xs sm:text-sm"
             >
               Lidas ({notificacoes.length - naoLidas})
             </Button>
@@ -151,10 +157,12 @@ export default function Notificacoes() {
           {naoLidas > 0 && (
             <Button
               onClick={handleMarcarTodasComoLidas}
-              className="flex items-center gap-2"
+              size="sm"
+              className="flex items-center gap-2 text-xs sm:text-sm w-full sm:w-auto"
             >
-              <CheckCheck size={18} />
-              Marcar todas como lidas
+              <CheckCheck size={16} className="shrink-0" />
+              <span className="hidden sm:inline">Marcar todas como lidas</span>
+              <span className="sm:hidden">Marcar todas</span>
             </Button>
           )}
         </div>
@@ -179,7 +187,7 @@ export default function Notificacoes() {
             </CardContent>
           </Card>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-3 sm:space-y-4">
             {notificacoes.map((notificacao) => (
               <Card
                 key={notificacao._id}
@@ -189,38 +197,39 @@ export default function Notificacoes() {
                     : 'bg-white border-gray-200'
                 }`}
               >
-                <CardContent className="p-6">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex items-start gap-4 flex-1">
-                      <div className="mt-1">
+                <CardContent className="p-3 sm:p-4 md:p-6">
+                  <div className="flex flex-col gap-3">
+                    <div className="flex items-start gap-3 flex-1 w-full overflow-hidden">
+                      <div className="mt-0.5 shrink-0">
                         {getTipoIcon(notificacao.tipo)}
                       </div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
-                          <h3 className={`font-semibold text-lg ${
+                      <div className="flex-1 min-w-0">
+                        <div className="flex flex-wrap items-center gap-2 mb-2">
+                          <h3 className={`font-semibold text-sm sm:text-base md:text-lg break-words ${
                             !notificacao.lida ? 'text-gray-900' : 'text-gray-600'
                           }`}>
                             {notificacao.titulo}
                           </h3>
-                          <span className="px-2 py-1 bg-gray-200 text-gray-700 text-xs rounded">
+                          <span className="px-2 py-1 bg-gray-200 text-gray-700 text-xs rounded shrink-0">
                             {getTipoLabel(notificacao.tipo)}
                           </span>
                           {!notificacao.lida && (
-                            <span className="px-2 py-1 bg-blue-600 text-white text-xs rounded">
+                            <span className="px-2 py-1 bg-blue-600 text-white text-xs rounded shrink-0">
                               Nova
                             </span>
                           )}
                         </div>
-                        <p className="text-gray-700 mb-3">{notificacao.mensagem}</p>
-                        <div className="flex items-center gap-4 text-sm text-gray-500">
-                          <div className="flex items-center gap-1">
-                            <Calendar size={14} />
-                            {formatarData(notificacao.criado_em)}
+                        <p className="text-xs sm:text-sm text-gray-700 mb-3 break-words">{notificacao.mensagem}</p>
+                        <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs sm:text-sm text-gray-500">
+                          <div className="flex items-center gap-1 shrink-0">
+                            <Calendar size={14} className="shrink-0" />
+                            <span>{formatarData(notificacao.criado_em)}</span>
                           </div>
                           {notificacao.email_enviado && (
-                            <div className="flex items-center gap-1 text-green-600">
-                              <Mail size={14} />
-                              Email enviado
+                            <div className="flex items-center gap-1 text-green-600 shrink-0">
+                              <Mail size={14} className="shrink-0" />
+                              <span className="hidden sm:inline">Email enviado</span>
+                              <span className="sm:hidden">Email</span>
                             </div>
                           )}
                           {notificacao.prova_id && (
@@ -236,25 +245,27 @@ export default function Notificacoes() {
                         </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2 w-full">
                       {!notificacao.lida && (
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => handleMarcarComoLida(notificacao._id)}
-                          className="flex items-center gap-1"
+                          className="flex items-center gap-1 text-xs flex-1 sm:flex-initial"
                         >
-                          <Check size={16} />
-                          Marcar como lida
+                          <Check size={14} className="shrink-0" />
+                          <span className="hidden sm:inline">Marcar como lida</span>
+                          <span className="sm:hidden">Lida</span>
                         </Button>
                       )}
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() => handleDeletar(notificacao._id)}
-                        className="flex items-center gap-1 text-red-600 hover:text-red-700"
+                        className="flex items-center gap-1 text-red-600 hover:text-red-700 text-xs"
                       >
-                        <Trash2 size={16} />
+                        <Trash2 size={14} className="shrink-0" />
+                        <span className="hidden sm:inline">Excluir</span>
                       </Button>
                     </div>
                   </div>

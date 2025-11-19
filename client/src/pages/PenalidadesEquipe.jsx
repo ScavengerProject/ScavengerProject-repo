@@ -61,7 +61,7 @@ export default function Penalidades() {
 
   return (
     <MainLayout usuario={usuario} onLogout={logout}>
-      <div className="container mx-auto px-6 py-8">
+      <div className="container mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-6 md:py-8">
       {/* Cabeçalho */}
       <div className="flex items-center justify-between mb-8">
         {/* ... */}
