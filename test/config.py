@@ -13,10 +13,12 @@ TIMEOUT_MAXIMO = 10  # segundos
 TEMPO_LIMITE_RESPOSTA = 3  # segundos
 
 # DADOS DE LOGIN
-# adm
 EMAIL_ADMIN = "admin@gincana.com"
 SENHA_ADMIN = "admin123"
 EMAIL_GABRIELA = "gabriela.membro@gincana.com"
+EMAIL_PEDRO = "aluno.membro@gincana.com"
+EMAIL_ALUNOMEDIO3 = "aluno3@medio.com"
+EMAIL_LEONARDO = "leonardo.membro@gincana.com"
 
 # COMPONENTES
 CAMPO_EMAIL = "email" # ID
