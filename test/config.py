@@ -35,7 +35,9 @@ COMPONENTE_NO_GER_PROVAS = "//h2[normalize-space()='Provas da Gincana']" # XPATH
 
 # ---------- CONFIGURAÇÃO DE SCREENSHOTS ----------
 
-DIRETORIO_BASE_SCREENSHOTS = r"C:\Users\User\Documents\grupo-03-1\test\screenshots"
+# Obtém o diretório onde este arquivo (config.py) está localizado
+DIRETORIO_BASE_TEST = os.path.dirname(os.path.abspath(__file__))
+DIRETORIO_BASE_SCREENSHOTS = os.path.join(DIRETORIO_BASE_TEST, "screenshots")
 
 def caminho_screenshot(nome_arquivo):
     """Gera um caminho completo de screenshot com base no nome do arquivo."""
