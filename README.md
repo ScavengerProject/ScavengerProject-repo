@@ -111,7 +111,7 @@ axios.get(`${import.meta.env.VITE_API_BASE_URL}/equipes`)
 
 ---
 
-## 🗃 Banco de Dados
+## Banco de Dados
 A conexão com o MongoDB é feita via Mongoose:
 
 ```js
