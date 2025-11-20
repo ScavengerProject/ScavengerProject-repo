@@ -69,7 +69,7 @@ export default function SolicitarMigracao() {
 
   return (
     <MainLayout usuario={usuario} onLogout={logout}>
-      <div className="container mx-auto px-6 py-8 grid gap-6 lg:grid-cols-2">
+      <div className="container mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-6 md:py-8 grid gap-4 sm:gap-6 lg:grid-cols-2">
         {/* Card de novo pedido ou aviso */}
         <Card className="bg-white border-gray-200 shadow-md">
           <CardHeader>

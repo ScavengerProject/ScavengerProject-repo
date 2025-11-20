@@ -282,8 +282,8 @@ const AdminEquipes = () => {
     }
 
     return (
-        <MainLayout usuario={usuario} onLogout={logout}>
-            <div className="container mx-auto px-6 py-8">
+    <MainLayout usuario={usuario} onLogout={logout}>
+      <div className="container mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-6 md:py-8">
                 <div className="flex items-center justify-between mb-6">
                     <div>
                         <h2 className="text-3xl font-bold text-gray-900 mb-2">Equipes da Gincana</h2>
@@ -325,63 +325,70 @@ const AdminEquipes = () => {
                     {equipes.length > 0 ? (
                         equipes.map((equipe) => (
                             <Card key={equipe.id || equipe._id} className="shadow-md border-purple-200">
-                                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                                <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between pb-2 gap-3">
                                     <div className="flex items-center gap-3">
-                                        <div className="h-6 w-6 rounded-full border-2 border-gray-200" style={{ backgroundColor: equipe.cor || '#ccc' }}></div>
-                                        <CardTitle className="text-xl">{equipe.nome}</CardTitle>
+                                        <div className="h-6 w-6 rounded-full border-2 border-gray-200 shrink-0" style={{ backgroundColor: equipe.cor || '#ccc' }}></div>
+                                        <CardTitle className="text-lg sm:text-xl break-words">{equipe.nome}</CardTitle>
                                     </div>
-                                    <div className="text-right">
-                                        <CardDescription>
+                                    <div className="text-left sm:text-right">
+                                        <CardDescription className="text-sm">
                                             <Zap className='inline h-4 w-4 mr-1 text-yellow-600'/> Pontos: {equipe.pontos_acumulados || 0}
                                         </CardDescription>
                                     </div>
                                 </CardHeader>
-                                <CardContent className="pt-2 flex items-center justify-between">
-                                    <div className="text-sm text-gray-700 flex items-center gap-3">
-                                        <Users className='inline h-4 w-4 mr-1 text-gray-500'/> 
-                                        Coordenador: {equipe.coordenador?.nome || 'Não definido'}
+                                <CardContent className="pt-2 flex flex-col gap-4">
+                                    <div className="text-sm text-gray-700 flex flex-wrap items-center gap-2 sm:gap-3">
+                                        <Users className='inline h-4 w-4 text-gray-500'/> 
+                                        <span className="break-words">Coordenador: {equipe.coordenador?.nome || 'Não definido'}</span>
                                         <Button 
                                             variant="outline"
                                             size="sm"
-                                            className="text-gray-600 hover:bg-gray-100"
+                                            className="text-gray-600 hover:bg-gray-100 text-xs"
                                             onClick={() => openViewMembersDialog(equipe)}
                                         >
                                             Ver Membros ({equipe.total_membros || 0})
                                         </Button>
                                     </div>
                                     
-                                    <div className="flex gap-2"> 
+                                    <div className="flex flex-wrap gap-2"> 
                                         <Button 
                                             size="sm" 
                                             variant="outline" 
-                                            className="text-gray-600 hover:bg-gray-100" 
+                                            className="text-gray-600 hover:bg-gray-100 text-xs" 
                                             onClick={() => handleOpenDialog(equipe)} 
                                         >
-                                            <Edit className="h-4 w-4" />
+                                            <Edit className="h-3 w-3 sm:h-4 sm:w-4" />
                                         </Button>
 
                                         {/* NOVO BOTÃO: Trocar Coordenador */}
                                         <Button 
                                             size="sm" 
                                             variant="outline"
-                                            className="text-purple-600 border-purple-300 hover:bg-purple-50"
+                                            className="text-purple-600 border-purple-300 hover:bg-purple-50 text-xs"
                                             onClick={() => openSetCoordinatorDialog(equipe)} 
                                         >
-                                            <Edit className="h-4 w-4 mr-1" />
-                                            {equipe.coordenador ? 'Trocar Coordenador' : 'Atribuir Coordenador'}
+                                            <Edit className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+                                            <span className="hidden sm:inline">{equipe.coordenador ? 'Trocar Coord.' : 'Atrib. Coord.'}</span>
+                                            <span className="sm:hidden">Coord.</span>
                                         </Button>
                                         
                                         <Button 
                                             size="sm" 
                                             variant="ghost" 
-                                            className="text-red-600 hover:bg-red-50" 
+                                            className="text-red-600 hover:bg-red-50 text-xs" 
                                             onClick={() => handleDeleteEquipe(equipe.id || equipe._id, equipe.nome)}
                                         >
-                                            <Trash2 className="h-4 w-4" />
+                                            <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
                                         </Button>
                                         
-                                        <Button size="sm" variant="outline" className="text-blue-600 border-blue-300 hover:bg-blue-50" onClick={() => openAddMemberDialog(equipe)}>
-                                            <UserPlus className="h-4 w-4 mr-2" /> Adicionar Membro
+                                        <Button 
+                                            size="sm" 
+                                            variant="outline" 
+                                            className="text-blue-600 border-blue-300 hover:bg-blue-50 text-xs" 
+                                            onClick={() => openAddMemberDialog(equipe)}
+                                        >
+                                            <UserPlus className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+                                            <span className="hidden sm:inline">Adicionar</span>
                                         </Button>
                                     </div>
                                 </CardContent>

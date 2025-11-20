@@ -318,7 +318,7 @@ const AdminUsuarios = () => {
 
   return (
     <MainLayout usuario={usuarioLogado} onLogout={logout}>
-      <div className="container mx-auto px-6 py-8">
+      <div className="container mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-6 md:py-8">
         {/* Estatísticas */}
         {estatisticas && (
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
@@ -327,7 +327,7 @@ const AdminUsuarios = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-gray-600">Total</p>
-                    <p className="text-2xl font-bold text-gray-900">{estatisticas.total}</p>
+                    <p className="text-xl sm:text-2xl font-bold text-gray-900">{estatisticas.total}</p>
                   </div>
                   <Users className="h-8 w-8 text-gray-400" />
                 </div>
@@ -480,43 +480,43 @@ const AdminUsuarios = () => {
             filteredUsuarios.map((usuario) => (
               <Card key={usuario._id} className="bg-white border-gray-200 hover:shadow-md transition-shadow">
                 <CardContent className="py-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4 flex-1">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <h3 className="font-semibold text-gray-900">{usuario.nome}</h3>
-                          <Badge className={`${getTipoBadgeColor(usuario.tipo)} flex items-center gap-1`}>
+                  <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+                    <div className="flex items-start gap-3 sm:gap-4 flex-1 w-full overflow-hidden">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex flex-wrap items-center gap-2 mb-2">
+                          <h3 className="font-semibold text-sm sm:text-base text-gray-900 break-words">{usuario.nome}</h3>
+                          <Badge className={`${getTipoBadgeColor(usuario.tipo)} flex items-center gap-1 text-xs shrink-0`}>
                             {getTipoIcon(usuario.tipo)}
                             {getTipoLabel(usuario.tipo)}
                           </Badge>
-                          <Badge className={usuario.status === 'ATIVO' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
+                          <Badge className={`${usuario.status === 'ATIVO' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'} text-xs shrink-0`}>
                             {usuario.status}
                           </Badge>
                         </div>
-                        <div className="flex items-center gap-4 text-sm text-gray-600">
-                          <span>{usuario.email}</span>
-                          {usuario.telefone && <span>{usuario.telefone}</span>}
-                          {usuario.matricula && <span>Matrícula: {usuario.matricula}</span>}
-                          {usuario.turma && <span>{usuario.turma}</span>}
+                        <div className="flex flex-col sm:flex-row sm:flex-wrap gap-1 sm:gap-3 text-xs sm:text-sm text-gray-600">
+                          <span className="break-all">{usuario.email}</span>
+                          {usuario.telefone && <span className="shrink-0">{usuario.telefone}</span>}
+                          {usuario.matricula && <span className="shrink-0">Mat: {usuario.matricula}</span>}
+                          {usuario.turma && <span className="shrink-0">{usuario.turma}</span>}
                         </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto lg:shrink-0">
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() => handleAlternarStatus(usuario)}
-                        className={usuario.status === 'ATIVO' ? 'border-red-300 text-red-600 hover:bg-red-50' : 'border-green-300 text-green-600 hover:bg-green-50'}
+                        className={`text-xs ${usuario.status === 'ATIVO' ? 'border-red-300 text-red-600 hover:bg-red-50' : 'border-green-300 text-green-600 hover:bg-green-50'}`}
                       >
                         {usuario.status === 'ATIVO' ? (
                           <>
-                            <UserX className="h-4 w-4 mr-1" />
-                            Desativar
+                            <UserX className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-1" />
+                            <span className="hidden sm:inline">Desativar</span>
                           </>
                         ) : (
                           <>
-                            <UserCheck className="h-4 w-4 mr-1" />
-                            Ativar
+                            <UserCheck className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-1" />
+                            <span className="hidden sm:inline">Ativar</span>
                           </>
                         )}
                       </Button>
@@ -524,20 +524,20 @@ const AdminUsuarios = () => {
                         variant="outline"
                         size="sm"
                         onClick={() => abrirModalEditar(usuario)}
-                        className="border-blue-300 text-blue-600 hover:bg-blue-50"
+                        className="border-blue-300 text-blue-600 hover:bg-blue-50 text-xs"
                       >
-                        <Pencil className="h-4 w-4 mr-1" />
-                        Editar
+                        <Pencil className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-1" />
+                        <span className="hidden sm:inline">Editar</span>
                       </Button>
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() => abrirModalExclusao(usuario)}
-                        className="border-red-300 text-red-600 hover:bg-red-50"
+                        className="border-red-300 text-red-600 hover:bg-red-50 text-xs"
                         disabled={usuario._id === usuarioLogado.id}
                       >
-                        <Trash2 className="h-4 w-4 mr-1" />
-                        Excluir
+                        <Trash2 className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-1" />
+                        <span className="hidden sm:inline">Excluir</span>
                       </Button>
                     </div>
                   </div>

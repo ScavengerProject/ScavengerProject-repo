@@ -83,8 +83,8 @@ const AdminFeedbacks = () => {
     }
 
     return (
-        <MainLayout usuario={usuario} onLogout={logout}>
-            <div className="container mx-auto px-6 py-8">
+    <MainLayout usuario={usuario} onLogout={logout}>
+      <div className="container mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-6 md:py-8">
                 <p className="text-gray-600 mb-6">Analise e responda os feedbacks e relatos de problemas dos usuários.</p>
 
                 <div className="grid gap-6">

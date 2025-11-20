@@ -49,8 +49,8 @@ const MeusFeedbacks = () => {
     }
 
     return (
-        <MainLayout usuario={usuario} onLogout={logout}>
-            <div className="container mx-auto px-6 py-8">
+    <MainLayout usuario={usuario} onLogout={logout}>
+      <div className="container mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-6 md:py-8">
                 <p className="text-gray-600 mb-6">Acompanhe o status e as respostas dos feedbacks que você enviou.</p>
 
                 <div className="grid gap-6">
