@@ -23,13 +23,12 @@ from test.config import (
     SENHA_ADMIN,
     GERENCIAR_PROVAS_BOTAO,
     URL_RESTRITA_ADMIN,
-    TOAST,
-    CENTRAL_DE_INFO_BOTAO,
+    COMPONENTE_NO_GER_PROVAS,
     caminho_screenshot
 )
 
 # ARQUIVO PARA PRINT DE ERRO
-NOME_ARQUIVO_FALHA = "falha_ct_rank_002.png"
+NOME_ARQUIVO_FALHA = "falha_ct_rank_003.png"
 CAMINHO_COMPLETO_FALHA = caminho_screenshot(NOME_ARQUIVO_FALHA)
 
 print("Iniciando Teste CT-RANK-002 (Verificação do placar empatado)...")
@@ -53,7 +52,7 @@ try:
     wait.until(EC.element_to_be_clickable((By.XPATH, GERENCIAR_PROVAS_BOTAO))).click()
     wait.until(EC.url_contains(URL_RESTRITA_ADMIN))
     print("Página acessada com sucesso:", navegador.current_url)
-    wait.until(EC.element_to_be_clickable((By.XPATH, "//h2[normalize-space()='Provas da Gincana']"))).click()  # Garante que está na página pro scroll
+    wait.until(EC.element_to_be_clickable((By.XPATH, COMPONENTE_NO_GER_PROVAS))).click()  # Garante que está na página pro scroll
 
     # ROLAR ATÉ O FINAL DA PÁGINA
     navegador.execute_script("window.scrollTo(0, document.body.scrollHeight);")
