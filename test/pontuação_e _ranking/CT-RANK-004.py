@@ -31,7 +31,7 @@ from test.config import (
 NOME_ARQUIVO_FALHA = "falha_ct_rank_004.png"
 CAMINHO_COMPLETO_FALHA = caminho_screenshot(NOME_ARQUIVO_FALHA)
 
-print("Iniciando Teste CT-RANK-002 (Verificação do placar empatado)...")
+print("Iniciando Teste CT-RANK-004 (Pontuação com Múltiplos Quesitos)...")
 
 try:
     if not os.path.exists(DIRETORIO_BASE_SCREENSHOTS):

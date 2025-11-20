@@ -84,14 +84,14 @@ try:
     # VOLTA PARA A CENTRAL PARA VERIFICAR O RANKING
     wait.until(EC.element_to_be_clickable((By.XPATH, CENTRAL_DE_INFO_BOTAO))).click()
 
-    # VERIFICAÇÃO DA EQUIPE ALFA (1º lugar)
+    # VERIFICAÇÃO DA EQUIPE ALFA
     seletor_posicao_alfa = "(//span[@class='font-bold text-lg text-yellow-600'])[1]" ##
     wait.until(EC.visibility_of_element_located((By.XPATH, seletor_posicao_alfa)))
     seletor_nome_alfa = "(//p[@class='font-semibold text-gray-900'][normalize-space()='Alfa'])[1]"  ##
     posicao_alfa = navegador.find_element(By.XPATH, seletor_posicao_alfa).text
     nome_alfa = navegador.find_element(By.XPATH, seletor_nome_alfa).text
 
-    # VERIFICAÇÃO DA EQUIPE BETA (1º lugar)
+    # VERIFICAÇÃO DA EQUIPE BETA
     seletor_posicao_beta = "(//span[@class='font-bold text-lg text-gray-900'])[1]" ##
     seletor_nome_beta = "(//p[normalize-space()='Beta'])[1]" ##
     posicao_beta = navegador.find_element(By.XPATH, seletor_posicao_beta).text
