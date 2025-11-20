@@ -24,7 +24,8 @@ CAMPO_SENHA = "senha" # ID
 BOTAO_LOGIN = "//button[normalize-space()='Entrar']" #XPATH
 TOAST = ".flex.items-start.gap-3.px-4.pt-4.pb-3" # CSS 
 ACESSAR_EQUIPES_BOTAO = "body > div:nth-child(1) > div:nth-child(1) > aside:nth-child(1) > div:nth-child(1) > nav:nth-child(2) > div:nth-child(2) > div:nth-child(2) > button:nth-child(1)" # CSS
-GERENCIAR_PROVAS_BOTAO = "//body/div[@id='root']/div[@class='flex min-h-screen bg-gray-50']/aside[1]/div[1]/nav[1]/button[2]"
+GERENCIAR_PROVAS_BOTAO = "//body/div[@id='root']/div[@class='flex min-h-screen bg-gray-50']/aside[1]/div[1]/nav[1]/button[2]" # XPATH
+GERENCIAR_PENALIDADES_BOTAO = "//div[1]//nav[1]//button[5]" # XPATH
 CENTRAL_DE_INFO_BOTAO = "//body/div[@id='root']/div[@class='flex min-h-screen bg-gray-50']/aside[1]/div[1]/nav[1]/button[1]" # XPATH
 COMPONENTE_PAG_ACESSAR_EQUIPES = "//h3[normalize-space()='Membros da Equipe']" # XPATH
 COMPONENTE_NO_GER_PROVAS = "//h2[normalize-space()='Provas da Gincana']" # XPATH
