@@ -24,6 +24,7 @@ from test.config import (
     EMAIL_ADMIN,    
     SENHA_ADMIN,
     EMAIL_GABRIELA,
+    BOTAO_LOGOUT,
     caminho_screenshot
 )
 # VARIÁVEIS LOCAIS
@@ -36,7 +37,6 @@ CAMPO_MOTIVO = "//textarea"
 BOTAO_CONFIRMAR = "//button[@class='inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md font-medium ring-offset-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 touch-manipulation active:bg-blue-800 h-10 px-4 py-2 text-sm sm:text-base bg-red-600 hover:bg-red-700 text-white']"
 BOTAO_VOLTAR_RANKING = "//p[normalize-space()='Central de Informações']"
 BOTAO_NOTIFICACOES = "//button[@class='justify-center whitespace-nowrap ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 touch-manipulation active:bg-blue-800 h-10 text-sm sm:text-base relative flex items-center gap-1 sm:gap-2 bg-white hover:bg-gray-50 text-gray-700 px-2 sm:px-3 md:px-4 py-2 rounded-lg transition font-semibold shadow-md hover:shadow-lg border border-gray-200']"
-BOTAO_LOGOUT = "//span[@class='hidden sm:inline whitespace-nowrap']"
 BOTAO_PENALIDADES_EQUIPE = "//p[normalize-space()='Penalidades da Equipe']"
 PRIMEIRA_LINHA_TABELA = "//tbody/tr[1]"
 
