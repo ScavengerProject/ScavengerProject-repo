@@ -31,7 +31,7 @@ GERENCIAR_PENALIDADES_BOTAO = "//div[1]//nav[1]//button[5]" # XPATH
 CENTRAL_DE_INFO_BOTAO = "//body/div[@id='root']/div[@class='flex min-h-screen bg-gray-50']/aside[1]/div[1]/nav[1]/button[1]" # XPATH
 COMPONENTE_PAG_ACESSAR_EQUIPES = "//h3[normalize-space()='Membros da Equipe']" # XPATH
 COMPONENTE_NO_GER_PROVAS = "//h2[normalize-space()='Provas da Gincana']" # XPATH
-
+BOTAO_LOGOUT = "//span[@class='hidden sm:inline whitespace-nowrap']"
 
 # ---------- CONFIGURAÇÃO DE SCREENSHOTS ----------
 
