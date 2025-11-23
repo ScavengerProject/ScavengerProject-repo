@@ -165,11 +165,11 @@ Este sistema foi desenvolvido pelo grupo de desenvolvedores G7 e, gerenciado pel
 
 O sistema foi projetado modularmente para cobrir todos os aspectos do evento:
 
-* ** Autenticação e Usuários:** Controle de acesso seguro para administradores e participantes.
-* ** Gestão de Equipes:** Cadastro, edição e visualização dos membros e líderes das equipes.
-* ** Empréstimo de Alunos:** Solicitação, oferta e gerenciamento de empréstimo de participantes entre equipes.
-* ** Controle de Provas:** Registro de provas, pontuações e status de conclusão.
-* ** Penalidades:** Aplicação de punições com desconto automático na pontuação.
-* ** Ranking:** Dashboard que exibe a pontuação e posição atualizada das equipes.
-* ** Feedbacks:** Canal de comunicação para registro de observações sobre as provas ou equipes.
-* ** Notificações:** Alertas para atualizações importantes.
+* **Autenticação e Usuários:** Controle de acesso seguro para administradores e participantes.
+* **Gestão de Equipes:** Cadastro, edição e visualização dos membros e líderes das equipes.
+* **Empréstimo de Alunos:** Solicitação, oferta e gerenciamento de empréstimo de participantes entre equipes.
+* **Controle de Provas:** Registro de provas, pontuações e status de conclusão.
+* **Penalidades:** Aplicação de punições com desconto automático na pontuação.
+* **Ranking:** Dashboard que exibe a pontuação e posição atualizada das equipes.
+* **Feedbacks:** Canal de comunicação para registro de observações sobre as provas ou equipes.
+* **Notificações:** Alertas para atualizações importantes.
