@@ -22,11 +22,11 @@ from test.config import (
     BOTAO_LOGIN,
     EMAIL_ADMIN,    
     SENHA_ADMIN,
+    GERENCIAR_PENALIDADES_BOTAO,
     caminho_screenshot
 )
 
 # VARIÁVEIS LOCAIS
-BOTAO_GERENCIAR_PENALIDADES_TEXTO = "//p[normalize-space()='Gerenciar Penalidades']"
 BOTAO_CRIAR_PENALIDADE = "/html[1]/body[1]/div[1]/div[1]/div[1]/main[1]/div[1]/div[1]/button[1]"
 CAMPO_VALOR_PONTOS = "input[value='0']"
 CAMPO_MOTIVO = "//textarea"
@@ -59,7 +59,7 @@ try:
     # 2. CLICAR EM "GERENCIAR PENALIDADES"
     print("Acessando menu de penalidades...")
     wait.until(EC.element_to_be_clickable(
-        (By.XPATH, BOTAO_GERENCIAR_PENALIDADES_TEXTO)
+        (By.XPATH, GERENCIAR_PENALIDADES_BOTAO)
     )).click()
     time.sleep(2)
     
