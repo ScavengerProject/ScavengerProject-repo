@@ -9,12 +9,15 @@ import os
 import sys
 import datetime
 
+sys.dont_write_bytecode = True 
+
 # IMPORTA CONFIG
 RAIZ = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, RAIZ)
 
 from test.config import (
     URL_LOGIN,
+    URL_PAINEL_ADMIN,
     TIMEOUT_MAXIMO,
     DIRETORIO_BASE_SCREENSHOTS,
     CAMPO_EMAIL,
@@ -27,22 +30,22 @@ from test.config import (
     caminho_screenshot
 )
 
-# --- SELETORES ---
-BOTAO_ABRIR_MODAL = "//button[@title='Enviar Feedback ou Relatar Problema']"
-CAMPO_MENSAGEM = "//textarea" 
-BOTAO_ENVIAR_MODAL = "//button[contains(., 'Enviar Feedback')]"
-BOTAO_NOTIFICACOES_ADMIN = "/html[1]/body[1]/div[1]/div[1]/div[1]/nav[1]/div[1]/div[2]/div[1]/button[1]"
-
-TITULO_NOTIFICACAO = "Novo Feedback Recebido"
-CORPO_NOTIFICACAO = "enviou um novo feedback"
+# VARIÁVEIS LOCAIS
+BOTAO_MENU_GERENCIAR_FEEDBACKS = "//p[normalize-space()='Gerenciar Feedbacks']"
+BOTAO_RESPONDER = "//div//div//div//div//div//div[1]//div[2]//div[1]//button[1]"
+CAMPO_RESPOSTA_ADMIN = "//textarea" 
+BOTAO_ENVIAR_RESPOSTA = "//button[contains(., 'Responder e Marcar como Finalizado')]"
+MENU_MEUS_FEEDBACKS = "//p[normalize-space()='Meus Feedbacks']"
 
 # --- DADOS DO TESTE ---
 NOME_ARQUIVO_FALHA = "falha_ct_funcs_006.png"
 CAMINHO_COMPLETO_FALHA = caminho_screenshot(NOME_ARQUIVO_FALHA)
-DATA_HORA = datetime.datetime.now().strftime("%H:%M")
-MENSAGEM_FEEDBACK = f"Teste de Notificação Admin {DATA_HORA}"
 
-print(f"Iniciando CT-FUNCS-006 (Admin Recebe Notificação)...")
+DATA_HORA = datetime.datetime.now().strftime("%H:%M:%S")
+TEXTO_RESPOSTA = f"Resposta do Suporte - {DATA_HORA}"
+
+
+print("Iniciando CT-FUNCS-006 (Resposta de Feedback)...")
 
 try:
     if not os.path.exists(DIRETORIO_BASE_SCREENSHOTS):
@@ -53,70 +56,73 @@ try:
     navegador.maximize_window()
 
     # ======================================================
-    # PARTE 1: PARTICIPANTE ENVIA FEEDBACK
+    # PARTE 1: ADMIN RESPONDE O PRIMEIRO FEEDBACK DA LISTA
     # ======================================================
+    print("\n--- [1/2] ADMIN RESPONDE ---")
+    
+    navegador.get(URL_LOGIN)
+    wait.until(EC.presence_of_element_located((By.ID, CAMPO_EMAIL))).send_keys(EMAIL_ADMIN)
+    navegador.find_element(By.ID, CAMPO_SENHA).send_keys(SENHA_ADMIN)
+    navegador.find_element(By.XPATH, BOTAO_LOGIN).click()
+    
+    wait.until(EC.url_contains(URL_PAINEL_ADMIN))
+    time.sleep(2)
+
+    # Acessar Menu
+    wait.until(EC.element_to_be_clickable((By.XPATH, BOTAO_MENU_GERENCIAR_FEEDBACKS))).click()
+    time.sleep(3)
+
+    # Clicar em Responder (No primeiro item da lista)
+    wait.until(EC.element_to_be_clickable((By.XPATH, BOTAO_RESPONDER))).click()
+   
+    # Preencher Resposta
+    campo_txt = wait.until(EC.visibility_of_element_located((By.XPATH, CAMPO_RESPOSTA_ADMIN)))
+    time.sleep(0.5)
+    campo_txt.click()
+    campo_txt.send_keys(TEXTO_RESPOSTA)
+
+    # Enviar
+    btn_env = navegador.find_element(By.XPATH, BOTAO_ENVIAR_RESPOSTA)
+    navegador.execute_script("arguments[0].click();", btn_env)
+
+    time.sleep(2)
+    print("Resposta enviada pelo Admin.")
+
+    # Logout
+    try:
+        wait.until(EC.element_to_be_clickable((By.XPATH, BOTAO_LOGOUT))).click()
+    except:
+        navegador.get(URL_LOGIN)
+    
+    wait.until(EC.visibility_of_element_located((By.ID, CAMPO_EMAIL)))
+
+    # ======================================================
+    # PARTE 2: ALUNO VERIFICA O RECEBIMENTO
+    # ======================================================
+    
     navegador.get(URL_LOGIN)
     wait.until(EC.presence_of_element_located((By.ID, CAMPO_EMAIL))).send_keys(EMAIL_GABRIELA)
     navegador.find_element(By.ID, CAMPO_SENHA).send_keys(SENHA_ADMIN)
     navegador.find_element(By.XPATH, BOTAO_LOGIN).click()
     
-    # Espera botão de feedback
-    wait.until(EC.visibility_of_element_located((By.XPATH, BOTAO_ABRIR_MODAL)))
-    time.sleep(2) 
+    time.sleep(3)
 
-    # Abre Modal e Envia
-    btn_modal = navegador.find_element(By.XPATH, BOTAO_ABRIR_MODAL)
-    navegador.execute_script("arguments[0].click();", btn_modal)
+    # Ir para Meus Feedbacks
+    print("Acessando Meus Feedbacks...")
+    wait.until(EC.element_to_be_clickable((By.XPATH, MENU_MEUS_FEEDBACKS))).click()
     
-    campo = wait.until(EC.visibility_of_element_located((By.XPATH, CAMPO_MENSAGEM)))
-    time.sleep(2)
-    campo.send_keys(MENSAGEM_FEEDBACK)
+    time.sleep(3) # Espera carregar
 
-    btn_env = navegador.find_element(By.XPATH, BOTAO_ENVIAR_MODAL)
-    navegador.execute_script("arguments[0].click();", btn_env)
-    
-    time.sleep(2) # Garante que o envio foi processado
+    # Validar Texto
+    print(f"Procurando resposta: '{TEXTO_RESPOSTA}'")
+    src = navegador.page_source
 
-    # Logout
-    wait.until(EC.element_to_be_clickable((By.XPATH, BOTAO_LOGOUT))).click()
-
-    wait.until(EC.visibility_of_element_located((By.ID, CAMPO_EMAIL)))
-
-    # ======================================================
-    # PARTE 2: ADMIN VERIFICA NOTIFICAÇÃO
-    # ======================================================
-    
-    # Login Admin
-    wait.until(EC.presence_of_element_located((By.ID, CAMPO_EMAIL))).send_keys(EMAIL_ADMIN)
-    navegador.find_element(By.ID, CAMPO_SENHA).send_keys(SENHA_ADMIN)
-    navegador.find_element(By.XPATH, BOTAO_LOGIN).click()
-    
-    # Aguarda carregar dashboard
-    time.sleep(3) 
-
-    try:
-        wait.until(EC.element_to_be_clickable((By.XPATH, BOTAO_NOTIFICACOES_ADMIN))).click()        
-        time.sleep(2)
-        
-        src = navegador.page_source
-        
-        # Verifica se o título "Novo Feedback Recebido" está visível
-        if TITULO_NOTIFICACAO in src:
-            print(f"Título '{TITULO_NOTIFICACAO}' encontrado.")
-            
-            if CORPO_NOTIFICACAO in src:
-                 print(f"Detalhe confirmado: '{CORPO_NOTIFICACAO}' encontrado.")
-            else:
-                 print("O título está lá, mas o corpo da mensagem parece diferente.")
-                 
-        else:
-            print(f"ERRO: Notificação '{TITULO_NOTIFICACAO}' não encontrada.")
-            navegador.save_screenshot(CAMINHO_COMPLETO_FALHA)
-            raise AssertionError("Admin não recebeu notificação do novo feedback.")
-
-    except Exception as e:
-        print(f"❌ Erro ao interagir com notificações: {e}")
-        raise e
+    if TEXTO_RESPOSTA in src:
+        print("A resposta do Admin apareceu para o aluno.")
+    else:
+        print("A resposta não foi encontrada na lista.")
+        navegador.save_screenshot(CAMINHO_COMPLETO_FALHA)
+        raise AssertionError("Resposta do Admin não visível para o aluno.")
 
 except Exception as e:
     print(f"\n❌ FALHOU: {e}")
