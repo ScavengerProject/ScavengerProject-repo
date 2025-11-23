@@ -31,13 +31,16 @@ GERENCIAR_PENALIDADES_BOTAO = "//div[1]//nav[1]//button[5]" # XPATH
 CENTRAL_DE_INFO_BOTAO = "//body/div[@id='root']/div[@class='flex min-h-screen bg-gray-50']/aside[1]/div[1]/nav[1]/button[1]" # XPATH
 COMPONENTE_PAG_ACESSAR_EQUIPES = "//h3[normalize-space()='Membros da Equipe']" # XPATH
 COMPONENTE_NO_GER_PROVAS = "//h2[normalize-space()='Provas da Gincana']" # XPATH
-
+BOTAO_LOGOUT = "//span[@class='hidden sm:inline whitespace-nowrap']"
 
 # ---------- CONFIGURAÇÃO DE SCREENSHOTS ----------
 
-# Obtém o diretório onde este arquivo (config.py) está localizado
-DIRETORIO_BASE_TEST = os.path.dirname(os.path.abspath(__file__))
-DIRETORIO_BASE_SCREENSHOTS = os.path.join(DIRETORIO_BASE_TEST, "screenshots")
+# DIRETORIO_BASE_SCREENSHOTS = r"C:\Users\User\Documents\grupo-03-1\test\screenshots"
+# Pega o diretório onde o arquivo config.py está localizado
+DIRETORIO_ATUAL = os.path.dirname(os.path.abspath(__file__))
+
+# Define a pasta screenshots dentro do mesmo diretório do config (ex: test/screenshots)
+DIRETORIO_BASE_SCREENSHOTS = os.path.join(DIRETORIO_ATUAL, "screenshots")
 
 def caminho_screenshot(nome_arquivo):
     """Gera um caminho completo de screenshot com base no nome do arquivo."""
