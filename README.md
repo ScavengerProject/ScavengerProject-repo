@@ -26,9 +26,34 @@ Este README descreve como instalar, configurar e executar todo o sistema.
 
 ## Estrutura do Projeto
 ```
-/cliente   → frontend em React
-/servidor  → backend em Node.js
-```
+client/   → frontend em React
+├── src/ 
+│ ├── components/ # Componentes reutilizáveis de UI (Botões, Inputs, Cards) 
+│ ├── hooks/ # Custom Hooks do React 
+│ ├── lib/ # Bibliotecas e utilitários auxiliares
+│ ├── pages/ # Páginas principais da aplicação (Rotas) 
+│ ├── services/ # Configuração do Axios e chamadas à API 
+│ ├── App.jsx # Componente raiz 
+│ └── index.css # Estilos globais (importação do Tailwind) 
+├── tailwind.config.js # Configuração de temas e plugins do Tailwind 
+└── ...
+
+server/  → backend em Node.js
+├── src/ 
+│ ├── auth/ # Lógica de autenticação e middleware de proteção 
+│ ├── config/ # Configuração banco de dados 
+│ ├── equipes/ # Controllers e rotas para gestão de equipes 
+│ ├── feedbacks/ # Controllers e rotas para gestão de feedbacks 
+│ ├── models/ # Schemas do Mongoose (Definição das tabelas/coleções) 
+│ ├── notificacoes/ # Controllers e rotas de notificações 
+│ ├── penalidades/ # Controllers e rotas para gestão de penalidades 
+│ ├── provas/ # Controllers e rotas para gestão de provas
+│ ├── resultados/ # Controllers e rotas para gestão de pontuação
+│ ├── scripts/ # Scripts utilitários (seed do banco) 
+│ ├── usuarios/ # Controllers e rotas para gestão de usuários do sistema 
+│ ├── utils/ # Funções auxiliares gerais 
+│ └── index.js # Ponto de entrada da aplicação
+└── ...
 Ambos possuem suas próprias dependências e precisam ser instalados separadamente.
 
 ---
@@ -138,8 +163,13 @@ npm run build
 ## Sobre o Projeto
 Este sistema foi desenvolvido pelo grupo de desenvolvedores G7 e, gerenciado pelo grupo de gestores G3 para gerenciar as gincanas escolares, incluindo:
 
-- Cadastro e gerenciamento de equipes  
-- Registro de provas  
-- Pontuação  
-- Penalidades  
-- Dashboard de desempenho  
+O sistema foi projetado modularmente para cobrir todos os aspectos do evento:
+
+* ** Autenticação e Usuários:** Controle de acesso seguro para administradores e participantes.
+* ** Gestão de Equipes:** Cadastro, edição e visualização dos membros e líderes das equipes.
+* ** Empréstimo de Alunos:** Solicitação, oferta e gerenciamento de empréstimo de participantes entre equipes.
+* ** Controle de Provas:** Registro de provas, pontuações e status de conclusão.
+* ** Penalidades:** Aplicação de punições com desconto automático na pontuação.
+* ** Ranking:** Dashboard que exibe a pontuação e posição atualizada das equipes.
+* ** Feedbacks:** Canal de comunicação para registro de observações sobre as provas ou equipes.
+* ** Notificações:** Alertas para atualizações importantes.
