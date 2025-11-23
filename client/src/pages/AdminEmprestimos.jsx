@@ -302,7 +302,7 @@ export default function AdminEmprestimos() {
                   setFormCriar({ ...formCriar, usuario_id: value })
                 }
               >
-                <SelectTrigger>
+                <SelectTrigger id="selectAlunoEmprestimo">
                   <SelectValue placeholder="Selecione um aluno" />
                 </SelectTrigger>
                 <SelectContent>
@@ -329,7 +329,7 @@ export default function AdminEmprestimos() {
                   setFormCriar({ ...formCriar, equipe_destino_id: value })
                 }
               >
-                <SelectTrigger>
+                <SelectTrigger id="selectEquipeDestinoEmprestimo">
                   <SelectValue placeholder="Selecione uma equipe" />
                 </SelectTrigger>
                 <SelectContent>
@@ -353,7 +353,7 @@ export default function AdminEmprestimos() {
                   setFormCriar({ ...formCriar, prova_id: value })
                 }
               >
-                <SelectTrigger>
+                <SelectTrigger id="selectProvaEmprestimo">
                   <SelectValue placeholder="Selecione uma prova" />
                 </SelectTrigger>
                 <SelectContent>

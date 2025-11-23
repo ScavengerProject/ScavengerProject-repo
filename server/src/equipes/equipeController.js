@@ -206,7 +206,7 @@ export const listarEquipesGincana = async (req, res) => {
       if (!eg.equipe_id) return null;
 
       return {
-        _id: eg.equipe_id._id, 
+        _id: eg._id, 
         nome: eg.equipe_id.nome,
         cor: eg.equipe_id.cor,
         coordenador: eg.coordenador_usuario_id?.nome,

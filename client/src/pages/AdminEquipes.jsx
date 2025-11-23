@@ -324,7 +324,7 @@ const AdminEquipes = () => {
                 <div className="grid gap-6">
                     {equipes.length > 0 ? (
                         equipes.map((equipe) => (
-                            <Card key={equipe.id || equipe._id} className="shadow-md border-purple-200">
+                            <Card key={equipe.id || equipe._id} id={`card-equipe-${equipe.id || equipe._id}`} className="shadow-md border-purple-200">
                                 <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between pb-2 gap-3">
                                     <div className="flex items-center gap-3">
                                         <div className="h-6 w-6 rounded-full border-2 border-gray-200 shrink-0" style={{ backgroundColor: equipe.cor || '#ccc' }}></div>
@@ -384,6 +384,7 @@ const AdminEquipes = () => {
                                         <Button 
                                             size="sm" 
                                             variant="outline" 
+                                            id="btnAddMember"
                                             className="text-blue-600 border-blue-300 hover:bg-blue-50 text-xs" 
                                             onClick={() => openAddMemberDialog(equipe)}
                                         >
