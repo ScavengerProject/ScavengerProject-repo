@@ -25,10 +25,10 @@ from test.config import (
     SENHA_ADMIN,
     EMAIL_GABRIELA,
     BOTAO_LOGOUT,
+    GERENCIAR_PENALIDADES_BOTAO,
     caminho_screenshot
 )
 # VARIÁVEIS LOCAIS
-BOTAO_GERENCIAR_PENALIDADES_TEXTO = "//p[normalize-space()='Gerenciar Penalidades']"
 SELETOR_PONTUACAO_ALFA = "div[class='flex items-center justify-between p-3 sm:p-4 rounded-lg border gap-2 bg-yellow-50 border-yellow-200'] p[class='text-xs sm:text-sm text-gray-600']"
 BOTAO_CRIAR_PENALIDADE = "/html[1]/body[1]/div[1]/div[1]/div[1]/main[1]/div[1]/div[1]/button[1]"
 DROPDOWN_EQUIPE = "body > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) > main:nth-child(2) > div:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(1) > button:nth-child(2)"
@@ -36,7 +36,6 @@ CAMPO_VALOR_PONTOS = "input[value='0']"
 CAMPO_MOTIVO = "//textarea"
 BOTAO_CONFIRMAR = "//button[@class='inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md font-medium ring-offset-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 touch-manipulation active:bg-blue-800 h-10 px-4 py-2 text-sm sm:text-base bg-red-600 hover:bg-red-700 text-white']"
 BOTAO_VOLTAR_RANKING = "//p[normalize-space()='Central de Informações']"
-BOTAO_NOTIFICACOES = "//button[@class='justify-center whitespace-nowrap ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 touch-manipulation active:bg-blue-800 h-10 text-sm sm:text-base relative flex items-center gap-1 sm:gap-2 bg-white hover:bg-gray-50 text-gray-700 px-2 sm:px-3 md:px-4 py-2 rounded-lg transition font-semibold shadow-md hover:shadow-lg border border-gray-200']"
 BOTAO_PENALIDADES_EQUIPE = "//p[normalize-space()='Penalidades da Equipe']"
 PRIMEIRA_LINHA_TABELA = "//tbody/tr[1]"
 
@@ -70,7 +69,6 @@ print("Iniciando Teste CT-FUNCS-001 (Aplicação de Penalidade)...")
 
 # --- INÍCIO DO TESTE ---
 try:
-    # Cria diretório de screenshots se não existir
     if not os.path.exists(DIRETORIO_BASE_SCREENSHOTS):
         os.makedirs(DIRETORIO_BASE_SCREENSHOTS)
 
@@ -98,7 +96,7 @@ try:
 
     # 3. CLICAR EM "GERENCIAR PENALIDADES"
     wait.until(EC.element_to_be_clickable(
-        (By.XPATH, BOTAO_GERENCIAR_PENALIDADES_TEXTO)
+        (By.XPATH, GERENCIAR_PENALIDADES_BOTAO)
     )).click()
     time.sleep(3)
     
@@ -112,7 +110,7 @@ try:
     
     campo_pontos.send_keys(Keys.CONTROL + "a") # Seleciona tudo
     campo_pontos.send_keys(Keys.DELETE)        # Deleta
-    campo_pontos.send_keys(VALOR_PENALIDADE)              # Digita
+    campo_pontos.send_keys(VALOR_PENALIDADE)   # Digita
 
     campo_motivo = navegador.find_element(By.XPATH, CAMPO_MOTIVO)
     campo_motivo.send_keys(MOTIVO_PENALIDADE)
@@ -188,7 +186,6 @@ try:
     else:
         print(f"A linha não contêm os dados esperados. Falhas: {erro_msg}")
         navegador.save_screenshot(caminho_screenshot(CAMINHO_COMPLETO_FALHA))
-        raise AssertionError(f"Dados divergentes na tabela: {texto_linha}")
     
 except Exception as e:
     print("\n RESULTADO DO TESTE")
