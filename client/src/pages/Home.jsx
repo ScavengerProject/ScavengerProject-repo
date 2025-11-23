@@ -1,0 +1,372 @@
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { LogOut, User, BookOpen, BarChart3, Settings, Users, UserCheck, Handshake, MessageSquare, History, Gavel, AlertCircle } from 'lucide-react';
+import { Button } from '../components/ui/button';
+import FeedbackFAB from '../components/EnviarFeedbackModal';
+import NotificacoesDropdown from '../components/NotificacoesDropdown';
+
+
+export default function Home({ usuario, onLogout }) {
+  const navigate = useNavigate();
+
+  const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
+
+  const handleLogout = () => {
+    onLogout();
+    navigate('/login');
+  };
+
+  // Agora inclui coordenador
+  const isAdmin = usuario?.tipo === 'ADMIN';
+  const isAdminOrCoordenador = isAdmin || usuario?.tipo === 'COORDENADOR';
+
+  return (
+    <div className="min-h-screen bg-linear-to-br from-gray-50 to-gray-100">
+      {/* Navbar */}
+      <nav className="bg-white shadow-md border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
+          <div>
+            <h1 className="text-2xl font-bold text-blue-700">Site de Gincanas</h1>
+            <p className="text-xs text-gray-600">Gerenciador de Gincanas</p>
+          </div>
+
+          <div className="flex items-center gap-4">
+            {/* Dropdown de Notificações */}
+            <NotificacoesDropdown />
+
+            {/* Informações do usuário */}
+            <div className="flex items-center gap-3 bg-gray-50 px-4 py-2 rounded-lg border border-gray-200">
+              <div className="bg-linear-to-br from-blue-600 to-blue-700 text-white rounded-full w-10 h-10 flex items-center justify-center">
+                <User size={20} />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-gray-900">{usuario?.nome}</p>
+                <p className="text-xs text-gray-600">{usuario?.email}</p>
+              </div>
+            </div>
+
+            {/* Botão Logout */}
+            <Button
+              onClick={handleLogout}
+              className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition font-semibold shadow-md hover:shadow-lg"
+            >
+              <LogOut size={18} />
+              Sair
+            </Button>
+          </div>
+        </div>
+      </nav>
+
+      {/* Conteúdo principal */}
+      <div className="max-w-7xl mx-auto px-6 py-12">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* Card Bem-vindo */}
+          <div className="md:col-span-3 bg-white rounded-xl shadow-lg p-8 border border-gray-200 bg-linear-to-r from-blue-50 to-gray-50">
+            <h2 className="text-3xl font-bold text-gray-900 mb-4">
+              Olá, {usuario?.nome}! 👋
+            </h2>
+            <p className="text-gray-700 text-lg">
+              Bem-vindo ao Site de Gincanas! Aqui você pode acompanhar seus desafios, gerenciar sua equipe e participar de todas as atividades da gincana.
+            </p>
+          </div>
+
+          {/* Card Provas */}
+          <div className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition border border-gray-200 hover:border-blue-300">
+            <div className="bg-linear-to-br from-blue-100 to-blue-50 rounded-full w-12 h-12 flex items-center justify-center mb-4">
+              <BookOpen className="text-blue-700" size={24} />
+            </div>
+            <h3 className="text-xl font-bold text-gray-900 mb-2">Dashboard</h3>
+            <p className="text-gray-600 mb-4">Acesse seu painel de atividades e acompanhe seu progresso na gincana.</p>
+            <Button
+              variant="outline" 
+              onClick={() => navigate('/dashboard')}
+              className="w-full border-gray-300 hover:bg-gray-100 text-gray-900 font-semibold py-2 rounded-lg transition shadow-md"
+            >
+              Acessar Dashboard
+            </Button>
+          </div>
+
+          {/* Card de Inscrição em Equipe (para Alunos) */}
+          {usuario?.tipo === 'ALUNO' && (
+            <div 
+              className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition border border-gray-200 hover:border-indigo-300"
+            >
+              <div className="bg-linear-to-br from-indigo-100 to-indigo-50 rounded-full w-12 h-12 flex items-center justify-center mb-4">
+                <UserCheck className="text-indigo-700" size={24} />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Inscrição em Equipe</h3>
+              <p className="text-gray-600 mb-4">Escolha uma equipe para participar ativamente das provas da gincana.</p>
+              <Button
+                variant="outline" 
+                onClick={() => navigate('/inscricao-equipes')}
+                className="w-full border-gray-300 hover:bg-gray-100 text-gray-900 font-semibold py-2 rounded-lg transition shadow-md"
+              >
+                Inscrever-se em Equipe
+              </Button>
+            </div>
+          )}
+
+          {/* Card: Solicitar Migração (Aluno/Professor/Pai-Mãe) */}
+          {['ALUNO','PROFESSOR','PAI/MÃE'].includes(usuario?.tipo) && (
+            <div className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition border border-gray-200 hover:border-amber-300">
+              <div className="bg-linear-to-br from-amber-100 to-amber-50 rounded-full w-12 h-12 flex items-center justify-center mb-4">
+                <Users className="text-amber-700" size={24} />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Migrar de Equipe</h3>
+              <p className="text-gray-600 mb-4">Peça para entrar em outra equipe e acompanhe o status.</p>
+              <Button
+                variant="outline"
+                onClick={() => navigate('/migracoes/solicitar')}
+                className="w-full border-gray-300 hover:bg-gray-100 text-gray-900 font-semibold py-2 rounded-lg transition shadow-md"
+              >
+                Solicitar migração
+              </Button>
+            </div>
+          )}
+
+          {/* Card: Gerenciar Equipes (Admin ou Coordenador) */}
+          {isAdmin && (
+            <div 
+              className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition border border-gray-200 hover:border-purple-300"
+            >
+              <div className="bg-linear-to-br from-purple-100 to-purple-50 rounded-full w-12 h-12 flex items-center justify-center mb-4">
+                <Users className="text-purple-700" size={24} />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Gerenciar Equipes</h3>
+              <p className="text-gray-600 mb-4">Crie equipes, defina coordenadores e adicione participantes.</p>
+              <Button
+                variant="outline" 
+                onClick={() => navigate('/admin/equipes')}
+                className="w-full border-gray-300 hover:bg-gray-100 text-gray-900 font-semibold py-2 rounded-lg transition shadow-md"
+              >
+                Acessar Gerenciamento
+              </Button>
+            </div>
+          )}
+
+          {/* Card: Gerenciar Usuários (Admin) */}
+          {isAdmin && (
+            <div 
+              className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition border border-gray-200 hover:border-teal-300"
+            >
+              <div className="bg-linear-to-br from-teal-100 to-teal-50 rounded-full w-12 h-12 flex items-center justify-center mb-4">
+                <User className="text-teal-700" size={24} />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Gerenciar Usuários</h3>
+              <p className="text-gray-600 mb-4">Configure papéis, crie e edite usuários do sistema.</p>
+              <Button
+                variant="outline" 
+                onClick={() => navigate('/admin/usuarios')}
+                className="w-full border-gray-300 hover:bg-gray-100 text-gray-900 font-semibold py-2 rounded-lg transition shadow-md"
+              >
+                Acessar Usuários
+              </Button>
+            </div>
+          )}
+
+          {/* Card: Gerenciar Empréstimos - CONSOLIDADO (Admin) */}
+          {isAdmin && (
+            <div 
+              className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition border border-gray-200 hover:border-indigo-300"
+            >
+              <div className="bg-linear-to-br from-indigo-100 to-indigo-50 rounded-full w-12 h-12 flex items-center justify-center mb-4">
+                <Handshake className="text-indigo-700" size={24} />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Gerenciar Empréstimos</h3>
+              <p className="text-gray-600 mb-4">Gerencie solicitações e empréstimos entre equipes.</p>
+              <div className="space-y-2">
+                <Button
+                  variant="outline" 
+                  onClick={() => navigate('/admin/aprovar-solicitacoes')}
+                  className="w-full border-gray-300 hover:bg-gray-100 text-gray-900 font-semibold py-2 rounded-lg transition shadow-md"
+                >
+                  Aprovar Solicitações
+                </Button>
+                <Button
+                  variant="outline" 
+                  onClick={() => navigate('/admin/emprestimos')}
+                  className="w-full border-gray-300 hover:bg-gray-100 text-gray-900 font-semibold py-2 rounded-lg transition shadow-md"
+                >
+                  Ver Empréstimos Ativos
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Card para o Coordenador gerenciar sua própria equipe + aprovar migrações */}
+          {usuario?.tipo === 'COORDENADOR' && (
+            <div 
+              className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition border border-gray-200 hover:border-green-300"
+            >
+              <div className="bg-linear-to-br from-green-100 to-green-50 rounded-full w-12 h-12 flex items-center justify-center mb-4">
+                <UserCheck className="text-green-700" size={24} /> 
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Minha Equipe</h3>
+              <p className="text-gray-600 mb-4">Visualize e gerencie os integrantes do seu time.</p>
+              <div className="grid grid-cols-1 gap-3">
+                <Button
+                  variant="outline" 
+                  onClick={() => navigate('/minha-equipe')}
+                  className="w-full border-gray-300 hover:bg-gray-100 text-gray-900 font-semibold py-2 rounded-lg transition shadow-md"
+                >
+                  Acessar Equipe
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => navigate('/migracoes/pendentes')}
+                  className="w-full border-gray-300 hover:bg-gray-100 text-gray-900 font-semibold py-2 rounded-lg transition shadow-md"
+                >
+                  Solicitações de migração
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Card: Solicitar Empréstimo (Coordenador) */}
+          {usuario?.tipo === 'COORDENADOR' && (
+            <div 
+              className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition border border-gray-200 hover:border-blue-300"
+            >
+              <div className="bg-linear-to-br from-blue-100 to-blue-50 rounded-full w-12 h-12 flex items-center justify-center mb-4">
+                <Handshake className="text-blue-700" size={24} />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Gerenciar Empréstimos</h3>
+              <p className="text-gray-600 mb-4">Solicite, ofereça e gerencie empréstimos de membros.</p>
+              <div className="space-y-2">
+                <Button
+                  variant="outline" 
+                  onClick={() => navigate('/coord/solicitar-emprestimo')}
+                  className="w-full border-gray-300 hover:bg-gray-100 text-gray-900 font-semibold py-2 rounded-lg transition shadow-md"
+                >
+                  Solicitar Membros
+                </Button>
+                <Button
+                  variant="outline" 
+                  onClick={() => navigate('/coord/ofertar-membros')}
+                  className="w-full border-gray-300 hover:bg-gray-100 text-gray-900 font-semibold py-2 rounded-lg transition shadow-md"
+                >
+                  Ofertar Membros
+                </Button>
+                <Button
+                  variant="outline" 
+                  onClick={() => navigate('/coord/gerenciar-emprestimos')}
+                  className="w-full border-gray-300 hover:bg-gray-100 text-gray-900 font-semibold py-2 rounded-lg transition shadow-md"
+                >
+                  Ver Empréstimos Ativos
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Card Penalidades Admin */}
+          {isAdmin && (
+            <div className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition border border-gray-200 hover:border-red-300">
+            <div className="bg-linear-to-br from-red-100 to-red-50 rounded-full w-12 h-12 flex items-center justify-center mb-4">
+              <Gavel className="text-red-700" size={24} />
+            </div>
+            <h3 className="text-xl font-bold text-gray-900 mb-2">Gerenciar Penalidades</h3>
+            <p className="text-gray-600 mb-4">Aplique e consulte penalidades por infrações ao regulamento</p>
+            <Button 
+              variant="outline"
+              onClick={() => navigate('/admin/penalidades')}
+              className="w-full border-gray-300 hover:bg-gray-100 text-gray-900 font-semibold py-2 rounded-lg transition shadow-md mt-6"
+            >
+              Gerenciar
+            </Button>
+          </div>
+          )}
+
+          {/* Card Penalidades para Coordenador */}
+          {['COORDENADOR', 'ALUNO', 'PROFESSOR'].includes(usuario?.tipo) && (
+            <div 
+              className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition border border-gray-200 hover:border-red-300"
+            >
+              <div className="bg-linear-to-br from-red-100 to-red-50 rounded-full w-12 h-12 flex items-center justify-center mb-4">
+                <AlertCircle className="text-red-700" size={24} />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Penalidades da Equipe</h3>
+              <p className="text-gray-600 mb-4">
+                Visualize as penalidades recebidas pela sua equipe.
+              </p>
+              <Button
+                variant="outline"
+                onClick={() => navigate("/equipes/penalidades")}
+                className="w-full border-gray-300 hover:bg-gray-100 text-gray-900 font-semibold py-2 rounded-lg transition shadow-md mt-6"
+              >
+                Visualizar
+              </Button>
+            </div>
+          )}
+
+
+          {/* Card Resultados */}
+          <div className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition border border-gray-200 hover:border-green-300">
+            <div className="bg-linear-to-br from-green-100 to-green-50 rounded-full w-12 h-12 flex items-center justify-center mb-4">
+              <BarChart3 className="text-green-700" size={24} />
+            </div>
+            <h3 className="text-xl font-bold text-gray-900 mb-2">Resultados</h3>
+            <p className="text-gray-600 mb-4">Confira seus resultados e desempenho nas provas.</p>
+            <Button 
+              variant="outline"
+              className="w-full border-gray-300 hover:bg-gray-100 text-gray-900 font-semibold py-2 rounded-lg transition shadow-md"
+            >
+              Ver Resultados
+            </Button>
+          </div>
+
+          {/* Card: Gerenciar Feedbacks (Admin) */}
+          {isAdmin && (
+              <div className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition border border-gray-200 hover:border-pink-300">
+                  <div className="bg-linear-to-br from-pink-100 to-pink-50 rounded-full w-12 h-12 flex items-center justify-center mb-4">
+                      <MessageSquare className="text-pink-700" size={24} />
+                  </div>
+                  <h3 className="text-xl font-bold text-gray-900 mb-2">Gerenciar Feedbacks</h3>
+                  <p className="text-gray-600 mb-4">Visualize, analise e responda os feedbacks dos usuários.</p>
+                  <Button
+                      variant="outline" 
+                      onClick={() => navigate('/admin/feedbacks')}
+                      className="w-full border-gray-300 hover:bg-gray-100 text-gray-900 font-semibold py-2 rounded-lg transition shadow-md"
+                  >
+                      Analisar Feedbacks
+                  </Button>
+              </div>
+          )}
+
+          {/* Histórico de Feedbacks (Todos os Perfis) */}
+          <div 
+              className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition border border-gray-200 hover:border-indigo-300"
+          >
+              <div className="bg-linear-to-br from-indigo-100 to-indigo-50 rounded-full w-12 h-12 flex items-center justify-center mb-4">
+                  <History className="text-indigo-700" size={24} />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Meus Feedbacks</h3>
+              <p className="text-gray-600 mb-4">Acompanhe o status e as respostas dos relatos que você enviou.</p>
+              <Button
+                  variant="outline" 
+                  onClick={() => navigate('/meus-feedbacks')}
+                  className="w-full border-gray-300 hover:bg-gray-100 text-gray-900 font-semibold py-2 rounded-lg transition shadow-md"
+              >
+                  Ver Histórico
+              </Button>
+          </div>
+
+          {/* Card Configurações */}
+          <div className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition border border-gray-200 hover:border-blue-300">
+            <div className="bg-linear-to-br from-blue-100 to-blue-50 rounded-full w-12 h-12 flex items-center justify-center mb-4">
+              <Settings className="text-blue-700" size={24} />
+            </div>
+            <h3 className="text-xl font-bold text-gray-900 mb-2">Configurações</h3>
+            <p className="text-gray-600 mb-4">Ajuste suas preferências e dados de perfil.</p>
+            <Button 
+              variant="outline"
+              className="w-full border-gray-300 hover:bg-gray-100 text-gray-900 font-semibold py-2 rounded-lg transition shadow-md mt-6"
+            >
+              Configurar
+            </Button>
+          </div>
+        </div>
+      </div>
+      <FeedbackFAB />
+    </div>
+  );
+}

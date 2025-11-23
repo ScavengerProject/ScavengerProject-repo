@@ -1,93 +1,175 @@
-# Grupo 03
+# Sistema de Gincana Escolar 
+
+Projeto full-stack desenvolvido em **JavaScript**, utilizando arquitetura **Client/Server**, com frontend em **React (JSX)** e backend em **Node.js + Express**, conectado ao **MongoDB Atlas (Mongo Cloud)**.
+
+Este README descreve como instalar, configurar e executar todo o sistema.
+
+---
+
+## Tecnologias Utilizadas
+
+### **Frontend**
+- React (JSX)
+- React Router
+- Axios
 
 
+### **Backend**
+- Node.js
+- Express
+- Mongoose (para integração com MongoDB)
 
-## Getting started
+### **Banco de Dados**
+- MongoDB Atlas
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+---
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
-
-## Add your files
-
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
-
+## Estrutura do Projeto
 ```
-cd existing_repo
-git remote add origin https://gitlab.unipampa.edu.br/ales/rp-vi-2025-2/grupo-03.git
-git branch -M main
-git push -uf origin main
+client/   → frontend em React
+├── src/ 
+│ ├── components/ # Componentes reutilizáveis de UI (Botões, Inputs, Cards) 
+│ ├── hooks/ # Lógica de estado global
+│ ├── lib/ # Utilitários
+│ ├── pages/ # Páginas principais da aplicação
+│ ├── services/ # Chamadas à API 
+│ ├── App.jsx # Componente raiz 
+│ └── index.css # Estilos globais (importação do Tailwind) 
+├── tailwind.config.js # Configuração de temas e plugins do Tailwind 
+└── ...
+
+server/  → backend em Node.js
+├── src/ 
+│ ├── auth/ # Lógica de autenticação e middleware de proteção 
+│ ├── config/ # Configuração banco de dados 
+│ ├── equipes/ # Controllers e rotas para gestão de equipes 
+│ ├── feedbacks/ # Controllers e rotas para gestão de feedbacks 
+│ ├── models/ # Schemas do Mongoose (Definição das tabelas/coleções) 
+│ ├── notificacoes/ # Controllers e rotas de notificações 
+│ ├── penalidades/ # Controllers e rotas para gestão de penalidades 
+│ ├── provas/ # Controllers e rotas para gestão de provas
+│ ├── resultados/ # Controllers e rotas para gestão de pontuação
+│ ├── scripts/ # Scripts utilitários (seed do banco) 
+│ ├── usuarios/ # Controllers e rotas para gestão de usuários do sistema 
+│ ├── utils/ # Funções auxiliares gerais 
+│ └── index.js # Ponto de entrada da aplicação
+└── ...
+Ambos possuem suas próprias dependências e precisam ser instalados separadamente.
+
+---
+
+## Pré-requisitos
+Certifique-se de ter instalado:
+
+- **Node.js 18+**
+- **npm 9+**
+- **Conta no MongoDB Atlas** com connection string
+
+---
+
+## Variáveis de Ambiente
+
+### **Backend (server/.env)**
+```
+MONGO_URI=<sua-string-de-conexao-mongodb-atlas>
+PORT=5000
+JWT_SECRET=<sua-chave-secreta>
+```
+Temos um arquivo de exemplo na pasta: `server/.env.example`.
+
+
+# 🚀 Como Rodar o Projeto
+
+## 1. Backend (Servidor)
+Acesse o diretório do server:
+```
+cd server
 ```
 
-## Integrate with your tools
+Instale as dependências:
+```
+npm install
+```
 
-- [ ] [Set up project integrations](https://gitlab.unipampa.edu.br/ales/rp-vi-2025-2/grupo-03/-/settings/integrations)
+Inicie o server:
+```
+npm start
+```
 
-## Collaborate with your team
+O backend será iniciado em:
+```
+Porta 5000
+```
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
+---
 
-## Test and Deploy
+## 2. Frontend (Cliente)
+Acesse o diretório do frontend:
+```
+cd client
+```
 
-Use the built-in continuous integration in GitLab.
+Instale as dependências:
+```
+npm install
+```
 
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+Inicie o servidor de desenvolvimento:
+```
+npm start
+```
 
-***
+O frontend irá iniciar em:
+```
+http://localhost:5173/
+```
 
-# Editing this README
+---
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+## Comunicação entre Front e Back
+O frontend consome a API usando a URL configurada no arquivo `.env`.
 
-## Suggestions for a good README
+Exemplo com Axios:
+```js
+axios.get(`${import.meta.env.VITE_API_BASE_URL}/equipes`)
+```
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+---
 
-## Name
-Choose a self-explaining name for your project.
+## Banco de Dados
+A conexão com o MongoDB é feita via Mongoose:
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+```js
+import mongoose from "mongoose";
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+mongoose.connect(process.env.MONGO_URI)
+  .then(() => console.log("MongoDB conectado!"))
+  .catch(err => console.error(err));
+```
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+---
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+## 📌 Observações
+- Sempre rode **npm install** antes de iniciar o projeto pela primeira vez (cliente e servidor).
+- Nunca faça commit dos arquivos `.env` (Eles já estão no **gitignore**).
+- Para build de produção (frontend):
+```
+npm run build
+```
+- Ajuste CORS no backend caso use domínios externos.
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+---
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+## Sobre o Projeto
+Este sistema foi desenvolvido pelo grupo de desenvolvedores G7 e, gerenciado pelo grupo de gestores G3 para gerenciar as gincanas escolares, incluindo:
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+O sistema foi projetado modularmente para cobrir todos os aspectos do evento:
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
-
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
-
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
-
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
-
-## License
-For open source projects, say how it is licensed.
-
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+* **Autenticação e Usuários:** Controle de acesso seguro para administradores e participantes.
+* **Gestão de Equipes:** Cadastro, edição e visualização dos membros e líderes das equipes.
+* **Empréstimo de Alunos:** Solicitação, oferta e gerenciamento de empréstimo de participantes entre equipes.
+* **Controle de Provas:** Registro de provas, pontuações e status de conclusão.
+* **Penalidades:** Aplicação de punições com desconto automático na pontuação.
+* **Ranking:** Dashboard que exibe a pontuação e posição atualizada das equipes.
+* **Feedbacks:** Canal de comunicação para registro de observações sobre as provas ou equipes.
+* **Notificações:** Alertas para atualizações importantes.
