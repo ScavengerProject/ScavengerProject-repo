@@ -29,10 +29,10 @@ Este README descreve como instalar, configurar e executar todo o sistema.
 client/   → frontend em React
 ├── src/ 
 │ ├── components/ # Componentes reutilizáveis de UI (Botões, Inputs, Cards) 
-│ ├── hooks/ # Custom Hooks do React 
-│ ├── lib/ # Bibliotecas e utilitários auxiliares
-│ ├── pages/ # Páginas principais da aplicação (Rotas) 
-│ ├── services/ # Configuração do Axios e chamadas à API 
+│ ├── hooks/ # Lógica de estado global
+│ ├── lib/ # Utilitários
+│ ├── pages/ # Páginas principais da aplicação
+│ ├── services/ # Chamadas à API 
 │ ├── App.jsx # Componente raiz 
 │ └── index.css # Estilos globais (importação do Tailwind) 
 ├── tailwind.config.js # Configuração de temas e plugins do Tailwind 
