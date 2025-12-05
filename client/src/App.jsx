@@ -27,6 +27,7 @@ import AdminAprovarSolicitacoes from './pages/AdminAprovarSolicitacoes.jsx';
 import CoordOferecerMembros from './pages/CoordOferecerMembros.jsx';
 import CoordGerenciarOfertas from './pages/CoordGerenciarOfertas.jsx';
 import CoordGerenciarEmprestimos from './pages/CoordGerenciarEmprestimos.jsx';
+import ProtectedRoute from './components/ProtectedRoute.jsx';
 
 function App() {
   const { usuario, isAuthenticated, loading, logout } = useAuth();
@@ -92,9 +93,14 @@ function App() {
         <Route
           path="/admin/provas"
           element={
-            isAuthenticated 
-              ? (usuario.tipo === 'ADMIN' ? <AdminProvas /> : <Navigate to="/" replace />)
-              : <Navigate to="/login" replace />
+            <ProtectedRoute
+              requiredRole="ADMIN"
+              usuario={usuario}
+              isAuthenticated={isAuthenticated}
+              redirectTo="/"
+            >
+              <AdminProvas />
+            </ProtectedRoute>
           }
         />
 

@@ -8,9 +8,9 @@ import os
 import sys
 
 # IMPORTA AS VARIÁVEIS DO CONFIG
-RAIZ = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-sys.path.insert(0, RAIZ)
-from test.config import (
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
+from config import (
     URL_LOGIN,
     URL_PAINEL_PARTICIPANTE,
     URL_RESTRITA_ADMIN,
@@ -46,10 +46,12 @@ try:
     wait.until(EC.presence_of_element_located((By.ID, CAMPO_EMAIL))).send_keys(EMAIL_GABRIELA)
     navegador.find_element(By.ID, CAMPO_SENHA).send_keys(SENHA_ADMIN)
     navegador.find_element(By.XPATH, BOTAO_LOGIN).click()
+    time.sleep(2)
 
     # Espera o login ser concluído (redirecionamento para o painel de Participante)
     wait.until(EC.url_contains(URL_PAINEL_PARTICIPANTE))
     print(f"Login de Participante realizado. URL atual: {navegador.current_url}")
+    time.sleep(1)
 
     # TENTATIVA DE ACESSO DIRETO À ÁREA RESTRITA DO ADMIN
     print(f"Tentando acessar página restrita: {URL_RESTRITA_ADMIN}")
@@ -80,13 +82,13 @@ try:
 
     # RESULTADOS
     print("\n RESULTADO DO TESTE")
-    print("✅ SUCESSO (Bloqueio de acesso funcionando)")
+    print(" SUCESSO (Bloqueio de acesso funcionando)")
     print(f"C1 (URL): Redirecionado corretamente (OK)")
     print(f"C2 (Toast): Mensagem exibida e correta (OK)")
 
 except Exception as e:
     print("\n RESULTADO DO TESTE")
-    print("❌ FALHOU")
+    print(" FALHOU")
     print(f"Erro durante a execução do teste: {e}")
 
     if 'navegador' in locals():
