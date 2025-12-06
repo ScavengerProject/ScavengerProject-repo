@@ -106,6 +106,7 @@ const AdminProvas = () => {
     criterio_elegibilidade: {},
     sequenciamento: {},
     pontuacao: {},
+    configuracao_quesitos: {},
   });
 
   // Carregar provas ao montar o componente
@@ -170,6 +171,7 @@ const AdminProvas = () => {
       criterio_elegibilidade: {},
       sequenciamento: {},
       pontuacao: {},
+      configuracao_quesitos: {},
     });
     setEditingProva(null);
   };
@@ -288,6 +290,7 @@ const AdminProvas = () => {
       criterio_elegibilidade: prova.criterio_elegibilidade || {},
       sequenciamento: prova.sequenciamento || {},
       pontuacao: prova.pontuacao || {},
+      configuracao_quesitos: prova.configuracao_quesitos || {},
     });
     setIsDialogOpen(true);
   };
@@ -700,6 +703,188 @@ const AdminProvas = () => {
                       ))}
                     </div>
                   </div>
+
+                  {/* Configurações de Quesitos - Campos Condicionais */}
+                  {formData.quesitos_de_avaliacao.includes('TEMPO') && (
+                    <div className="grid gap-4 p-4 border border-blue-300 rounded-md bg-blue-50">
+                      <h4 className="text-md font-semibold text-blue-900">Configuração do Quesito "Tempo de Execução"</h4>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="grid gap-1">
+                          <Label htmlFor="tempo_limite" className="text-sm font-normal text-blue-800">
+                            Tempo Limite (minutos)
+                          </Label>
+                          <Input
+                            id="tempo_limite"
+                            type="number"
+                            min="1"
+                            value={formData.configuracao_quesitos?.TEMPO?.tempo_limite_minutos || ""}
+                            onChange={(e) => setFormData(prev => ({
+                              ...prev,
+                              configuracao_quesitos: {
+                                ...prev.configuracao_quesitos,
+                                TEMPO: {
+                                  ...prev.configuracao_quesitos?.TEMPO,
+                                  tempo_limite_minutos: Number(e.target.value)
+                                }
+                              }
+                            }))}
+                            placeholder="Ex: 30"
+                            className="bg-white border-blue-300"
+                            disabled={submitting}
+                          />
+                        </div>
+                        <div className="grid gap-1">
+                          <Label htmlFor="tempo_bonus" className="text-sm font-normal text-blue-800">
+                            Pontuação Extra
+                          </Label>
+                          <Input
+                            id="tempo_bonus"
+                            type="number"
+                            min="0"
+                            value={formData.configuracao_quesitos?.TEMPO?.pontuacao_bonus || ""}
+                            onChange={(e) => setFormData(prev => ({
+                              ...prev,
+                              configuracao_quesitos: {
+                                ...prev.configuracao_quesitos,
+                                TEMPO: {
+                                  ...prev.configuracao_quesitos?.TEMPO,
+                                  pontuacao_bonus: Number(e.target.value)
+                                }
+                              }
+                            }))}
+                            placeholder="Ex: 50"
+                            className="bg-white border-blue-300"
+                            disabled={submitting}
+                          />
+                        </div>
+                      </div>
+                      <div className="grid gap-1">
+                        <Label htmlFor="tempo_descricao" className="text-sm font-normal text-blue-800">
+                          Descrição do Bônus (opcional)
+                        </Label>
+                        <Input
+                          id="tempo_descricao"
+                          type="text"
+                          value={formData.configuracao_quesitos?.TEMPO?.descricao_bonus || ""}
+                          onChange={(e) => setFormData(prev => ({
+                            ...prev,
+                            configuracao_quesitos: {
+                              ...prev.configuracao_quesitos,
+                              TEMPO: {
+                                ...prev.configuracao_quesitos?.TEMPO,
+                                descricao_bonus: e.target.value
+                              }
+                            }
+                          }))}
+                          placeholder="Ex: Pontuação extra por completar dentro do tempo limite"
+                          className="bg-white border-blue-300"
+                          disabled={submitting}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {formData.quesitos_de_avaliacao.includes('PRODUTIVIDADE') && (
+                    <div className="grid gap-4 p-4 border border-green-300 rounded-md bg-green-50">
+                      <h4 className="text-md font-semibold text-green-900">Configuração do Quesito "Produtividade/Volume"</h4>
+                      <div className="grid grid-cols-3 gap-4">
+                        <div className="grid gap-1">
+                          <Label htmlFor="unidade_medida" className="text-sm font-normal text-green-800">
+                            Unidade de Medida
+                          </Label>
+                          <Input
+                            id="unidade_medida"
+                            type="text"
+                            value={formData.configuracao_quesitos?.PRODUTIVIDADE?.unidade_medida || ""}
+                            onChange={(e) => setFormData(prev => ({
+                              ...prev,
+                              configuracao_quesitos: {
+                                ...prev.configuracao_quesitos,
+                                PRODUTIVIDADE: {
+                                  ...prev.configuracao_quesitos?.PRODUTIVIDADE,
+                                  unidade_medida: e.target.value
+                                }
+                              }
+                            }))}
+                            placeholder="Ex: itens, litros, km"
+                            className="bg-white border-green-300"
+                            disabled={submitting}
+                          />
+                        </div>
+                        <div className="grid gap-1">
+                          <Label htmlFor="quantidade_minima" className="text-sm font-normal text-green-800">
+                            Quantidade Mínima
+                          </Label>
+                          <Input
+                            id="quantidade_minima"
+                            type="number"
+                            min="1"
+                            value={formData.configuracao_quesitos?.PRODUTIVIDADE?.quantidade_minima || ""}
+                            onChange={(e) => setFormData(prev => ({
+                              ...prev,
+                              configuracao_quesitos: {
+                                ...prev.configuracao_quesitos,
+                                PRODUTIVIDADE: {
+                                  ...prev.configuracao_quesitos?.PRODUTIVIDADE,
+                                  quantidade_minima: Number(e.target.value)
+                                }
+                              }
+                            }))}
+                            placeholder="Ex: 100"
+                            className="bg-white border-green-300"
+                            disabled={submitting}
+                          />
+                        </div>
+                        <div className="grid gap-1">
+                          <Label htmlFor="produtividade_bonus" className="text-sm font-normal text-green-800">
+                            Pontuação Extra
+                          </Label>
+                          <Input
+                            id="produtividade_bonus"
+                            type="number"
+                            min="0"
+                            value={formData.configuracao_quesitos?.PRODUTIVIDADE?.pontuacao_bonus || ""}
+                            onChange={(e) => setFormData(prev => ({
+                              ...prev,
+                              configuracao_quesitos: {
+                                ...prev.configuracao_quesitos,
+                                PRODUTIVIDADE: {
+                                  ...prev.configuracao_quesitos?.PRODUTIVIDADE,
+                                  pontuacao_bonus: Number(e.target.value)
+                                }
+                              }
+                            }))}
+                            placeholder="Ex: 75"
+                            className="bg-white border-green-300"
+                            disabled={submitting}
+                          />
+                        </div>
+                      </div>
+                      <div className="grid gap-1">
+                        <Label htmlFor="produtividade_descricao" className="text-sm font-normal text-green-800">
+                          Descrição do Bônus (opcional)
+                        </Label>
+                        <Input
+                          id="produtividade_descricao"
+                          type="text"
+                          value={formData.configuracao_quesitos?.PRODUTIVIDADE?.descricao_bonus || ""}
+                          onChange={(e) => setFormData(prev => ({
+                            ...prev,
+                            configuracao_quesitos: {
+                              ...prev.configuracao_quesitos,
+                              PRODUTIVIDADE: {
+                                ...prev.configuracao_quesitos?.PRODUTIVIDADE,
+                                descricao_bonus: e.target.value
+                              }
+                            }
+                          }))}
+                          placeholder="Ex: Pontuação extra por atingir a meta de produtividade"
+                          className="bg-white border-green-300"
+                          disabled={submitting}
+                        />
+                      </div>
+                    </div>
+                  )}
 
                   {/* Divisor visual para separar seções básicas das avançadas */}
                   <div className="border-t border-gray-300 my-4"></div>

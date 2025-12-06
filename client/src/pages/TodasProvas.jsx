@@ -5,7 +5,7 @@ import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
 import { ArrowLeft, Trophy, Calendar, Filter, CheckCircle2, Clock, XCircle, AlertCircle, Award } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
-import { provasService, equipesService, resultadosService } from "../services/api";
+import { provasService, equipesService, resultadosService, configuracoesService } from "../services/api";
 import { toast } from "../components/ui/toast";
 import ProvaDetalhesModal from "../components/ProvaDetalhesModal";
 import MainLayout from "../components/MainLayout";
@@ -18,9 +18,11 @@ const TodasProvas = () => {
   const [provaSelecionada, setProvaSelecionada] = useState(null);
   const [modalAberto, setModalAberto] = useState(false);
   const [filtroStatus, setFiltroStatus] = useState('TODOS');
+  const [mostrarNotasRanking, setMostrarNotasRanking] = useState(false);
 
   useEffect(() => {
     carregarProvas();
+    carregarConfiguracao();
   },[usuario]);
 
   const carregarProvas = async () => {
@@ -33,6 +35,16 @@ const TodasProvas = () => {
       toast.error("Erro ao carregar provas");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const carregarConfiguracao = async () => {
+    try {
+      const config = await configuracoesService.obter();
+      setMostrarNotasRanking(config?.mostrar_notas_ranking || false);
+    } catch (error) {
+      console.error("Erro ao carregar configuração:", error);
+      setMostrarNotasRanking(false);
     }
   };
 
@@ -121,16 +133,41 @@ const TodasProvas = () => {
       return null; // Não mostra nada se não estiver configurado
     }
 
+    const isAdmin = usuario?.tipo === 'ADMIN';
+    const podeMostrarPontos = isAdmin || mostrarNotasRanking;
+
     // Tipo Proporcional
     if (pontuacao.pontos_por_unidade && pontuacao.nome_unidade) {
-      return `${pontuacao.pontos_por_unidade} pts por ${pontuacao.nome_unidade}`;
+      if (podeMostrarPontos) {
+        return `${pontuacao.pontos_por_unidade} pts por ${pontuacao.nome_unidade}`;
+      } else {
+        return `Pontos por ${pontuacao.nome_unidade}`;
+      }
     }
 
     // Tipo Ranking (1º, 2º, 3º)
     const posicoes = [];
-    if (pontuacao["1"]) posicoes.push(`1º: ${pontuacao["1"]} pts`);
-    if (pontuacao["2"]) posicoes.push(`2º: ${pontuacao["2"]} pts`);
-    if (pontuacao["3"]) posicoes.push(`3º: ${pontuacao["3"]} pts`);
+    if (pontuacao["1"]) {
+      if (podeMostrarPontos) {
+        posicoes.push(`1º: ${pontuacao["1"]} pts`);
+      } else {
+        posicoes.push(`1º lugar`);
+      }
+    }
+    if (pontuacao["2"]) {
+      if (podeMostrarPontos) {
+        posicoes.push(`2º: ${pontuacao["2"]} pts`);
+      } else {
+        posicoes.push(`2º lugar`);
+      }
+    }
+    if (pontuacao["3"]) {
+      if (podeMostrarPontos) {
+        posicoes.push(`3º: ${pontuacao["3"]} pts`);
+      } else {
+        posicoes.push(`3º lugar`);
+      }
+    }
 
     if (posicoes.length > 0) {
       return posicoes.join(' | ');

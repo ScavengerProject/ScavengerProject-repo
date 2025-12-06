@@ -18,19 +18,20 @@ const GRUPO_LABEL = {
  */
 export const criarProva = async (req, res) => {
   try {
-    const { 
-      titulo, 
-      descricao, 
-      formato, 
-      data_inicio, 
-      data_fim, 
-      status, 
-      quesitos_de_avaliacao, 
-      requisito_usuario, 
+    const {
+      titulo,
+      descricao,
+      formato,
+      data_inicio,
+      data_fim,
+      status,
+      quesitos_de_avaliacao,
+      requisito_usuario,
       pontuacao,
       restricao_participacao,
       criterio_elegibilidade,
-      sequenciamento
+      sequenciamento,
+      configuracao_quesitos
     } = req.body;
 
     if (!titulo || !descricao || !formato) {
@@ -50,6 +51,7 @@ export const criarProva = async (req, res) => {
       restricao_participacao: restricao_participacao || {},
       criterio_elegibilidade: criterio_elegibilidade || {},
       sequenciamento: sequenciamento || {},
+      configuracao_quesitos: configuracao_quesitos || {},
       criado_por_usuario_id: req.usuario.id,
     });
 
@@ -158,12 +160,17 @@ export const listarProvas = async (req, res) => {
                 as: 'equipeInfo'
             }},
             // $lookup retorna um array, $unwind o transforma em objeto
-            { $unwind: { path: "$equipeInfo", preserveNullAndEmptyArrays: true } }, 
+            { $unwind: { path: "$equipeInfo", preserveNullAndEmptyArrays: true } },
+            
+            // Filtra apenas resultados com equipe válida
+            { $match: { 
+                "equipeInfo": { $exists: true, $ne: null }
+            }},
             
             // Formata o objeto 'vencedor' final
             { $project: { 
                 _id: 0,
-                equipe_nome: { $ifNull: ["$equipeInfo.nome", "Equipe Removida"] },
+                equipe_nome: "$equipeInfo.nome",
                 pontos_obtidos: "$pontuacao_obtida"
             }}
           ],
@@ -171,9 +178,16 @@ export const listarProvas = async (req, res) => {
         }
       },
       // 4. $addFields: "Achata" o 'vencedorArray' de [vencedor] para apenas {vencedor}
+      // Só adiciona vencedor se houver resultado válido com equipe
       {
         $addFields: {
-          vencedor: { $arrayElemAt: ["$vencedorArray", 0] } // Pega o primeiro (e único) item
+          vencedor: {
+            $cond: {
+              if: { $gt: [{ $size: "$vencedorArray" }, 0] },
+              then: { $arrayElemAt: ["$vencedorArray", 0] },
+              else: null
+            }
+          }
         }
       },
       // 5. $project: Limpa o array temporário

@@ -30,6 +30,25 @@ const SequenciamentoSchema = new mongoose.Schema({
   exigir_ordem: { type: Boolean, default: false } // Se as etapas devem ser feitas na ordem
 }, { _id: false });
 
+// Schema para configuração de quesitos de avaliação
+const QuesitoTempoSchema = new mongoose.Schema({
+  tempo_limite_minutos: { type: Number, min: 1, required: true },
+  pontuacao_bonus: { type: Number, min: 0, required: true },
+  descricao_bonus: { type: String, default: 'Pontuação extra por completar dentro do tempo limite' }
+}, { _id: false });
+
+const QuesitoProdutividadeSchema = new mongoose.Schema({
+  unidade_medida: { type: String, required: true }, // Ex: "itens", "litros", "quilômetros"
+  quantidade_minima: { type: Number, min: 1, required: true },
+  pontuacao_bonus: { type: Number, min: 0, required: true },
+  descricao_bonus: { type: String, default: 'Pontuação extra por atingir a meta de produtividade' }
+}, { _id: false });
+
+const ConfiguracaoQuesitosSchema = new mongoose.Schema({
+  TEMPO: QuesitoTempoSchema,
+  PRODUTIVIDADE: QuesitoProdutividadeSchema
+}, { _id: false });
+
 const ProvaSchema = new mongoose.Schema({
   titulo: { type: String, required: [true, 'O título é obrigatório.'] },
   descricao: { type: String, required: [true, 'A descrição é obrigatória.'] },
@@ -53,11 +72,12 @@ const ProvaSchema = new mongoose.Schema({
     default: []
   },
   requisito_usuario: { type: RequisitoUsuarioSchema, default: () => ({}) },
-  
+
   // ✅ US14: Novos campos de configuração
   restricao_participacao: { type: RestricaoParticipacaoSchema, default: () => ({}) },
   criterio_elegibilidade: { type: CriterioElegibilidadeSchema, default: () => ({}) },
   sequenciamento: { type: SequenciamentoSchema, default: () => ({}) },
+  configuracao_quesitos: { type: ConfiguracaoQuesitosSchema, default: () => ({}) },
   
   criado_por_usuario_id: {
     type: mongoose.Schema.Types.ObjectId,
