@@ -20,15 +20,6 @@ const logFormData = (req, extra = {}, participanteSelecionado = null) => {
 
 /**
  * [POST] Cria uma penalidade e atualiza pontos na EquipeGincana.
- * Body esperado: { nome?, equipeId, participanteId?, pontos, descricao }
- * Observação: equipeId pode ser o _id de EquipeGincana (recomendado) ou o _id da Equipe mestre.
- */
-/**
- * [POST] Cria uma penalidade e atualiza pontos na EquipeGincana.
- * Body esperado: { nome?, equipeId, participanteId?, pontos, descricao }
- */
-/**
- * [POST] Cria uma penalidade e atualiza pontos na EquipeGincana.
  * Body esperado: { equipeId, participanteId?, pontos, descricao }
  */
 export const criarPenalidade = async (req, res) => {
