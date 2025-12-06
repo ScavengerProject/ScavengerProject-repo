@@ -11,10 +11,12 @@ import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Checkbox } from "./ui/checkbox";
 import { Calendar, Clock, Users, Target, AlertCircle, List, CheckCircle2, AlertTriangle, UserPlus, Loader, UserCheck, Trophy } from "lucide-react";
-import { provasService, equipesService, resultadosService } from "../services/api";
+import { provasService, equipesService, resultadosService, configuracoesService } from "../services/api";
 import { toast } from "./ui/toast";
+import { useAuth } from "../hooks/useAuth";
 
 const ProvaDetalhesModal = ({ prova, isOpen, onClose, onInscricaoSucesso }) => {
+  const { usuario } = useAuth();
   const [inscrevendo, setInscrevendo] = useState(false);
   const [jaInscrito, setJaInscrito] = useState(false);
   const [verificandoInscricao, setVerificandoInscricao] = useState(false);
@@ -22,20 +24,69 @@ const ProvaDetalhesModal = ({ prova, isOpen, onClose, onInscricaoSucesso }) => {
   const [carregandoEquipes, setCarregandoEquipes] = useState(false);
   const [resultadosDaProva, setResultadosDaProva] = useState([]);
   const [carregandoResultados, setCarregandoResultados] = useState(false);
+  const [equipeUsuario, setEquipeUsuario] = useState(null);
+  const [mostrarNotasRanking, setMostrarNotasRanking] = useState(false);
 
   // Verificar inscrição e carregar equipes quando o modal abrir
   useEffect(() => {
     if (isOpen && prova) {
       verificarInscricao();
+      carregarConfiguracao();
       // carregarEquipes(); // comentando por enquanto
       if (prova.status === 'CONCLUIDA') {
+        carregarEquipeUsuario();
         carregarResultadosDaProva();
       } else {
         // Garante que dados antigos não sejam mostrados
-        setResultadosDaProva([]); 
+        setResultadosDaProva([]);
+        setEquipeUsuario(null);
       }
     }
   }, [isOpen, prova]);
+
+  const carregarConfiguracao = async () => {
+    try {
+      const config = await configuracoesService.obter();
+      setMostrarNotasRanking(config?.mostrar_notas_ranking || false);
+    } catch (error) {
+      console.error('Erro ao carregar configuração:', error);
+      setMostrarNotasRanking(false);
+    }
+  };
+
+  const carregarEquipeUsuario = async () => {
+    if (!usuario) return;
+
+    try {
+      // Para não-admins, buscar a equipe do usuário
+      if (usuario.tipo !== 'ADMIN') {
+        // Buscar através do endpoint que retorna a equipe do usuário
+        try {
+          const minhaEquipeId = await equipesService.buscarMinhaEquipeId();
+          if (minhaEquipeId?.equipe_id) {
+            // Buscar detalhes da equipe
+            const equipesData = await equipesService.listarEquipes();
+            const equipeDoUsuario = equipesData?.find(eq => 
+              eq.id?.toString() === minhaEquipeId.equipe_id?.toString() ||
+              eq._id?.toString() === minhaEquipeId.equipe_id?.toString()
+            );
+            setEquipeUsuario(equipeDoUsuario || null);
+          } else {
+            setEquipeUsuario(null);
+          }
+        } catch (error) {
+          // Se não encontrou equipe, pode ser que o usuário não esteja em nenhuma
+          setEquipeUsuario(null);
+        }
+      } else {
+        // Para ADMIN, não precisa filtrar
+        setEquipeUsuario(null);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar equipe do usuário:', error);
+      setEquipeUsuario(null);
+    }
+  };
 
   const carregarResultadosDaProva = async () => {
     if (!prova) return;
@@ -326,6 +377,47 @@ const ProvaDetalhesModal = ({ prova, isOpen, onClose, onInscricaoSucesso }) => {
                   </Badge>
                 ))}
               </div>
+
+              {/* Configurações dos Quesitos */}
+              {prova.quesitos_de_avaliacao?.length > 0 && (
+                <div className="mt-4 space-y-3">
+                  {/* Mostrar quesitos mesmo sem configuração completa */}
+                  {prova.quesitos_de_avaliacao?.includes('TEMPO') && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                      <h5 className="font-semibold text-blue-900 mb-2">Tempo de Execução</h5>
+                      {prova.configuracao_quesitos?.TEMPO && prova.configuracao_quesitos.TEMPO.tempo_limite_minutos && prova.configuracao_quesitos.TEMPO.pontuacao_bonus ? (
+                        <div className="text-sm text-blue-800 space-y-1">
+                          <p><strong>Tempo limite:</strong> {prova.configuracao_quesitos.TEMPO.tempo_limite_minutos} minutos</p>
+                          <p><strong>Pontuação extra:</strong> {prova.configuracao_quesitos.TEMPO.pontuacao_bonus} pontos</p>
+                          {prova.configuracao_quesitos.TEMPO.descricao_bonus && (
+                            <p><strong>Descrição:</strong> {prova.configuracao_quesitos.TEMPO.descricao_bonus}</p>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-blue-700 italic">Configuração não definida - quesito marcado mas sem parâmetros específicos.</p>
+                      )}
+                    </div>
+                  )}
+
+                  {prova.quesitos_de_avaliacao?.includes('PRODUTIVIDADE') && (
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                      <h5 className="font-semibold text-green-900 mb-2">Produtividade/Volume</h5>
+                      {prova.configuracao_quesitos?.PRODUTIVIDADE && prova.configuracao_quesitos.PRODUTIVIDADE.unidade_medida && prova.configuracao_quesitos.PRODUTIVIDADE.quantidade_minima && prova.configuracao_quesitos.PRODUTIVIDADE.pontuacao_bonus ? (
+                        <div className="text-sm text-green-800 space-y-1">
+                          <p><strong>Unidade:</strong> {prova.configuracao_quesitos.PRODUTIVIDADE.unidade_medida}</p>
+                          <p><strong>Quantidade mínima:</strong> {prova.configuracao_quesitos.PRODUTIVIDADE.quantidade_minima}</p>
+                          <p><strong>Pontuação extra:</strong> {prova.configuracao_quesitos.PRODUTIVIDADE.pontuacao_bonus} pontos</p>
+                          {prova.configuracao_quesitos.PRODUTIVIDADE.descricao_bonus && (
+                            <p><strong>Descrição:</strong> {prova.configuracao_quesitos.PRODUTIVIDADE.descricao_bonus}</p>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-green-700 italic">Configuração não definida - quesito marcado mas sem parâmetros específicos.</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
@@ -366,37 +458,80 @@ const ProvaDetalhesModal = ({ prova, isOpen, onClose, onInscricaoSucesso }) => {
                       </p>
                     ) : (
                       <div className="space-y-2">
-                        {resultadosDaProva.map((resultado, index) => (
-                          <div
-                            key={resultado.equipe_id || index}
-                            className={`flex items-center justify-between p-3 rounded-lg border ${
-                              index === 0 ? 'bg-yellow-50 border-yellow-300' : 
-                              index === 1 ? 'bg-gray-50 border-gray-300' :
-                              index === 2 ? 'bg-orange-50 border-orange-300' :
-                              'bg-white border-yellow-200' 
-                            }`}
-                          >
-                            <div className="flex items-center gap-3 flex-1">
-                              <span className={`font-bold text-lg min-w-8 ${
-                                index === 0 ? 'text-yellow-600' : 
-                                index === 1 ? 'text-gray-600' : 
-                                index === 2 ? 'text-orange-600' : 
-                                'text-yellow-700'
-                              }`}>
-                                {resultado.posicao || index + 1}º
-                              </span>
-                              <div className="flex items-center gap-2 flex-1">
-                                <span className="font-semibold text-gray-900">{resultado.equipe_nome}</span>
+                        {(() => {
+                          // Filtrar resultados baseado no tipo de usuário
+                          let resultadosFiltrados = [...resultadosDaProva];
+
+                          // Se não é ADMIN e a prova está concluída, mostrar todas as classificações mas apenas pontos da própria equipe
+                          const isAdmin = usuario?.tipo === 'ADMIN';
+                          const provaConcluida = prova.status === 'CONCLUIDA';
+                          const podeMostrarPontos = isAdmin || mostrarNotasRanking;
+                          
+                          // Identificar a equipe do usuário para controle de pontos
+                          let equipeUsuarioId = null;
+                          if (!isAdmin && equipeUsuario) {
+                            equipeUsuarioId = (equipeUsuario._id?.toString() || equipeUsuario._id || equipeUsuario.id?.toString() || equipeUsuario.id).toString();
+                          }
+
+                          if (!isAdmin && provaConcluida && !equipeUsuario) {
+                            // Se não é admin, prova está concluída mas não tem equipe, não mostrar resultados
+                            return (
+                              <div className="text-center py-4">
+                                <p className="text-sm text-yellow-800">
+                                  Você não está vinculado a nenhuma equipe. Entre em contato com o administrador.
+                                </p>
+                              </div>
+                            );
+                          }
+
+                          return resultadosFiltrados.map((resultado, index) => (
+                            <div
+                              key={resultado.equipe_id || index}
+                              className={`flex items-center justify-between p-3 rounded-lg border ${
+                                index === 0 ? 'bg-yellow-50 border-yellow-300' :
+                                index === 1 ? 'bg-gray-50 border-gray-300' :
+                                index === 2 ? 'bg-orange-50 border-orange-300' :
+                                'bg-white border-yellow-200'
+                              }`}
+                            >
+                              <div className="flex items-center gap-3 flex-1">
+                                <span className={`font-bold text-lg min-w-8 ${
+                                  index === 0 ? 'text-yellow-600' :
+                                  index === 1 ? 'text-gray-600' :
+                                  index === 2 ? 'text-orange-600' :
+                                  'text-yellow-700'
+                                }`}>
+                                  {resultado.posicao || index + 1}º
+                                </span>
+                                <div className="flex items-center gap-2 flex-1">
+                                  <span className="font-semibold text-gray-900">{resultado.equipe_nome}</span>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {(() => {
+                                  const resultadoEquipeId = (resultado.equipe_id?.toString() || resultado.equipe_id).toString();
+                                  const eMinhaEquipe = equipeUsuarioId && resultadoEquipeId === equipeUsuarioId;
+                                  const podeMostrarPontosDestaEquipe = podeMostrarPontos || eMinhaEquipe;
+                                  
+                                  if (podeMostrarPontosDestaEquipe) {
+                                    return (
+                                      <span className="text-sm font-medium text-gray-700">
+                                        {resultado.pontos_obtidos || 0} pontos
+                                      </span>
+                                    );
+                                  } else {
+                                    return (
+                                      <span className="text-sm font-medium text-gray-400 italic">
+                                        Pontos ocultos
+                                      </span>
+                                    );
+                                  }
+                                })()}
+                                {index === 0 && <Trophy className="h-5 w-5 text-yellow-600" />}
                               </div>
                             </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-medium text-gray-700">
-                                {resultado.pontos_obtidos || 0} pontos
-                              </span>
-                              {index === 0 && <Trophy className="h-5 w-5 text-yellow-600" />}
-                            </div>
-                          </div>
-                        ))}
+                          ));
+                        })()}
                       </div>
                     )}
                   </>

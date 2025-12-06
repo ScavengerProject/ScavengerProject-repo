@@ -206,7 +206,7 @@ export const listarEquipesGincana = async (req, res) => {
       if (!eg.equipe_id) return null;
 
       return {
-        _id: eg._id, 
+        _id: eg.equipe_id._id, // ✅ CORRIGIDO: Retorna o ID da Equipe, não do EquipeGincana
         nome: eg.equipe_id.nome,
         cor: eg.equipe_id.cor,
         coordenador: eg.coordenador_usuario_id?.nome,
@@ -894,9 +894,17 @@ export const visualizarRankingEquipes = async (req, res) => {
         const isAdmin = req.usuario?.tipo === 'ADMIN';
         const deveMostrarNotas = mostrarNotas || isAdmin;
 
+        console.log('🏆 DEBUG - Buscando ranking de equipes para gincana:', GINCANA_ATUAL_ID);
+
         const rankingRecords = await EquipeGincana.find({ gincana_id: GINCANA_ATUAL_ID })
             .sort({ pontos_acumulados: -1 })
-            .select('equipe_id pontos_acumulados'); 
+            .select('equipe_id pontos_acumulados');
+
+        console.log('🏆 DEBUG - Registros encontrados:', rankingRecords.length);
+        console.log('🏆 DEBUG - Registros detalhados:', JSON.stringify(rankingRecords.map(r => ({
+            equipe_id: r.equipe_id,
+            pontos_acumulados: r.pontos_acumulados
+        })), null, 2)); 
 
         const equipeIds = rankingRecords.map(rec => rec.equipe_id);
         
