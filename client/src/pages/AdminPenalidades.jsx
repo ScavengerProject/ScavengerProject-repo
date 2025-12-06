@@ -40,8 +40,6 @@ export default function Penalidades() {
 
   const handleSubmitPenalidade = async (penalidade) => {
     try {
-      await penalidadesService.criarPenalidade(penalidade);
-      alert("Penalidade criada com sucesso!");
       carregarPenalidades(); // Atualiza lista
     } catch (err) {
       console.error(err);
