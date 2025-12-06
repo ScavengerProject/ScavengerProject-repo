@@ -33,6 +33,10 @@ export const criarPenalidade = async (req, res) => {
     if (isNaN(pontosNumber) || pontosNumber <= 0)
       return res.status(400).json({ message: "Pontos inválidos." });
 
+    if (!descricao || descricao.trim() === "") {
+    return res.status(400).json({ message: "Descrição é obrigatória." });
+  }
+
     const equipeGincana = await EquipeGincana.findById(equipeId);
     if (!equipeGincana) return res.status(404).json({ message: "EquipeGincana não encontrada." });
 
@@ -61,7 +65,7 @@ export const criarPenalidade = async (req, res) => {
       equipe_gincana_id: equipeId,
       participante_id: participanteId || null,
       pontos_removidos: pontosNumber,
-      descricao: descricao || "",
+      descricao: descricao,
     });
 
     await penalidade.save();
