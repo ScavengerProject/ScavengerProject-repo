@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, BookOpen, Mail, CheckCheck, Calendar, X } from 'lucide-react';
+import { Bell, BookOpen, Mail, CheckCheck, Calendar, X, AlertTriangle } from 'lucide-react';
 import { Button } from './ui/button';
 import { notificacoesService } from '../services/api';
 import { toast } from './ui/toast';
@@ -113,6 +113,10 @@ export default function NotificacoesDropdown() {
         return <CheckCheck className="text-green-600" size={16} />;
       case 'COMUNICADO':
         return <Mail className="text-purple-600" size={16} />;
+      
+      case 'PENALIDADE':
+        return <AlertTriangle className="text-red-600" size={16} />;
+
       default:
         return <Bell className="text-gray-600" size={16} />;
     }
@@ -231,4 +235,3 @@ export default function NotificacoesDropdown() {
     </div>
   );
 }
-

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, Check, CheckCheck, Trash2, ArrowLeft, BookOpen, Mail, Calendar } from 'lucide-react';
+import { Bell, Check, CheckCheck, Trash2, ArrowLeft, BookOpen, Mail, Calendar, AlertTriangle } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { toast } from '../components/ui/toast';
@@ -101,6 +101,8 @@ export default function Notificacoes() {
         return <CheckCheck className="text-green-600" size={20} />;
       case 'COMUNICADO':
         return <Mail className="text-purple-600" size={20} />;
+      case 'PENALIDADE':
+        return <AlertTriangle className="text-red-600" size={20} />;
       default:
         return <Bell className="text-gray-600" size={20} />;
     }
@@ -114,6 +116,8 @@ export default function Notificacoes() {
         return 'Resultado';
       case 'COMUNICADO':
         return 'Comunicado';
+      case 'PENALIDADE':
+        return 'Penalidade';
       default:
         return tipo;
     }

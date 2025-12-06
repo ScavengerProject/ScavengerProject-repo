@@ -2,7 +2,7 @@ import Penalidade from "../models/Penalidade.js";
 import EquipeGincana from "../models/EquipeGincana.js";
 import Usuario from "../models/Usuario.js";  
 import EquipeMembros from "../models/EquipeMembros.js";
-
+import { criarNotificacao } from "../notificacoes/notificacaoController.js";
 
 /**
  * 🆕 Função auxiliar para logar todos os dados recebidos ou preenchidos até o momento
@@ -19,14 +19,14 @@ const logFormData = (req, extra = {}, participanteSelecionado = null) => {
 };
 
 /**
- * [POST] Cria uma penalidade e atualiza pontos na EquipeGincana.
- * Body esperado: { equipeId, participanteId?, pontos, descricao }
+ * [POST] Cria uma penalidade, desconta pontos e notifica TODA a equipe.
  */
 export const criarPenalidade = async (req, res) => {
   try {
     const { equipeId, participanteId, pontos, descricao } = req.body;
     const usuarioAtual = req.usuario;
 
+    // ---  VALIDAÇÕES BÁSICAS ---
     if (!equipeId) return res.status(400).json({ message: "ID da equipe é obrigatório." });
 
     const pontosNumber = parseInt(pontos, 10);
@@ -34,32 +34,38 @@ export const criarPenalidade = async (req, res) => {
       return res.status(400).json({ message: "Pontos inválidos." });
 
     if (!descricao || descricao.trim() === "") {
-    return res.status(400).json({ message: "Descrição é obrigatória." });
-  }
-
-    const equipeGincana = await EquipeGincana.findById(equipeId);
-    if (!equipeGincana) return res.status(404).json({ message: "EquipeGincana não encontrada." });
-
-    // Se for COORDENADOR, verifica se ele coordena esta equipe
-    if (usuarioAtual.tipo === 'COORDENADOR' && equipeGincana.coordenador_usuario_id.toString() !== usuarioAtual.id) {
-      return res.status(403).json({ message: "Você não tem permissão para criar penalidades nesta equipe." });
+      return res.status(400).json({ message: "Descrição é obrigatória." });
     }
 
-    // Atualiza pontos da equipe
-    const pontosAtualizados = Math.max(0, (equipeGincana.pontos_acumulados || 0) - pontosNumber);
+    // ---  BUSCAR DADOS DA EQUIPE ---
+    const equipeGincana = await EquipeGincana.findById(equipeId)
+        .populate('equipe_id', 'nome coordenador_usuario_id'); // Pega nome e coord da equipe base
+    
+    if (!equipeGincana) return res.status(404).json({ message: "EquipeGincana não encontrada." });
+
+    // Identificar ID do Coordenador (pode estar na Gincana ou na Equipe Base)
+    const idCoordenador = equipeGincana.coordenador_usuario_id || equipeGincana.equipe_id?.coordenador_usuario_id;
+
+    // Se quem está aplicando for COORDENADOR, verifica se ele é dono desta equipe
+    if (usuarioAtual.tipo === 'COORDENADOR') {
+        if (idCoordenador?.toString() !== usuarioAtual.id) {
+            return res.status(403).json({ message: "Você não tem permissão para penalizar esta equipe." });
+        }
+    }
+
+    // ---  APLICAR PENALIDADE (Descontar Pontos) ---
+    const pontosAtuais = equipeGincana.pontos_acumulados || 0;
+    const pontosAtualizados = Math.max(0, pontosAtuais - pontosNumber);
     equipeGincana.pontos_acumulados = pontosAtualizados;
     await equipeGincana.save();
 
-    // Gera nome
+    // Gerar ID legível (Ex: PEN-20231025-1234)
     const gerarNomePenalidade = () => {
       const d = new Date();
       const rnd = Math.floor(1000 + Math.random() * 9000);
-      return `PEN-${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(
-        d.getDate()
-      ).padStart(2, "0")}-${rnd}`;
+      return `PEN-${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}-${rnd}`;
     };
 
-    // Cria penalidade
     const penalidade = new Penalidade({
       nome: gerarNomePenalidade(),
       equipe_gincana_id: equipeId,
@@ -70,10 +76,57 @@ export const criarPenalidade = async (req, res) => {
 
     await penalidade.save();
 
+    // ---  NOTIFICAÇÃO EM MASSA (COORDENADOR + ALUNOS) ---
+    try {
+        const idBaseEquipe = equipeGincana.equipe_id?._id || equipeGincana.equipe_id;
+        const nomeEquipe = equipeGincana.equipe_id?.nome || "Sua equipe";
+        const remetenteId = usuarioAtual.id.toString();
+
+        
+        const membros = await EquipeMembros.find({ equipe_id: idBaseEquipe }).select('usuario_id');
+        
+        const destinatariosIds = new Set();
+
+        // Adiciona Alunos
+        membros.forEach(m => {
+            if (m.usuario_id) destinatariosIds.add(m.usuario_id.toString());
+        });
+
+        // Adiciona Coordenador
+        if (idCoordenador) {
+            destinatariosIds.add(idCoordenador.toString());
+        }
+
+        // Remove quem está aplicando a penalidade
+        if (destinatariosIds.has(remetenteId)) {
+            destinatariosIds.delete(remetenteId);
+        }
+
+        console.log(`🔔 Enviando notificação de penalidade para ${destinatariosIds.size} pessoas da equipe ${nomeEquipe}.`);
+
+        // Disparar notificações em paralelo
+        const promises = Array.from(destinatariosIds).map(userId => {
+            return criarNotificacao(
+                userId,
+                'PENALIDADE', // Tipo para o ícone vermelho
+                'Penalidade Aplicada ⚠️',
+                `A equipe ${nomeEquipe} perdeu ${pontosNumber} pontos. Motivo: ${descricao}`,
+                null,
+                penalidade._id
+            ).catch(err => console.error(`Erro ao notificar usuário ${userId}:`, err.message));
+        });
+
+        await Promise.all(promises);
+
+    } catch (notifError) {
+        console.error("❌ Erro no envio das notificações (Penalidade criada mesmo assim):", notifError);
+    }
+
     return res.status(201).json({
       ...penalidade.toObject(),
       pontos_restantes: pontosAtualizados,
     });
+
   } catch (err) {
     console.error("Erro criarPenalidade:", err);
     return res.status(500).json({ message: "Erro interno ao criar penalidade.", error: err.message });
