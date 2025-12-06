@@ -146,6 +146,11 @@ export const provasService = {
         pontuacao: dados.pontuacao || {},
       }),
     }),
+  atualizarConfiguracao: (id, dados) =>
+    request(`/provas/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(dados),
+    }),
   deletar: (id) => request(`/provas/${id}`, { method: 'DELETE' }),
   
   // Inscrever usuário na prova

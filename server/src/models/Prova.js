@@ -66,6 +66,7 @@ const ProvaSchema = new mongoose.Schema({
     enum: ['NAO_INICIADA', 'EM_ANDAMENTO', 'CONCLUIDA'],
     default: 'NAO_INICIADA'
   },
+  ocultar_pontos: { type: Boolean, default: false },
   quesitos_de_avaliacao: {
     type: [String],
     enum: ['TEMPO', 'PRODUTIVIDADE'],
