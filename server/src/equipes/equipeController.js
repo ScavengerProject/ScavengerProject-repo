@@ -915,6 +915,10 @@ export const visualizarRankingEquipes = async (req, res) => {
             return map;
         }, {});
 
+        // Calcular posições considerando empates
+        // Equipes com a mesma pontuação devem ter a mesma posição
+        let posicaoAtual = 1;
+        
         const ranking = rankingRecords.map((rec, index) => {
             const equipeIdString = rec.equipe_id.toString();
             const nomeEquipe = equipeNameMap[equipeIdString];
@@ -922,8 +926,22 @@ export const visualizarRankingEquipes = async (req, res) => {
             // Filtra entradas sem nome (caso a equipe tenha sido deletada)
             if (!nomeEquipe) return null;
 
+            // Calcular posição considerando empates
+            // Se é a primeira equipe, sempre é posição 1
+            if (index === 0) {
+                posicaoAtual = 1;
+            } else {
+                // Se a pontuação é diferente da anterior, atualiza a posição
+                const pontuacaoAnterior = rankingRecords[index - 1].pontos_acumulados;
+                if (rec.pontos_acumulados !== pontuacaoAnterior) {
+                    // Posição é baseada no número de equipes acima (index + 1)
+                    posicaoAtual = index + 1;
+                }
+                // Se a pontuação é igual à anterior, mantém a mesma posição (empate)
+            }
+
             const item = {
-                posicao: index + 1, // Posição no ranking
+                posicao: posicaoAtual, // Posição no ranking (considera empates - equipes com mesma pontuação têm mesma posição)
                 nome: nomeEquipe,
                 equipe_id: rec.equipe_id,
             };

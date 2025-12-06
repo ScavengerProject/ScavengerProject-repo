@@ -7,10 +7,10 @@ import os
 import sys
 
 # IMPORTA VARIÁVEIS DO CONFIG
-RAIZ = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-sys.path.insert(0, RAIZ)
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from test.config import (
+
+from config import (
     URL_LOGIN,
     TIMEOUT_MAXIMO,
     DIRETORIO_BASE_SCREENSHOTS,
@@ -55,12 +55,38 @@ try:
     print("Página acessada com sucesso:", navegador.current_url)
     wait.until(EC.element_to_be_clickable((By.XPATH, COMPONENTE_NO_GER_PROVAS))).click()  # Garante que está na página pro scroll
 
-    # ROLAR ATÉ O FINAL DA PÁGINA
-    navegador.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-    print("Scroll até o final da página executado.")
+     # ENCONTRAR A ÚLTIMA PROVA COM BOTÃO DE TROFÉU (provas concluídas)
+    # O botão de troféu tem classes específicas: border-yellow-400 bg-yellow-50 e contém um ícone Trophy
+    # Seletor para encontrar todos os botões de troféu (botões dentro de cards de provas concluídas)
+    seletor_botoes_trofeu = "//button[contains(@class, 'border-yellow-400') and contains(@class, 'bg-yellow-50')]"
+    
+    # Aguarda pelo menos um botão de troféu estar presente
+    wait.until(EC.presence_of_element_located((By.XPATH, seletor_botoes_trofeu)))
+    
+    # Encontra todos os botões de troféu
+    botoes_trofeu = navegador.find_elements(By.XPATH, seletor_botoes_trofeu)
+    
+    if not botoes_trofeu:
+        raise Exception("Nenhum botão de troféu encontrado. Certifique-se de que há pelo menos uma prova concluída.")
+    
+    # Pega o último botão (última prova)
+    botao_ultima_prova = botoes_trofeu[-1]
+    print(f"Encontradas {len(botoes_trofeu)} provas com botão de troféu. Usando a última prova.")
 
-    # CLICA NO BOTÃO DO TROFÉU PARA DAR A PONTUAÇÃO DE 50 PONTO PARA A EQUIPE BETA
-    wait.until(EC.element_to_be_clickable((By.XPATH, "//div[5]//div[1]//div[1]//div[2]//button[1]"))).click()
+    # FAZER SCROLL ATÉ O ÚLTIMO BOTÃO DE TROFÉU
+    navegador.execute_script("arguments[0].scrollIntoView({ behavior: 'smooth', block: 'center' });", botao_ultima_prova)
+    time.sleep(1)  # Aguarda o scroll suave completar
+    
+    # Garantir que está visível fazendo scroll adicional se necessário
+    navegador.execute_script("window.scrollBy(0, -100);")  # Scroll um pouco para cima para garantir visibilidade
+    time.sleep(0.5)
+    print("Scroll até a última prova executado.")
+
+    # CLICA NO BOTÃO DO TROFÉU DA ÚLTIMA PROVA PARA DAR A PONTUAÇÃO DE 50 PONTO PARA A EQUIPE BETA
+    wait.until(EC.element_to_be_clickable(botao_ultima_prova)).click()
+    time.sleep(1)  # Aguarda o modal abrir
+
+    print("Modal de pontuação aberto.")
     wait.until(EC.element_to_be_clickable((By.ID, "equipe-0"))).click()    # CLICA PARA ESCOLHER A EQUIPE NO MODAL DE PONTUAÇÃO
     opcao = wait.until(EC.element_to_be_clickable((By.XPATH, "//span[text()='Beta']"))).click() # Escolhe a equipe beta
     wait.until(EC.element_to_be_clickable((By.XPATH, "(//button[normalize-space()='Salvar Resultados'])[1]"))).click()
@@ -83,37 +109,72 @@ try:
 
     # VOLTA PARA A CENTRAL PARA VERIFICAR O RANKING
     wait.until(EC.element_to_be_clickable((By.XPATH, CENTRAL_DE_INFO_BOTAO))).click()
+    time.sleep(2)  # Aguarda o ranking carregar
 
     # VERIFICAÇÃO DA EQUIPE ALFA
-    seletor_posicao_alfa = "(//span[@class='font-bold text-lg text-yellow-600'])[1]" ##
-    wait.until(EC.visibility_of_element_located((By.XPATH, seletor_posicao_alfa)))
-    seletor_nome_alfa = "(//p[@class='font-semibold text-gray-900'][normalize-space()='Alfa'])[1]"  ##
-    posicao_alfa = navegador.find_element(By.XPATH, seletor_posicao_alfa).text
-    nome_alfa = navegador.find_element(By.XPATH, seletor_nome_alfa).text
+    # Encontra o card que contém "Alfa"
+    seletor_nome_alfa = "//p[normalize-space()='Alfa']"
+    nome_alfa_element = wait.until(EC.visibility_of_element_located((By.XPATH, seletor_nome_alfa)))
+    card_alfa = nome_alfa_element.find_element(By.XPATH, "./ancestor::div[contains(@class, 'rounded-lg')]")
+    
+    # Verifica a posição de Alfa - procura pelo primeiro span que contenha um número
+    # A posição está no primeiro span dentro do div flex items-center
+    posicao_alfa_element = card_alfa.find_element(By.XPATH, ".//div[contains(@class, 'flex items-center')]//span[1]")
+    posicao_alfa = posicao_alfa_element.text.strip()
+    
+    # Verifica se Alfa tem o troféu (ícone Trophy)
+    # O troféu é um SVG com classes text-yellow-600 e shrink-0
+    try:
+        # Procura por SVG dentro de elemento com text-yellow-600 e shrink-0 (características do troféu)
+        trofeu_alfa = card_alfa.find_element(By.XPATH, ".//*[contains(@class, 'text-yellow-600') and contains(@class, 'shrink-0')]//svg")
+        tem_trofeu_alfa = True
+    except:
+        tem_trofeu_alfa = False
+    
+    print(f"Equipe Alfa - Posição: {posicao_alfa}, Tem troféu: {tem_trofeu_alfa}")
 
     # VERIFICAÇÃO DA EQUIPE BETA
-    seletor_posicao_beta = "(//span[@class='font-bold text-lg text-gray-900'])[1]" ##
-    seletor_nome_beta = "(//p[normalize-space()='Beta'])[1]" ##
-    posicao_beta = navegador.find_element(By.XPATH, seletor_posicao_beta).text
-    nome_beta = navegador.find_element(By.XPATH, seletor_nome_beta).text
+    # Encontra o card que contém "Beta"
+    seletor_nome_beta = "//p[normalize-space()='Beta']"
+    nome_beta_element = wait.until(EC.visibility_of_element_located((By.XPATH, seletor_nome_beta)))
+    card_beta = nome_beta_element.find_element(By.XPATH, "./ancestor::div[contains(@class, 'rounded-lg')]")
+    
+    # Verifica a posição de Beta - procura pelo primeiro span que contenha um número
+    # A posição está no primeiro span dentro do div flex items-center
+    posicao_beta_element = card_beta.find_element(By.XPATH, ".//div[contains(@class, 'flex items-center')]//span[1]")
+    posicao_beta = posicao_beta_element.text.strip()
+    
+    # Verifica se Beta tem o troféu (ícone Trophy)
+    # O troféu é um SVG com classes text-yellow-600 e shrink-0
+    try:
+        # Procura por SVG dentro de elemento com text-yellow-600 e shrink-0 (características do troféu)
+        trofeu_beta = card_beta.find_element(By.XPATH, ".//*[contains(@class, 'text-yellow-600') and contains(@class, 'shrink-0')]//svg")
+        tem_trofeu_beta = True
+    except:
+        tem_trofeu_beta = False
+    
+    print(f"Equipe Beta - Posição: {posicao_beta}, Tem troféu: {tem_trofeu_beta}")
 
     # VERIFICAÇÃO DO EMPATE
-    # Esperado: as duas primeiras posições devem ser "1º"
-    if posicao_alfa == "1º" and posicao_beta == "1º":
-        print("C2 (Empate no Ranking): OK — Duas equipes aparecem empatadas em 1º lugar.")
+    # Esperado: ambas as equipes devem ter posição "1º" E ter o troféu
+    if posicao_alfa == "1º" and posicao_beta == "1º" and tem_trofeu_alfa and tem_trofeu_beta:
+        print("C2 (Empate no Ranking): OK — Duas equipes aparecem empatadas em 1º lugar com troféu.")
     else:
-        raise AssertionError(
-            f"C2 (Empate no Ranking): FALHOU — esperado 2 equipes em 1º lugar, posições encontradas: {posicao_alfa} e {posicao_beta}"
-    )
+        erro_msg = f"C2 (Empate no Ranking): FALHOU — "
+        if posicao_alfa != "1º" or posicao_beta != "1º":
+            erro_msg += f"Posições: Alfa={posicao_alfa}, Beta={posicao_beta}. "
+        if not tem_trofeu_alfa or not tem_trofeu_beta:
+            erro_msg += f"Trofeus: Alfa={tem_trofeu_alfa}, Beta={tem_trofeu_beta}."
+        raise AssertionError(erro_msg)
 
     # SUCESSO
     print("\n RESULTADO DO TESTE")
-    print("✅ SUCESSO — Verificação de empate concluída com sucesso.")
+    print("SUCESSO — Verificação de empate concluída com sucesso.")
 
 
 except Exception as e:
     print("\n RESULTADO DO TESTE")
-    print("❌ FALHOU")
+    print("FALHOU")
     print("Erro:", e)
 
     if 'navegador' in locals():
