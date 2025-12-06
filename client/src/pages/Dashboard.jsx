@@ -228,17 +228,19 @@ const Dashboard = () => {
       let indexPosicao = -1; // Guardar o índice
 
       // Garantir que os dados existem antes de procurar
-      if (usuarioEquipeId && ranking && ranking.length > 0) {
-        indexPosicao = ranking.findIndex(eq => eq.equipe_id === usuarioEquipeId);
-        
-        if (indexPosicao !== -1) {
-          minhaPosicao = `${indexPosicao + 1}º`;
-        }
-      }
+     if (usuarioEquipeId && ranking && ranking.length > 0) {
+       indexPosicao = ranking.findIndex(eq => eq.equipe_id === usuarioEquipeId);
+       
+       if (indexPosicao !== -1) {
+         // Usar a posição do backend que já considera empates
+         const minhaEquipeNoRanking = ranking[indexPosicao];
+         minhaPosicao = `${minhaEquipeNoRanking.posicao}º`;
+       }
+     }
 
 
       // 2. Encontrar os DADOS da minha equipe (nome, pontos)
-      const minhaEquipeInfo = (indexPosicao !== -1) ? ranking[indexPosicao] : null;
+     const minhaEquipeInfo = (indexPosicao !== -1) ? ranking[indexPosicao] : null;
 
 
       // Para alunos, professores, coordenadores, pais
@@ -417,22 +419,24 @@ const Dashboard = () => {
                       <p className="text-sm sm:text-base">Nenhuma equipe cadastrada</p>
                     </div>
                   ) : (
-                    rankingExibicao.slice(0, 5).map((equipe, index) => (
+                    rankingExibicao.slice(0, 5).map((equipe, index) => {
+                      const isPrimeiroLugar = equipe.posicao === 1;
+                      return (
                       <div 
                         key={equipe.equipe_id} // Agora usa equipe_id da API de ranking
                         className={`flex items-center justify-between p-3 sm:p-4 rounded-lg border gap-2 ${
                             usuarioEquipeId && equipe.equipe_id === usuarioEquipeId                            
                             ? 'bg-blue-50 border-blue-200' 
-                            : index === 0
+                            : isPrimeiroLugar
                               ? 'bg-yellow-50 border-yellow-200'
                               : 'bg-gray-50 border-gray-200'
                         }`}
                       >
                         <div className="flex items-center gap-3 overflow-hidden flex-1">
                           <span className={`font-bold text-lg sm:text-xl shrink-0 ${
-                            index === 0 ? 'text-yellow-600' : 'text-gray-900'
+                            isPrimeiroLugar ? 'text-yellow-600' : 'text-gray-900'
                           }`}>
-                            {index + 1}º
+                            {equipe.posicao}º
                           </span>
                           <div className="overflow-hidden flex-1">
                             <p className="font-semibold text-sm sm:text-base text-gray-900 break-words">
@@ -446,9 +450,10 @@ const Dashboard = () => {
                             )}
                           </div>
                         </div>
-                        {index === 0 && <Trophy className="h-5 w-5 sm:h-6 sm:w-6 text-yellow-600 shrink-0" />}
+                        {isPrimeiroLugar && <Trophy className="h-5 w-5 sm:h-6 sm:w-6 text-yellow-600 shrink-0" />}
                       </div>
-                    ))
+                      );
+                    })
                   )}
                 </CardContent>
               </Card>
