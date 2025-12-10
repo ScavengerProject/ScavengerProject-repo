@@ -99,69 +99,47 @@ export const listarMigracoesPendentes = async (req, res) => {
 
 /**
  * POST /api/equipes/migracoes/solicitar
- * body: { equipe_destino_id, motivo }
  */
 export const solicitarMigracao = async (req, res) => {
   try {
     const me = req.usuario;
     const { equipe_destino_id, motivo } = req.body;
 
-    if (!equipe_destino_id) {
-      return res
-        .status(400)
-        .json({ message: 'equipe_destino_id é obrigatório.' });
-    }
-    if (!motivo || !String(motivo).trim()) {
-      return res.status(400).json({ message: 'motivo é obrigatório.' });
-    }
+    if (!equipe_destino_id) return res.status(400).json({ message: 'equipe_destino_id é obrigatório.' });
+    if (!motivo || !String(motivo).trim()) return res.status(400).json({ message: 'motivo é obrigatório.' });
 
-    // valida existencia da equipe (coleção Equipe)
     const equipeDestino = await Equipe.findById(equipe_destino_id);
-    if (!equipeDestino) {
-      return res
-        .status(404)
-        .json({ message: 'Equipe de destino não encontrada.' });
-    }
+    if (!equipeDestino) return res.status(404).json({ message: 'Equipe de destino não encontrada.' });
 
-    // encontra o registro EquipeGincana da equipe destino
     const egDestino = await EquipeGincana.findOne({ equipe_id: equipe_destino_id });
-    if (!egDestino) {
-      return res
-        .status(404)
-        .json({ message: 'Equipe destino não está associada a uma gincana.' });
-    }
+    if (!egDestino) return res.status(404).json({ message: 'Equipe destino não está associada a uma gincana.' });
 
-    // encontra de qual equipe-gincana o usuário participa
     const membroAtual = await EquipeMembro.findOne({ usuario_id: me.id });
-    if (!membroAtual) {
-      return res
-        .status(422)
-        .json({ message: 'Você não pertence a nenhuma equipe no momento.' });
+    if (!membroAtual) return res.status(422).json({ message: 'Você não pertence a nenhuma equipe no momento.' });
+
+    // corrigido aqui que não tava achando o id correto da equipe gincana e para comparar com o id do coord
+    const egOrigem = await EquipeGincana.findOne({ equipe_id: membroAtual.equipe_id });
+    
+    if (!egOrigem) {
+       return res.status(404).json({ message: 'Sua equipe atual não está vinculada à gincana ativa.' });
     }
 
-    // ✅ Verifica se já existe uma solicitação PENDENTE para este usuário
     const solicitacaoPendente = await MigracaoEquipe.findOne({
       usuario_id: me.id,
       status: 'PENDENTE'
     });
-
     if (solicitacaoPendente) {
-      return res
-        .status(409)
-        .json({ message: 'Você já possui uma solicitação de migração pendente. Aguarde a decisão do coordenador.' });
+      return res.status(409).json({ message: 'Você já possui uma solicitação pendente.' });
     }
 
-    // ✅ Verifica se o usuário está tentando migrar para a própria equipe
-    if (membroAtual.equipe_id.toString() === egDestino._id.toString()) {
-      return res
-        .status(400)
-        .json({ message: 'Você já faz parte desta equipe.' });
+    if (egOrigem._id.toString() === egDestino._id.toString()) {
+      return res.status(400).json({ message: 'Você já faz parte desta equipe.' });
     }
 
     const doc = await MigracaoEquipe.create({
       usuario_id: me.id,
-      equipe_origem_id: membroAtual.equipe_id, // _id de EquipeGincana
-      equipe_destino_id: egDestino._id,        // _id de EquipeGincana
+      equipe_origem_id: egOrigem._id, // agr salva o ID correto que o coordenador procura
+      equipe_destino_id: egDestino._id,
       motivo,
       solicitado_por: me.id,
       status: 'PENDENTE',
@@ -170,9 +148,7 @@ export const solicitarMigracao = async (req, res) => {
     const result = await MigracaoEquipe.findById(doc._id).populate(basePopulate);
     return res.status(201).json(result);
   } catch (error) {
-    return res
-      .status(500)
-      .json({ message: 'Erro ao solicitar migração.', error: error.message });
+    return res.status(500).json({ message: 'Erro ao solicitar migração.', error: error.message });
   }
 };
 
