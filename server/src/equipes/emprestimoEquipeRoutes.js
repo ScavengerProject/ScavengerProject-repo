@@ -12,6 +12,6 @@ router.post('/', proteger, autorizar('ADMIN'), criarEmprestimo);
 router.get('/', proteger, autorizar('ADMIN', 'COORDENADOR'), listarEmprestimos);
 
 // Admin encerra empréstimo
-router.patch('/:id/encerrar', proteger, autorizar('ADMIN'), encerrarEmprestimo);
+router.patch('/:id/encerrar', proteger, autorizar('ADMIN','COORDENADOR'), encerrarEmprestimo);
 
 export default router;
