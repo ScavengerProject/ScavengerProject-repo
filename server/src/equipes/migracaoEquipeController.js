@@ -4,6 +4,8 @@ import Equipe from '../models/Equipe.js';
 import EquipeGincana from '../models/EquipeGincana.js';
 import EquipeMembro from '../models/EquipeMembros.js';
 
+const GINCANA_ATUAL_ID = 'GINCANA_PRINCIPAL';
+
 // Campos comuns de populate para devolver nomes/cores no front
 const basePopulate = [
   { path: 'usuario_id', select: 'nome email tipo' },
@@ -117,9 +119,12 @@ export const solicitarMigracao = async (req, res) => {
     const membroAtual = await EquipeMembro.findOne({ usuario_id: me.id });
     if (!membroAtual) return res.status(422).json({ message: 'Você não pertence a nenhuma equipe no momento.' });
 
-    // corrigido aqui que não tava achando o id correto da equipe gincana e para comparar com o id do coord
-    const egOrigem = await EquipeGincana.findOne({ equipe_id: membroAtual.equipe_id });
-    
+    // Verifica se a equipe atual do usuário está na gincana ativa
+    const egOrigem = await EquipeGincana.findOne({
+      _id: membroAtual.equipe_id,
+      gincana_id: GINCANA_ATUAL_ID
+    });
+
     if (!egOrigem) {
        return res.status(404).json({ message: 'Sua equipe atual não está vinculada à gincana ativa.' });
     }
@@ -192,10 +197,36 @@ export const decidirMigracao = async (req, res) => {
     }
 
     if (aprovar) {
-      await EquipeMembro.updateOne(
+      // Verificar se o membro existe antes de atualizar
+      const membroExistente = await EquipeMembro.findOne({ usuario_id: mig.usuario_id });
+      if (!membroExistente) {
+        return res.status(422).json({
+          message: 'Membro não encontrado na equipe atual. Migração não pode ser processada.'
+        });
+      }
+
+      console.log('Migração aprovada - Atualizando EquipeMembro:', {
+        usuario_id: mig.usuario_id,
+        equipe_atual: membroExistente.equipe_id,
+        equipe_destino: mig.equipe_destino_id
+      });
+
+      // Atualizar a equipe do membro
+      const resultadoUpdate = await EquipeMembro.updateOne(
         { usuario_id: mig.usuario_id },
         { $set: { equipe_id: mig.equipe_destino_id } }
       );
+
+      console.log('Resultado do update EquipeMembro:', resultadoUpdate);
+
+      // Verificar se a atualização foi bem-sucedida
+      const membroAtualizado = await EquipeMembro.findOne({ usuario_id: mig.usuario_id });
+      if (!membroAtualizado || membroAtualizado.equipe_id.toString() !== mig.equipe_destino_id.toString()) {
+        return res.status(500).json({
+          message: 'Falha ao atualizar a equipe do membro. Migração não foi concluída.'
+        });
+      }
+
       mig.status = 'APROVADA';
     } else {
       mig.status = 'REJEITADA';
