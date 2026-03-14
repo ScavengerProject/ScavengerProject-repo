@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Label } from "./ui/label";
-import { Input } from "./ui/Input";
+import { Input } from "./ui/input";
 import { Checkbox } from "./ui/checkbox";
 import { Users, Infinity, CheckCircle, XCircle, Lock } from "lucide-react";
 

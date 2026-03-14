@@ -4,7 +4,7 @@ import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from '../components/ui/dialog';
 import { Label } from '../components/ui/label';
-import { Input } from '../components/ui/Input';
+import { Input } from '../components/ui/input';
 import { Plus, Users, ArrowLeft, UserPlus, Zap, Trash2, Edit } from 'lucide-react'; 
 import { toast } from '../components/ui/toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';

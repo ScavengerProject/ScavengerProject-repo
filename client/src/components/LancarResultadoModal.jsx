@@ -15,7 +15,7 @@ import {
   SelectValue,
 } from "./ui/select";
 import { Button } from "./ui/button";
-import { Input } from "./ui/Input";
+import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Loader, Trash2, Plus, Trophy } from "lucide-react";
 import { equipesService, resultadosService } from "../services/api";

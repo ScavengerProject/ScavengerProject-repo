@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../components/ui/dialog';
-import { Input } from '../components/ui/Input';
+import { Input } from '../components/ui/input';
 import { toast } from '../components/ui/toast';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
