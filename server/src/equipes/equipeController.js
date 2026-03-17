@@ -79,7 +79,7 @@ export const listarEquipes = async (req, res) => {
             if (!rec.equipe_id) return null;
 
             // Busca o total de membros na tabela correta
-            const total_membros = await EquipeMembros.countDocuments({ equipe_id: rec.equipe_id._id });
+            const total_membros = await EquipeMembros.countDocuments({ equipe_id: rec._id });
 
             return {
                 id: rec.equipe_id._id,
@@ -612,10 +612,10 @@ export const atualizarEquipe = async (req, res) => {
         await Promise.all(updates);
 
         // 6. Busca a equipe atualizada e populada para o frontend
-        const total_membros = await EquipeMembros.countDocuments({ equipe_id: equipeId });
         const equipeFinalPop = await EquipeGincana.findOne({ equipe_id: equipeId })
             .populate('equipe_id', 'nome cor')
             .populate('coordenador_usuario_id', 'nome email');
+        const total_membros = await EquipeMembros.countDocuments({ equipe_id: equipeFinalPop._id });
             
         const equipeFormatada = {
             id: equipeId,
@@ -737,10 +737,10 @@ export const atribuirCoordenador = async (req, res) => {
     await Promise.all(updates);
 
     // 4) Monta resposta populada para o frontend (igual ao padrão que você já usa)
-    const total_membros = await EquipeMembros.countDocuments({ equipe_id: equipeId });
     const equipeFinalPop = await EquipeGincana.findOne({ equipe_id: equipeId })
       .populate('equipe_id', 'nome cor')
       .populate('coordenador_usuario_id', 'nome email');
+    const total_membros = await EquipeMembros.countDocuments({ equipe_id: equipeFinalPop._id });
 
     const equipeFormatada = {
       id: equipeId,
@@ -781,8 +781,8 @@ export const listarEquipesParaInscricao = async (req, res) => {
     const equipes = await Promise.all(gincanaRecords.map(async (rec) => {
       if (!rec.equipe_id) return null;
 
-      const total_membros = await EquipeMembros.countDocuments({ equipe_id: rec.equipe_id._id });
-      const isMinhaEquipe = equipeAtualId && rec.equipe_id._id.toString() === equipeAtualId;
+      const total_membros = await EquipeMembros.countDocuments({ equipe_id: rec._id });
+      const isMinhaEquipe = equipeAtualId && rec._id.toString() === equipeAtualId;
 
       return {
         id: rec.equipe_id._id,
