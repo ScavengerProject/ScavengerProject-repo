@@ -2,6 +2,7 @@ import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth.jsx';
 import Login from './pages/Login';
+import CadastroUsuario from './pages/CadastroUsuario';
 import Dashboard from './pages/Dashboard';
 import TodasProvas from './pages/TodasProvas';
 import MinhasInscricoes from './pages/MinhasInscricoes';
@@ -66,6 +67,13 @@ function App() {
             <Navigate to="/login" replace />
           )}
         />
+
+        {/* Inscrição de Usuário: se autenticado, manda para dashboard */}
+        <Route
+          path="/inscricao"
+          element={isAuthenticated ? <Navigate to="/" replace /> : <CadastroUsuario />}
+        />
+
 
         {/* Todas as Provas - acessível a todos os usuários autenticados */}
         <Route

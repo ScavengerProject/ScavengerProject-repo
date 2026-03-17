@@ -493,6 +493,13 @@ export const usuariosService = {
       body: JSON.stringify(dados),
     }),
 
+  // Registrar novo usuário (sem autenticação, para inscrições)
+  registrar: (dados) =>
+    request('/usuarios/registro', {
+      method: 'POST',
+      body: JSON.stringify(dados),
+    }),
+
   // Atualizar usuário existente
   atualizar: (id, dados) =>
     request(`/usuarios/${id}`, {
