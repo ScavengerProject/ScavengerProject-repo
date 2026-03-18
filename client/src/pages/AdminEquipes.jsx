@@ -37,6 +37,10 @@ const AdminEquipes = () => {
     const [membrosView, setMembrosView] = useState([]); 
     const [isViewMembersOpen, setIsViewMembersOpen] = useState(false);
     const [currentEquipe, setCurrentEquipe] = useState(null); 
+
+    // Estado do modal de CONFIRMAÇÃO DE EXCLUSÃO
+    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+    const [equipeToDelete, setEquipeToDelete] = useState(null);
     
     // Estado do modal de ADICIONAR MEMBRO
     const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
@@ -215,23 +219,26 @@ const AdminEquipes = () => {
         return (r * 299 + g * 587 + b * 114) / 1000 < 128;
     };
     
-    const handleDeleteEquipe = async (equipeId, equipeNome) => {
-        if (!window.confirm(`Tem certeza que deseja excluir a equipe "${equipeNome}"? Esta ação é irreversível!`)) {
-            return;
-        }
+    const openDeleteDialog = (equipe) => {
+        setEquipeToDelete(equipe);
+        setIsDeleteDialogOpen(true);
+    };
+
+    const handleDeleteEquipe = async () => {
+        if (!equipeToDelete) return;
+        const equipeId = equipeToDelete.id || equipeToDelete._id;
 
         try {
             await equipesService.deletarEquipe(equipeId);
-
             setEquipes(prev => prev.filter(e => e.id !== equipeId && e._id !== equipeId));
-            
-            toast.success(`Equipe "${equipeNome}" excluída com sucesso!`);
-            
-            fetchMembros(); 
+            toast.success(`Equipe "${equipeToDelete.nome}" excluída com sucesso!`);
+            fetchMembros();
             fetchCoordenadores();
         } catch (error) {
-            const msg = error.message || 'Erro ao excluir a equipe.';
-            toast.error(msg);
+            toast.error(error.message || 'Erro ao excluir a equipe.');
+        } finally {
+            setIsDeleteDialogOpen(false);
+            setEquipeToDelete(null);
         }
     };
 
@@ -404,8 +411,8 @@ const AdminEquipes = () => {
                                         <Button 
                                             size="sm" 
                                             variant="ghost" 
-                                            className="text-red-600 hover:bg-red-50 text-xs" 
-                                            onClick={() => handleDeleteEquipe(equipe.id || equipe._id, equipe.nome)}
+                                            className="text-red-600 border-red-300 hover:bg-red-50 text-xs" 
+                                            onClick={() => openDeleteDialog(equipe)}
                                         >
                                             <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
                                         </Button>
@@ -545,6 +552,39 @@ const AdminEquipes = () => {
                         <DialogFooter>
                             <Button onClick={handleAddMember} disabled={!selectedUsuarioId} className="bg-blue-600">
                                 Adicionar à Equipe
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+
+                {/* Diálogo de Confirmação de Exclusão */}
+                <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+                    <DialogContent className="sm:max-w-[420px]">
+                        <DialogHeader>
+                            <DialogTitle className="flex items-center gap-2 text-red-600">
+                                <Trash2 className="h-5 w-5" />
+                                Excluir Equipe
+                            </DialogTitle>
+                            <DialogDescription className="pt-2">
+                                Tem certeza que deseja excluir a equipe{' '}
+                                <span className="font-semibold text-gray-800">"{equipeToDelete?.nome}"</span>?
+                                <br />
+                                <span className="text-red-500 text-sm mt-1 block">Esta ação é irreversível e removerá todos os dados da equipe.</span>
+                            </DialogDescription>
+                        </DialogHeader>
+                        <DialogFooter className="gap-2 sm:gap-0">
+                            <Button
+                                variant="outline"
+                                onClick={() => setIsDeleteDialogOpen(false)}
+                            >
+                                Cancelar
+                            </Button>
+                            <Button
+                                className="bg-red-600 hover:bg-red-700 text-white"
+                                onClick={handleDeleteEquipe}
+                            >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Sim, excluir
                             </Button>
                         </DialogFooter>
                     </DialogContent>
