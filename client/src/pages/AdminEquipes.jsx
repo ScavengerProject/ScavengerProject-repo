@@ -205,6 +205,15 @@ const AdminEquipes = () => {
             toast.error(msg);
         }
     };
+
+    const isColorDark = (hex) => {
+        const color = hex.replace('#', '');
+        const r = parseInt(color.substring(0, 2), 16);
+        const g = parseInt(color.substring(2, 4), 16);
+        const b = parseInt(color.substring(4, 6), 16);
+        // Fórmula de luminância percebida
+        return (r * 299 + g * 587 + b * 114) / 1000 < 128;
+    };
     
     const handleDeleteEquipe = async (equipeId, equipeNome) => {
         if (!window.confirm(`Tem certeza que deseja excluir a equipe "${equipeNome}"? Esta ação é irreversível!`)) {
@@ -307,8 +316,28 @@ const AdminEquipes = () => {
                                     <Input id="nome" value={newEquipeData.nome} onChange={(e) => setNewEquipeData({...newEquipeData, nome: e.target.value})} placeholder="Ex: Equipe Falcão" required />
                                 </div>
                                 <div className="grid gap-2">
-                                    <Label htmlFor="cor">Cor (Código HEX)</Label>
-                                    <Input id="cor" type="text" value={newEquipeData.cor} onChange={(e) => setNewEquipeData({...newEquipeData, cor: e.target.value})} placeholder="#33FF57" required />
+                                    <Label htmlFor="cor">Cor da Equipe</Label>
+                                    <div className="flex items-center gap-3">
+                                        <input
+                                            id="cor"
+                                            type="color"
+                                            value={newEquipeData.cor || '#3b82f6'}
+                                            onChange={(e) => setNewEquipeData({...newEquipeData, cor: e.target.value})}
+                                            className="h-10 w-14 rounded-md border border-input cursor-pointer p-1"
+                                            required
+                                        />
+                                        <div
+                                            className="flex-1 h-10 rounded-md border border-gray-200 flex items-center px-3 gap-2"
+                                            style={{ backgroundColor: newEquipeData.cor || '#3b82f6' }}
+                                        >
+                                            <span
+                                                className="text-xs font-mono font-semibold drop-shadow"
+                                                style={{ color: isColorDark(newEquipeData.cor || '#3b82f6') ? '#fff' : '#000' }}
+                                            >
+                                                {newEquipeData.cor || '#3b82f6'}
+                                            </span>
+                                        </div>
+                                    </div>
                                 </div>
                                 <DialogFooter className="mt-4">
                                     <Button type="submit" className="bg-blue-600">
