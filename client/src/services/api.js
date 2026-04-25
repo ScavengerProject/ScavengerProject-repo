@@ -167,6 +167,17 @@ export const provasService = {
   // Listar participantes de uma prova
   listarParticipantes: (provaId) =>
     request(`/provas/${provaId}/participantes`, { method: 'GET' }),
+
+  // Coordenador: listar membros da própria equipe inscritos na prova e definição atual
+  obterEquipeParticipante: (provaId) =>
+    request(`/provas/${provaId}/equipe-participante`, { method: 'GET' }),
+
+  // Coordenador: salvar titulares e suplentes da própria equipe para a prova
+  salvarEquipeParticipante: (provaId, dados) =>
+    request(`/provas/${provaId}/equipe-participante`, {
+      method: 'PUT',
+      body: JSON.stringify(dados),
+    }),
 };
 
 /**
