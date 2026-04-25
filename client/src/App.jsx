@@ -28,6 +28,7 @@ import AdminAprovarSolicitacoes from './pages/AdminAprovarSolicitacoes.jsx';
 import CoordOferecerMembros from './pages/CoordOferecerMembros.jsx';
 import CoordGerenciarOfertas from './pages/CoordGerenciarOfertas.jsx';
 import CoordGerenciarEmprestimos from './pages/CoordGerenciarEmprestimos.jsx';
+import CoordDefinirParticipacaoProva from './pages/CoordDefinirParticipacaoProva.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
 
 function App() {
@@ -245,6 +246,16 @@ function App() {
           element={
             isAuthenticated
               ? (usuario.tipo === 'COORDENADOR' ? <CoordGerenciarEmprestimos /> : <Navigate to="/" replace />)
+              : <Navigate to="/login" replace />
+          }
+        />
+
+        {/* Coordenador: Definir titulares/suplentes para prova */}
+        <Route
+          path="/coord/provas/participacao"
+          element={
+            isAuthenticated
+              ? (usuario.tipo === 'COORDENADOR' ? <CoordDefinirParticipacaoProva /> : <Navigate to="/" replace />)
               : <Navigate to="/login" replace />
           }
         />
