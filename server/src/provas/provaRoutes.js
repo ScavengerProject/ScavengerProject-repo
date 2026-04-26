@@ -10,6 +10,10 @@ import {
   atualizarProva,   
   deletarProva     
 } from './provaController.js';
+import {
+  listarEquipeParticipanteDaProva,
+  salvarEquipeParticipanteDaProva,
+} from './provaParticipacaoController.js';
 import { proteger, autorizar } from '../auth/authPermissions.js';
 
 const router = express.Router();
@@ -24,6 +28,8 @@ router.post('/', proteger, autorizar('ADMIN'), criarProva);
 router.patch('/:id/requisito-usuario', proteger, autorizar('ADMIN'), atualizarRequisitoUsuario);
 router.post('/:id/inscricoes', proteger, autorizar('ADMIN','COORDENADOR','ALUNO','PROFESSOR','PAI/MÃE'), inscreverUsuarioNaProva);
 router.get('/:id/participantes', proteger, autorizar('ADMIN','COORDENADOR','PROFESSOR'), listarParticipantes);
+router.get('/:id/equipe-participante', proteger, autorizar('COORDENADOR'), listarEquipeParticipanteDaProva);
+router.put('/:id/equipe-participante', proteger, autorizar('COORDENADOR'), salvarEquipeParticipanteDaProva);
 router.put('/:id', proteger, autorizar('ADMIN'), atualizarProva);
 router.delete('/:id', proteger, autorizar('ADMIN'), deletarProva);
 

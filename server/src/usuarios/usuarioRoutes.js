@@ -3,6 +3,7 @@ import {
   listarUsuarios,
   obterUsuario,
   criarUsuario,
+  registrarUsuario,
   atualizarUsuario,
   deletarUsuario,
   alternarStatusUsuario,
@@ -11,6 +12,9 @@ import {
 import { proteger, autorizar } from '../auth/authPermissions.js';
 
 const router = express.Router();
+
+// Rota pública para registro de novos usuários (sem autenticação)
+router.post('/registro', registrarUsuario);
 
 // Todas as rotas requerem autenticação e permissão de ADMIN
 router.get('/estatisticas', proteger, autorizar('ADMIN'), obterEstatisticas);

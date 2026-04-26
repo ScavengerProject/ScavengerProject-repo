@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node src/index.js",
+    "worker": "node src/notificacoes/emailWorker.js",
     "test": "jest"
   },
   "keywords": [],
@@ -13,12 +14,13 @@
   "description": "",
   "dependencies": {
     "bcryptjs": "^3.0.2",
+    "bullmq": "^5.71.1",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.19.2",
-    "nodemailer": "^6.9.8"
+    "nodemailer": "^6.10.1"
   },
   "devDependencies": {
     "@babel/core": "^7.28.5",

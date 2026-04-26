@@ -121,6 +121,11 @@ export default function Sidebar({ usuario, isOpen, onToggle, isMobile }) {
           title: 'Acessar Equipe',
           path: '/minha-equipe',
         },
+        {
+          id: 'definir-participacao-prova',
+          title: 'Definir Titulares da Prova',
+          path: '/coord/provas/participacao',
+        },
         // {
         //   id: 'migracoes-pendentes',
         //   title: 'Solicitações de migração',

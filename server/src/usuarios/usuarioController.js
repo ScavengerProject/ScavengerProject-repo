@@ -115,6 +115,57 @@ export const criarUsuario = async (req, res) => {
 };
 
 /**
+ * Auto-cadastro público (sem autenticação)
+ */
+export const registrarUsuario = async (req, res) => {
+  try {
+    const { nome, email, senha, telefone, matricula } = req.body;
+
+    if (!nome || !email || !senha) {
+      return res.status(400).json({
+        message: 'Campos nome, email e senha são obrigatórios.'
+      });
+    }
+
+    const usuarioExistente = await Usuario.findOne({ email: email.toLowerCase() });
+    if (usuarioExistente) {
+      return res.status(409).json({ message: 'Este email já está cadastrado.' });
+    }
+
+    if (matricula) {
+      const matriculaExistente = await Usuario.findOne({ matricula });
+      if (matriculaExistente) {
+        return res.status(409).json({ message: 'Esta matrícula já está cadastrada.' });
+      }
+    }
+
+    const novoUsuario = new Usuario({
+      nome,
+      email: email.toLowerCase(),
+      senha,
+      telefone: telefone || null,
+      tipo: 'ALUNO',       
+      turma: null,
+      matricula: matricula || null,
+      status: 'ATIVO'   
+    });
+
+    await novoUsuario.save();
+
+    const usuarioResposta = novoUsuario.toObject();
+    delete usuarioResposta.senha;
+
+    res.status(201).json({
+      message: 'Cadastro enviado para aprovação!',
+      usuario: usuarioResposta
+    });
+  } catch (error) {
+    console.error('Erro ao registrar usuário:', error);
+    res.status(500).json({ message: 'Erro ao registrar usuário.', error: error.message });
+  }
+};
+
+/**
  * Atualizar usuário existente
  */
 export const atualizarUsuario = async (req, res) => {
