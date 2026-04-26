@@ -1,5 +1,7 @@
 import Notificacao from '../models/Notificacao.js';
+import { emailQueue } from './emailQueue.js';
 import Usuario from '../models/Usuario.js';
+import Prova from '../models/Prova.js';
 
 /**
  * Listar notificações do usuário autenticado
@@ -164,7 +166,15 @@ export const deletarNotificacao = async (req, res) => {
  * @param {string} referenciaId - ID de referência (feedback, etc.) (opcional)
  * @returns {Promise<Object>} - Notificação criada
  */
-export const criarNotificacao = async (usuarioId, tipo, titulo, mensagem, provaId = null, referenciaId = null) => {
+
+export const criarNotificacao = async (
+  usuarioId,
+  tipo,
+  titulo,
+  mensagem,
+  provaId = null,
+  referenciaId = null
+) => {
   try {
     const notificacao = new Notificacao({
       usuario_id: usuarioId,
@@ -178,7 +188,24 @@ export const criarNotificacao = async (usuarioId, tipo, titulo, mensagem, provaI
     });
 
     const notificacaoSalva = await notificacao.save();
+
+    await emailQueue.add('enviar-email', {
+      notificacaoId: notificacaoSalva._id,
+      usuarioId,
+      tipo,
+      provaId,
+      titulo,
+      mensagem
+    }, {
+      attempts: 3, // retry automático
+      backoff: {
+        type: 'exponential',
+        delay: 5000
+      }
+    });
+
     return notificacaoSalva;
+
   } catch (error) {
     console.error('Erro ao criar notificação:', error);
     throw error;
