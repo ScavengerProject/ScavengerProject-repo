@@ -80,6 +80,8 @@ const ProvaSchema = new mongoose.Schema({
   sequenciamento: { type: SequenciamentoSchema, default: () => ({}) },
   configuracao_quesitos: { type: ConfiguracaoQuesitosSchema, default: () => ({}) },
   
+  proibir_membros_consecutivos: { type: Boolean, default: false },
+
   criado_por_usuario_id: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Usuario',

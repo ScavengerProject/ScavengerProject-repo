@@ -113,7 +113,7 @@ export const provasService = {
   criar: (dados) =>
     request('/provas', {
       method: 'POST',
-      body: JSON.stringify({ 
+      body: JSON.stringify({
         titulo: dados.titulo,
         descricao: dados.descricao,
         formato: dados.formato,
@@ -126,12 +126,13 @@ export const provasService = {
         criterio_elegibilidade: dados.criterio_elegibilidade || {},
         sequenciamento: dados.sequenciamento || {},
         pontuacao: dados.pontuacao || {},
+        proibir_membros_consecutivos: dados.proibir_membros_consecutivos || false,
       }),
     }),
   atualizar: (id, dados) =>
     request(`/provas/${id}`, {
       method: 'PUT',
-      body: JSON.stringify({ 
+      body: JSON.stringify({
         titulo: dados.titulo,
         descricao: dados.descricao,
         formato: dados.formato,
@@ -144,6 +145,7 @@ export const provasService = {
         criterio_elegibilidade: dados.criterio_elegibilidade || {},
         sequenciamento: dados.sequenciamento || {},
         pontuacao: dados.pontuacao || {},
+        proibir_membros_consecutivos: dados.proibir_membros_consecutivos || false,
       }),
     }),
   atualizarConfiguracao: (id, dados) =>
@@ -521,9 +523,16 @@ export const usuariosService = {
   // Deletar usuário
   deletar: (id) => request(`/usuarios/${id}`, { method: 'DELETE' }),
 
-  // Alternar status (ATIVO/INATIVO)
+  // Alternar status (ATIVO/INATIVO) - mantém comportamento de toggle
   alternarStatus: (id) =>
     request(`/usuarios/${id}/status`, { method: 'PATCH' }),
+
+  // Definir status diretamente (ATIVO, INATIVO, BANIDO, SUSPENSO)
+  definirStatus: (id, status) =>
+    request(`/usuarios/${id}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    }),
 
   // Obter estatísticas
   obterEstatisticas: () => request('/usuarios/estatisticas', { method: 'GET' }),

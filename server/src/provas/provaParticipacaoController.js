@@ -3,12 +3,13 @@ import EquipeGincana from '../models/EquipeGincana.js';
 import EquipeMembros from '../models/EquipeMembros.js';
 import ProvaUsuario from '../models/ProvaUsuario.js';
 import ProvaEquipeParticipacao from '../models/ProvaEquipeParticipacao.js';
+import Usuario from '../models/Usuario.js';
 
 const toUniqueStrings = (arr) => Array.from(new Set((arr || []).map((item) => String(item))));
 
 async function carregarContextoCoordenadorParaProva(coordenadorId, provaId) {
   const [prova, equipeGincana] = await Promise.all([
-    Prova.findById(provaId).select('_id titulo status data_inicio data_fim'),
+    Prova.findById(provaId).select('_id titulo status data_inicio data_fim proibir_membros_consecutivos'),
     EquipeGincana.findOne({ coordenador_usuario_id: coordenadorId }).populate('equipe_id', 'nome cor'),
   ]);
 
@@ -34,7 +35,7 @@ async function carregarContextoCoordenadorParaProva(coordenadorId, provaId) {
   const inscricoes = await ProvaUsuario.find({
     prova_id: provaId,
     usuario_id: { $in: membroIdsComCoordenador },
-  }).populate('usuario_id', 'nome email tipo turma');
+  }).populate('usuario_id', 'nome email tipo turma status');
 
   const membrosInscritos = inscricoes
     .filter((inscricao) => inscricao.usuario_id)
@@ -44,6 +45,7 @@ async function carregarContextoCoordenadorParaProva(coordenadorId, provaId) {
       email: inscricao.usuario_id.email,
       tipo: inscricao.usuario_id.tipo,
       turma: inscricao.usuario_id.turma,
+      status: inscricao.usuario_id.status,
       inscricao_id: inscricao._id,
     }));
 
@@ -53,6 +55,35 @@ async function carregarContextoCoordenadorParaProva(coordenadorId, provaId) {
     equipeId,
     membrosInscritos,
   };
+}
+
+async function buscarMemblosBloqueadosDaProvaAnterior(provaAtual, equipeId) {
+  if (!provaAtual.data_inicio) return { bloqueados: [], provaTitulo: null };
+
+  // Busca a prova imediatamente anterior (maior data_inicio que seja < data_inicio da prova atual)
+  const provaAnterior = await Prova.findOne({
+    _id: { $ne: provaAtual._id },
+    data_inicio: { $lt: provaAtual.data_inicio },
+    proibir_membros_consecutivos: true,
+  })
+    .sort({ data_inicio: -1, criado_em: -1 })
+    .select('_id titulo proibir_membros_consecutivos');
+
+  if (!provaAnterior) return { bloqueados: [], provaTitulo: null };
+
+  const participacaoAnterior = await ProvaEquipeParticipacao.findOne({
+    prova_id: provaAnterior._id,
+    equipe_id: equipeId,
+  }).select('titulares_usuario_ids suplentes_usuario_ids');
+
+  if (!participacaoAnterior) return { bloqueados: [], provaTitulo: provaAnterior.titulo };
+
+  const bloqueados = toUniqueStrings([
+    ...(participacaoAnterior.titulares_usuario_ids || []),
+    ...(participacaoAnterior.suplentes_usuario_ids || []),
+  ]);
+
+  return { bloqueados, provaTitulo: provaAnterior.titulo };
 }
 
 export const listarEquipeParticipanteDaProva = async (req, res) => {
@@ -74,6 +105,8 @@ export const listarEquipeParticipanteDaProva = async (req, res) => {
 
     const titularesIds = toUniqueStrings(participacao?.titulares_usuario_ids || []);
     const suplentesIds = toUniqueStrings(participacao?.suplentes_usuario_ids || []);
+
+    const { bloqueados, provaTitulo } = await buscarMemblosBloqueadosDaProvaAnterior(prova, equipeId);
 
     const membros = membrosInscritos.map((membro) => {
       const id = String(membro.id);
@@ -100,6 +133,8 @@ export const listarEquipeParticipanteDaProva = async (req, res) => {
       suplentes_usuario_ids: suplentesIds,
       total_inscritos: membros.length,
       membros_inscritos: membros,
+      membros_bloqueados_ids: bloqueados,
+      prova_anterior_titulo: provaTitulo,
       atualizado_em: participacao?.updatedAt || null,
     });
   } catch (error) {
@@ -144,7 +179,7 @@ export const salvarEquipeParticipanteDaProva = async (req, res) => {
       return res.status(contexto.erro.status).json({ message: contexto.erro.message });
     }
 
-    const { equipeId, membrosInscritos } = contexto;
+    const { prova, equipeId, membrosInscritos } = contexto;
     const idsPermitidos = new Set(membrosInscritos.map((membro) => String(membro.id)));
     const idsEnviados = [...titularesIds, ...suplentesIds];
 
@@ -153,6 +188,31 @@ export const salvarEquipeParticipanteDaProva = async (req, res) => {
       return res.status(422).json({
         message: 'Há membros informados que não pertencem à sua equipe inscrita nesta prova.',
       });
+    }
+
+    // Validação: membros BANIDO ou SUSPENSO não podem participar
+    const membrosBanidosSuspensos = membrosInscritos.filter(
+      (m) => idsEnviados.includes(String(m.id)) && (m.status === 'BANIDO' || m.status === 'SUSPENSO')
+    );
+    if (membrosBanidosSuspensos.length > 0) {
+      const nomes = membrosBanidosSuspensos.map((m) => `${m.nome} (${m.status})`).join(', ');
+      return res.status(400).json({
+        message: `Os seguintes membros não podem participar pois estão banidos ou suspensos: ${nomes}.`,
+      });
+    }
+
+    // Validação: membros bloqueados pela prova anterior
+    const { bloqueados, provaTitulo } = await buscarMemblosBloqueadosDaProvaAnterior(prova, equipeId);
+    if (bloqueados.length > 0) {
+      const membrosBloqueados = membrosInscritos.filter(
+        (m) => idsEnviados.includes(String(m.id)) && bloqueados.includes(String(m.id))
+      );
+      if (membrosBloqueados.length > 0) {
+        const nomes = membrosBloqueados.map((m) => m.nome).join(', ');
+        return res.status(400).json({
+          message: `Os seguintes membros participaram da prova anterior "${provaTitulo}" e não podem participar desta: ${nomes}.`,
+        });
+      }
     }
 
     const registro = await ProvaEquipeParticipacao.findOneAndUpdate(

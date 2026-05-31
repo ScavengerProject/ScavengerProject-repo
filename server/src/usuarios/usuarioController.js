@@ -259,36 +259,50 @@ export const deletarUsuario = async (req, res) => {
 };
 
 /**
- * Alternar status do usuário (ATIVO/INATIVO)
+ * Definir status do usuário (ATIVO/INATIVO/BANIDO/SUSPENSO)
+ * Se body.status for informado, define diretamente; caso contrário, alterna ATIVO↔INATIVO.
  */
 export const alternarStatusUsuario = async (req, res) => {
   try {
     const { id } = req.params;
-    
-    // Impede que o admin desative a si mesmo
+    const { status: novoStatus } = req.body || {};
+
+    const STATUS_VALIDOS = ['ATIVO', 'INATIVO', 'BANIDO', 'SUSPENSO'];
+
+    if (novoStatus && !STATUS_VALIDOS.includes(novoStatus)) {
+      return res.status(400).json({ message: `Status inválido. Valores aceitos: ${STATUS_VALIDOS.join(', ')}.` });
+    }
+
     if (id === req.usuario.id) {
       return res.status(403).json({ message: 'Você não pode alterar o status da sua própria conta.' });
     }
-    
+
     const usuario = await Usuario.findById(id);
-    
+
     if (!usuario) {
       return res.status(404).json({ message: 'Usuário não encontrado.' });
     }
-    
-    usuario.status = usuario.status === 'ATIVO' ? 'INATIVO' : 'ATIVO';
+
+    if (novoStatus) {
+      usuario.status = novoStatus;
+    } else {
+      usuario.status = usuario.status === 'ATIVO' ? 'INATIVO' : 'ATIVO';
+    }
+
     await usuario.save();
-    
+
     const usuarioResposta = usuario.toObject();
     delete usuarioResposta.senha;
-    
+
+    const labels = { ATIVO: 'ativado', INATIVO: 'desativado', BANIDO: 'banido', SUSPENSO: 'suspenso' };
+
     res.status(200).json({
-      message: `Usuário ${usuario.status === 'ATIVO' ? 'ativado' : 'desativado'} com sucesso!`,
+      message: `Usuário ${labels[usuario.status] || 'atualizado'} com sucesso!`,
       usuario: usuarioResposta
     });
   } catch (error) {
-    console.error('Erro ao alternar status:', error);
-    res.status(500).json({ message: 'Erro ao alternar status do usuário.', error: error.message });
+    console.error('Erro ao alterar status:', error);
+    res.status(500).json({ message: 'Erro ao alterar status do usuário.', error: error.message });
   }
 };
 
