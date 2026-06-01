@@ -13,6 +13,7 @@ import {
 import {
   listarEquipeParticipanteDaProva,
   salvarEquipeParticipanteDaProva,
+  listarAssociacoesProvas,
 } from './provaParticipacaoController.js';
 import { proteger, autorizar } from '../auth/authPermissions.js';
 
@@ -24,6 +25,7 @@ router.get('/:id', proteger, obterProva);
 router.get('/:id/inscricao/status', proteger, verificarInscricao);
 
 // Rotas de admin
+router.get('/associacoes/alunos', proteger, autorizar('ADMIN'), listarAssociacoesProvas);
 router.post('/', proteger, autorizar('ADMIN'), criarProva);
 router.patch('/:id/requisito-usuario', proteger, autorizar('ADMIN'), atualizarRequisitoUsuario);
 router.post('/:id/inscricoes', proteger, autorizar('ADMIN','COORDENADOR','ALUNO','PROFESSOR','PAI/MÃE'), inscreverUsuarioNaProva);

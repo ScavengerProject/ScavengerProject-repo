@@ -281,6 +281,11 @@ export default function CoordDefinirParticipacaoProva() {
                                     Bloqueado — prova anterior
                                   </Badge>
                                 )}
+                                {membro.emprestado && (
+                                  <Badge className="bg-purple-100 text-purple-800 text-xs">
+                                    Emprestado{membro.equipe_origem_nome ? ` • ${membro.equipe_origem_nome}` : ''}
+                                  </Badge>
+                                )}
                               </div>
                               <p className="text-sm text-gray-600 break-all">{membro.email}</p>
                               <p className="text-xs text-gray-500 mt-1">

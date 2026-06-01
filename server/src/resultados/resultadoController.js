@@ -3,6 +3,7 @@ import Prova from '../models/Prova.js';
 import EquipeGincana from '../models/EquipeGincana.js';
 import Equipe from '../models/Equipe.js';
 import mongoose from 'mongoose';
+import { calcularStatusProva } from '../provas/provaController.js';
 
 /**
  * [GET] Lista os resultados de uma prova específica
@@ -161,7 +162,10 @@ export const lancarResultados = async (req, res) => {
   try {
     const prova = await Prova.findById(provaId).session(session);
     if (!prova) throw new Error('Prova não encontrada.');
-    if (prova.status !== 'CONCLUIDA') throw new Error('A prova precisa estar "CONCLUIDA"');
+    // Status derivado das datas (a prova só fica "CONCLUIDA" após a data de término).
+    if (calcularStatusProva(prova.data_inicio, prova.data_fim) !== 'CONCLUIDA') {
+      throw new Error('A prova precisa estar "CONCLUIDA"');
+    }
     const regrasPontuacao = prova.pontuacao || {};
     console.log('📊 DEBUG - Regras de pontuação da prova:', JSON.stringify(regrasPontuacao, null, 2));
 

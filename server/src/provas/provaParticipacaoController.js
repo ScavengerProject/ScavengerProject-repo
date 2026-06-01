@@ -3,7 +3,14 @@ import EquipeGincana from '../models/EquipeGincana.js';
 import EquipeMembros from '../models/EquipeMembros.js';
 import ProvaUsuario from '../models/ProvaUsuario.js';
 import ProvaEquipeParticipacao from '../models/ProvaEquipeParticipacao.js';
+import EmprestimoEquipe from '../models/EmprestimoEquipe.js';
 import Usuario from '../models/Usuario.js';
+
+// Uma prova está "encerrada" (e portanto não recebe mais empréstimos) quando já passou da data_fim.
+const provaJaEncerrou = (prova) => {
+  if (!prova?.data_fim) return false;
+  return new Date() > new Date(prova.data_fim);
+};
 
 const toUniqueStrings = (arr) => Array.from(new Set((arr || []).map((item) => String(item))));
 
@@ -26,7 +33,26 @@ async function carregarContextoCoordenadorParaProva(coordenadorId, provaId) {
     return { erro: { status: 404, message: 'Equipe do coordenador não encontrada.' } };
   }
 
-  const membroIdsDaEquipe = await EquipeMembros.find({ equipe_id: equipeId }).distinct('usuario_id');
+  // Empréstimos vigentes desta prova ligados a ESTA equipe (origem/destino usam IDs de EquipeGincana).
+  // Só têm efeito enquanto a prova não terminou — depois disso o aluno volta a contar apenas pela equipe de origem.
+  let emprestadosParaDentro = [];
+  let idsEmprestadosParaFora = new Set();
+
+  if (!provaJaEncerrou(prova)) {
+    const [entrada, saida] = await Promise.all([
+      // Alunos emprestados PARA esta equipe nesta prova
+      EmprestimoEquipe.find({ prova_id: provaId, equipe_destino_id: equipeGincana._id, status: 'ATIVO' })
+        .populate('usuario_id', 'nome email tipo turma status')
+        .populate({ path: 'equipe_origem_id', populate: { path: 'equipe_id', model: 'Equipe', select: 'nome cor' } }),
+      // Alunos desta equipe emprestados PARA FORA nesta prova (não devem ser escaláveis por ela aqui)
+      EmprestimoEquipe.find({ prova_id: provaId, equipe_origem_id: equipeGincana._id, status: 'ATIVO' }).select('usuario_id'),
+    ]);
+    emprestadosParaDentro = entrada;
+    idsEmprestadosParaFora = new Set(saida.map((e) => String(e.usuario_id)));
+  }
+
+  const membroIdsDaEquipe = (await EquipeMembros.find({ equipe_id: equipeId }).distinct('usuario_id'))
+    .filter((id) => !idsEmprestadosParaFora.has(String(id)));
   const membroIdsComCoordenador = toUniqueStrings([
     ...membroIdsDaEquipe,
     coordenadorId,
@@ -47,7 +73,28 @@ async function carregarContextoCoordenadorParaProva(coordenadorId, provaId) {
       turma: inscricao.usuario_id.turma,
       status: inscricao.usuario_id.status,
       inscricao_id: inscricao._id,
+      emprestado: false,
+      equipe_origem_nome: null,
     }));
+
+  // Anexa os alunos emprestados para esta equipe (o empréstimo é o "passe" de participação nesta prova).
+  const idsJaIncluidos = new Set(membrosInscritos.map((m) => String(m.id)));
+  for (const emp of emprestadosParaDentro) {
+    const u = emp.usuario_id;
+    if (!u || idsJaIncluidos.has(String(u._id))) continue;
+    idsJaIncluidos.add(String(u._id));
+    membrosInscritos.push({
+      id: u._id,
+      nome: u.nome,
+      email: u.email,
+      tipo: u.tipo,
+      turma: u.turma,
+      status: u.status,
+      inscricao_id: null,
+      emprestado: true,
+      equipe_origem_nome: emp.equipe_origem_id?.equipe_id?.nome || null,
+    });
+  }
 
   return {
     prova,
@@ -246,6 +293,108 @@ export const salvarEquipeParticipanteDaProva = async (req, res) => {
   } catch (error) {
     return res.status(500).json({
       message: 'Erro ao salvar titulares e suplentes da prova.',
+      error: error.message,
+    });
+  }
+};
+
+// [GET] /api/provas/associacoes/alunos  (ADMIN)
+// Lista, por prova, as equipes e seus titulares/suplentes, marcando alunos emprestados.
+export const listarAssociacoesProvas = async (req, res) => {
+  try {
+    const [provas, participacoes, equipesGincana, emprestimos] = await Promise.all([
+      Prova.find().select('titulo data_inicio data_fim status').sort({ data_inicio: -1 }),
+      ProvaEquipeParticipacao.find()
+        .populate('equipe_id', 'nome cor')
+        .populate('titulares_usuario_ids', 'nome email tipo turma status')
+        .populate('suplentes_usuario_ids', 'nome email tipo turma status'),
+      EquipeGincana.find().select('_id equipe_id'),
+      EmprestimoEquipe.find({ status: 'ATIVO' })
+        .select('usuario_id prova_id equipe_destino_id')
+        .populate({ path: 'equipe_origem_id', populate: { path: 'equipe_id', model: 'Equipe', select: 'nome' } }),
+    ]);
+
+    // Equipe._id (usado na participação) -> EquipeGincana._id (usado no empréstimo)
+    const equipeToGincana = new Map();
+    equipesGincana.forEach((eg) => {
+      if (eg.equipe_id) equipeToGincana.set(String(eg.equipe_id), String(eg._id));
+    });
+
+    // Índice de emprestados: chave `${provaId}:${equipeGincanaDestino}` -> Map(usuarioId -> nome da equipe de origem)
+    const emprestadosPorProvaEquipe = new Map();
+    emprestimos.forEach((emp) => {
+      const chave = `${String(emp.prova_id)}:${String(emp.equipe_destino_id)}`;
+      if (!emprestadosPorProvaEquipe.has(chave)) emprestadosPorProvaEquipe.set(chave, new Map());
+      emprestadosPorProvaEquipe
+        .get(chave)
+        .set(String(emp.usuario_id), emp.equipe_origem_id?.equipe_id?.nome || null);
+    });
+
+    // Participações agrupadas por prova
+    const participacoesPorProva = new Map();
+    participacoes.forEach((p) => {
+      const pid = String(p.prova_id);
+      if (!participacoesPorProva.has(pid)) participacoesPorProva.set(pid, []);
+      participacoesPorProva.get(pid).push(p);
+    });
+
+    const mapearMembro = (u, emprestadosMap) => {
+      if (!u) return null;
+      const emprestado = emprestadosMap ? emprestadosMap.has(String(u._id)) : false;
+      return {
+        id: u._id,
+        nome: u.nome,
+        email: u.email,
+        tipo: u.tipo,
+        turma: u.turma,
+        status: u.status,
+        emprestado,
+        equipe_origem_nome: emprestado ? emprestadosMap.get(String(u._id)) : null,
+      };
+    };
+
+    const resultado = provas.map((prova) => {
+      const lista = participacoesPorProva.get(String(prova._id)) || [];
+      const equipes = lista.map((p) => {
+        const egId = p.equipe_id ? equipeToGincana.get(String(p.equipe_id._id)) : null;
+        const emprestadosMap = egId
+          ? emprestadosPorProvaEquipe.get(`${String(prova._id)}:${egId}`)
+          : null;
+
+        const titulares = (p.titulares_usuario_ids || []).map((u) => mapearMembro(u, emprestadosMap)).filter(Boolean);
+        const suplentes = (p.suplentes_usuario_ids || []).map((u) => mapearMembro(u, emprestadosMap)).filter(Boolean);
+
+        return {
+          equipe_id: p.equipe_id?._id || null,
+          equipe_nome: p.equipe_id?.nome || 'Equipe',
+          equipe_cor: p.equipe_id?.cor || null,
+          titulares,
+          suplentes,
+          total: titulares.length + suplentes.length,
+        };
+      });
+
+      const contarEmprestados = (e) =>
+        e.titulares.filter((m) => m.emprestado).length + e.suplentes.filter((m) => m.emprestado).length;
+
+      return {
+        prova: {
+          _id: prova._id,
+          titulo: prova.titulo,
+          data_inicio: prova.data_inicio,
+          data_fim: prova.data_fim,
+          status: prova.status,
+        },
+        equipes,
+        total_alunos: equipes.reduce((acc, e) => acc + e.total, 0),
+        total_emprestados: equipes.reduce((acc, e) => acc + contarEmprestados(e), 0),
+      };
+    });
+
+    return res.status(200).json(resultado);
+  } catch (error) {
+    return res.status(500).json({
+      message: 'Erro ao listar associações de alunos às provas.',
       error: error.message,
     });
   }

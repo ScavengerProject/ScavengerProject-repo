@@ -14,12 +14,11 @@ export const listarUsuarios = async (req, res) => {
     if (status) filtro.status = status;
     if (turma) filtro.turma = turma;
     
-    // Busca por nome, email ou matrícula
+    // Busca por nome ou email
     if (search) {
       filtro.$or = [
         { nome: { $regex: search, $options: 'i' } },
-        { email: { $regex: search, $options: 'i' } },
-        { matricula: { $regex: search, $options: 'i' } }
+        { email: { $regex: search, $options: 'i' } }
       ];
     }
     
@@ -59,29 +58,21 @@ export const obterUsuario = async (req, res) => {
  */
 export const criarUsuario = async (req, res) => {
   try {
-    const { nome, email, senha, telefone, tipo, turma, matricula, status } = req.body;
-    
+    const { nome, email, senha, telefone, tipo, turma, status } = req.body;
+
     // Validações básicas
     if (!nome || !email || !senha || !tipo) {
-      return res.status(400).json({ 
-        message: 'Campos nome, email, senha e tipo são obrigatórios.' 
+      return res.status(400).json({
+        message: 'Campos nome, email, senha e tipo são obrigatórios.'
       });
     }
-    
+
     // Verifica se o email já existe
     const usuarioExistente = await Usuario.findOne({ email: email.toLowerCase() });
     if (usuarioExistente) {
       return res.status(409).json({ message: 'Este email já está cadastrado.' });
     }
-    
-    // Verifica se a matrícula já existe (se fornecida)
-    if (matricula) {
-      const matriculaExistente = await Usuario.findOne({ matricula });
-      if (matriculaExistente) {
-        return res.status(409).json({ message: 'Esta matrícula já está cadastrada.' });
-      }
-    }
-    
+
     // Valida turma para alunos e coordenadores
     if ((tipo === 'ALUNO' || tipo === 'COORDENADOR') && !turma) {
       return res.status(400).json({ message: 'Turma é obrigatória para alunos e coordenadores.' });
@@ -94,7 +85,6 @@ export const criarUsuario = async (req, res) => {
       telefone: telefone || null,
       tipo,
       turma: turma || null,
-      matricula: matricula || null,
       status: status || 'ATIVO'
     });
     
@@ -119,7 +109,7 @@ export const criarUsuario = async (req, res) => {
  */
 export const registrarUsuario = async (req, res) => {
   try {
-    const { nome, email, senha, telefone, matricula } = req.body;
+    const { nome, email, senha, telefone } = req.body;
 
     if (!nome || !email || !senha) {
       return res.status(400).json({
@@ -132,22 +122,14 @@ export const registrarUsuario = async (req, res) => {
       return res.status(409).json({ message: 'Este email já está cadastrado.' });
     }
 
-    if (matricula) {
-      const matriculaExistente = await Usuario.findOne({ matricula });
-      if (matriculaExistente) {
-        return res.status(409).json({ message: 'Esta matrícula já está cadastrada.' });
-      }
-    }
-
     const novoUsuario = new Usuario({
       nome,
       email: email.toLowerCase(),
       senha,
       telefone: telefone || null,
-      tipo: 'ALUNO',       
+      tipo: 'ALUNO',
       turma: null,
-      matricula: matricula || null,
-      status: 'ATIVO'   
+      status: 'ATIVO'
     });
 
     await novoUsuario.save();
@@ -171,7 +153,7 @@ export const registrarUsuario = async (req, res) => {
 export const atualizarUsuario = async (req, res) => {
   try {
     const { id } = req.params;
-    const { nome, email, telefone, tipo, turma, matricula, status, senha } = req.body;
+    const { nome, email, telefone, tipo, turma, status, senha } = req.body;
     
     const usuario = await Usuario.findById(id);
     
@@ -190,24 +172,12 @@ export const atualizarUsuario = async (req, res) => {
       }
     }
     
-    // Verifica se a matrícula já está em uso por outro usuário
-    if (matricula && matricula !== usuario.matricula) {
-      const matriculaExistente = await Usuario.findOne({ 
-        matricula,
-        _id: { $ne: id }
-      });
-      if (matriculaExistente) {
-        return res.status(409).json({ message: 'Esta matrícula já está em uso por outro usuário.' });
-      }
-    }
-    
     // Atualiza os campos
     if (nome) usuario.nome = nome;
     if (email) usuario.email = email.toLowerCase();
     if (telefone !== undefined) usuario.telefone = telefone;
     if (tipo) usuario.tipo = tipo;
     if (turma !== undefined) usuario.turma = turma;
-    if (matricula !== undefined) usuario.matricula = matricula;
     if (status) usuario.status = status;
     
     // Atualiza a senha apenas se fornecida
