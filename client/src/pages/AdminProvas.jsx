@@ -40,6 +40,30 @@ const QUESITOS_OPCOES = [
   { value: 'PRODUTIVIDADE', label: 'Produtividade/Volume' },
 ];
 
+/**
+ * Calcula o status da prova automaticamente a partir das datas (mesma regra do backend).
+ * - Antes da data de início -> NAO_INICIADA
+ * - Entre início e término  -> EM_ANDAMENTO
+ * - Após a data de término  -> CONCLUIDA (término inclusivo, até o fim do dia)
+ */
+const calcularStatusProva = (data_inicio, data_fim) => {
+  const agora = new Date();
+
+  if (data_inicio) {
+    const inicio = new Date(data_inicio);
+    inicio.setUTCHours(0, 0, 0, 0);
+    if (agora < inicio) return 'NAO_INICIADA';
+  }
+
+  if (data_fim) {
+    const fim = new Date(data_fim);
+    fim.setUTCHours(23, 59, 59, 999);
+    if (agora > fim) return 'CONCLUIDA';
+  }
+
+  return 'EM_ANDAMENTO';
+};
+
 // Função auxiliar para formatar os requisitos
 const formatarRequisitos = (requisitos) => {
   if (!requisitos || typeof requisitos !== 'object' || Object.keys(requisitos).length === 0) {
@@ -160,7 +184,6 @@ const AdminProvas = () => {
       formato: "",
       data_inicio: "",
       data_fim: "",
-      status: "NAO_INICIADA",
       quesitos_de_avaliacao: [],
       requisito_usuario: {
         ALUNOS_FUNDAMENTAL: 0,
@@ -223,11 +246,15 @@ const AdminProvas = () => {
         await provasService.atualizar(editingProva._id, formData);
         toast.success("Prova atualizada com sucesso!");
         
-        // Atualizar lista localmente
+        // Atualizar lista localmente (status sempre recalculado pelas datas)
         setProvas(
           provas.map((p) =>
             p._id === editingProva._id
-              ? { ...editingProva, ...formData }
+              ? {
+                  ...editingProva,
+                  ...formData,
+                  status: calcularStatusProva(formData.data_inicio, formData.data_fim),
+                }
               : p
           )
         );
@@ -285,7 +312,6 @@ const AdminProvas = () => {
       formato: prova.formato,
       data_inicio: prova.data_inicio ? new Date(prova.data_inicio).toISOString().split('T')[0] : "",
       data_fim: prova.data_fim ? new Date(prova.data_fim).toISOString().split('T')[0] : "",
-      status: prova.status || "NAO_INICIADA",
       quesitos_de_avaliacao: prova.quesitos_de_avaliacao || [],
       requisito_usuario: requisitoUsuario,
       restricao_participacao: prova.restricao_participacao || {},
@@ -548,21 +574,19 @@ const AdminProvas = () => {
                     />
                   </div>
 
-                  {/* Status */}
+                  {/* Status (definido automaticamente pelas datas) */}
                   <div className="grid gap-2">
-                    <Label htmlFor="status" className="text-gray-900 font-medium">
+                    <Label className="text-gray-900 font-medium">
                       Status
                     </Label>
-                    <Select value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value })} disabled={submitting}>
-                      <SelectTrigger className="bg-white border-gray-300">
-                        <SelectValue placeholder="Selecione o status" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-white border-gray-300">
-                        <SelectItem value="NAO_INICIADA">Não iniciada</SelectItem>
-                        <SelectItem value="EM_ANDAMENTO">Em andamento</SelectItem>
-                        <SelectItem value="CONCLUIDA">Concluída</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <div className="flex items-center justify-between rounded-md border border-gray-300 bg-gray-50 px-3 py-2">
+                      <span className="text-gray-900 font-medium">
+                        {traduzirStatus(calcularStatusProva(formData.data_inicio, formData.data_fim))}
+                      </span>
+                      <span className="text-xs text-gray-500">
+                        Definido automaticamente pelas datas
+                      </span>
+                    </div>
                   </div>
 
                   <div className="grid gap-4 p-3 border border-gray-300 rounded-md bg-gray-50">
