@@ -181,7 +181,9 @@ const LancarResultadoModal = ({ prova, isOpen, onClose }) => {
   const temQuesitoProdutividade = quesitosMarcados.includes('PRODUTIVIDADE');
   const configuracaoQuesitos = prova.configuracao_quesitos || {};
 
-  // Função para calcular pontos totais incluindo quesitos
+  const limitePorcoes = Number(regrasPontuacao.limite_pontuacao_porcoes) || 0;
+
+  // Função para calcular pontos totais incluindo quesitos e teto de porções
   const calcularPontosTotais = (resultado) => {
     let pontosBase = 0;
 
@@ -192,6 +194,9 @@ const LancarResultadoModal = ({ prova, isOpen, onClose }) => {
     } else {
       const quantidade = Number(resultado.valor) || 0;
       pontosBase = quantidade * pontosPorUnidade;
+      if (limitePorcoes > 0 && pontosBase > limitePorcoes) {
+        pontosBase = limitePorcoes;
+      }
     }
 
     // Pontos dos quesitos
@@ -229,17 +234,24 @@ const LancarResultadoModal = ({ prova, isOpen, onClose }) => {
           <form onSubmit={handleSubmit} className="space-y-6 py-4">
             
             {/* 1. TIPO DE LANÇAMENTO */}
-            <div className="grid grid-cols-3 gap-4 p-3 bg-gray-100 border border-gray-300 rounded-md">
-              <div className="col-span-1">
-                <Label className="text-gray-900 font-medium my-auto">
-                  Tipo de Lançamento:
-                </Label>
+            <div className="p-3 bg-gray-100 border border-gray-300 rounded-md space-y-1">
+              <div className="grid grid-cols-3 gap-4">
+                <div className="col-span-1">
+                  <Label className="text-gray-900 font-medium my-auto">
+                    Tipo de Lançamento:
+                  </Label>
+                </div>
+                <div className="col-span-2">
+                  <p className="text-gray-900 font-semibold my-auto">
+                    {nomeTipoPontuacao}
+                  </p>
+                </div>
               </div>
-              <div className="col-span-2">
-                <p className="text-gray-900 font-semibold my-auto">
-                  {nomeTipoPontuacao}
+              {tipoPontuacao === 'PROPORCIONAL' && limitePorcoes > 0 && (
+                <p className="text-xs text-amber-700 font-medium">
+                  Teto de pontos configurado: máximo de {limitePorcoes} pts por equipe nesta prova.
                 </p>
-              </div>
+              )}
             </div>
 
             {/* 2. LINHAS DE RESULTADOS */}
@@ -377,7 +389,9 @@ const LancarResultadoModal = ({ prova, isOpen, onClose }) => {
 
                 // --- CÁLCULO EM TEMPO REAL ---
                 const quantidade = Number(res.valor) || 0;
-                const pontosBase = quantidade * pontosPorUnidade;
+                const pontosBaseSemTeto = quantidade * pontosPorUnidade;
+                const tetoAtingido = limitePorcoes > 0 && pontosBaseSemTeto > limitePorcoes;
+                const pontosBase = tetoAtingido ? limitePorcoes : pontosBaseSemTeto;
                 const pontosTotais = calcularPontosTotais(res);
                 // -----------------------------
 
@@ -428,9 +442,12 @@ const LancarResultadoModal = ({ prova, isOpen, onClose }) => {
                       {/* Total de Pontos */}
                       <div className="col-span-1 grid gap-1.5">
                         <Label className="text-sm">Total de Pontos</Label>
-                        <div className="h-10 px-3 py-2 border border-gray-300 bg-blue-100 rounded-md flex items-center justify-center">
-                          <span className="font-bold text-blue-800 text-base">{pontosTotais} pts</span>
+                        <div className={`h-10 px-3 py-2 border rounded-md flex items-center justify-center ${tetoAtingido ? 'border-amber-400 bg-amber-50' : 'border-gray-300 bg-blue-100'}`}>
+                          <span className={`font-bold text-base ${tetoAtingido ? 'text-amber-700' : 'text-blue-800'}`}>{pontosTotais} pts</span>
                         </div>
+                        {tetoAtingido && (
+                          <p className="text-xs text-amber-700">Teto atingido (máx {limitePorcoes} pts)</p>
+                        )}
                       </div>
                     </div>
 

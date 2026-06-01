@@ -242,28 +242,30 @@ const Dashboard = () => {
       // 2. Encontrar os DADOS da minha equipe (nome, pontos)
      const minhaEquipeInfo = (indexPosicao !== -1) ? ranking[indexPosicao] : null;
 
+      // Usar minhaEquipeInfo do ranking como fonte de verdade
+      const equipeSelecionadaInfo = minhaEquipeInfo || minhaEquipe;
 
       // Para alunos, professores, coordenadores, pais
       return [
         {
-          title: minhaEquipe ? "Minha Equipe" : "Sem Equipe",
-          description: minhaEquipe 
+          title: equipeSelecionadaInfo ? "Minha Equipe" : "Sem Equipe",
+          description: equipeSelecionadaInfo 
             ? (
                 <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => abrirInfosEquipeModal(minhaEquipe)} 
+                    onClick={() => abrirInfosEquipeModal(equipeSelecionadaInfo)} 
                     className={`p-0 h-auto text-sm font-semibold text-gray-700 hover:bg-transparent`}
                 >
                     Ver informações
                 </Button>
             )
             : "Inscreva-se em uma equipe",
-          value: minhaEquipe?.nome || "---", // Retirei os pontos para os alunos n saberem
+          value: equipeSelecionadaInfo?.nome || "---", // Retirei os pontos para os alunos n saberem
           icon: Users,
-          color: minhaEquipe ? "text-blue-600" : "text-gray-400",
-          /*style: minhaEquipe 
-            ? { backgroundColor: `${minhaEquipe.cor}20` } 
+          color: equipeSelecionadaInfo ? "text-blue-600" : "text-gray-400",
+          /*style: equipeSelecionadaInfo 
+            ? { backgroundColor: `${equipeSelecionadaInfo.cor}20` } 
             : {},*/
         },
         {

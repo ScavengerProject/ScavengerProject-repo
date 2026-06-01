@@ -7,12 +7,18 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../co
 import { Button } from '../components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Checkbox } from '../components/ui/checkbox';
-import { Users, UserCheck, UserPlus, Save } from 'lucide-react';
+import { Badge } from '../components/ui/badge';
+import { Users, UserCheck, UserPlus, Save, AlertTriangle } from 'lucide-react';
 
 const STATUS_LABEL = {
   NAO_INICIADA: 'Não iniciada',
   EM_ANDAMENTO: 'Em andamento',
   CONCLUIDA: 'Concluída',
+};
+
+const STATUS_USUARIO_CONFIG = {
+  BANIDO: { label: 'Banido', className: 'bg-red-200 text-red-900 text-xs' },
+  SUSPENSO: { label: 'Suspenso', className: 'bg-orange-100 text-orange-800 text-xs' },
 };
 
 export default function CoordDefinirParticipacaoProva() {
@@ -75,7 +81,19 @@ export default function CoordDefinirParticipacaoProva() {
     carregarContextoProva(provaSelecionadaId);
   }, [provaSelecionadaId]);
 
-  const toggleTitular = (usuarioId) => {
+  const membrosBloquadosIds = useMemo(
+    () => new Set(contextoProva?.membros_bloqueados_ids || []),
+    [contextoProva]
+  );
+
+  const isBloqueadoStatus = (membro) =>
+    membro.status === 'BANIDO' || membro.status === 'SUSPENSO';
+
+  const isBloqueado = (membro) =>
+    membrosBloquadosIds.has(String(membro.id)) || isBloqueadoStatus(membro);
+
+  const toggleTitular = (usuarioId, membro) => {
+    if (isBloqueado(membro)) return;
     const id = String(usuarioId);
     setTitularesIds((prev) =>
       prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
@@ -83,7 +101,8 @@ export default function CoordDefinirParticipacaoProva() {
     setSuplentesIds((prev) => prev.filter((item) => item !== id));
   };
 
-  const toggleSuplente = (usuarioId) => {
+  const toggleSuplente = (usuarioId, membro) => {
+    if (isBloqueado(membro)) return;
     const id = String(usuarioId);
     setSuplentesIds((prev) =>
       prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
@@ -118,6 +137,8 @@ export default function CoordDefinirParticipacaoProva() {
   };
 
   const membrosInscritos = contextoProva?.membros_inscritos || [];
+  const provaAnteriorTitulo = contextoProva?.prova_anterior_titulo;
+  const temBloqueados = membrosBloquadosIds.size > 0;
 
   return (
     <MainLayout usuario={usuario} onLogout={logout}>
@@ -210,6 +231,16 @@ export default function CoordDefinirParticipacaoProva() {
               </Card>
             </div>
 
+            {/* Aviso de membros bloqueados pela prova anterior */}
+            {temBloqueados && provaAnteriorTitulo && (
+              <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-300 rounded-lg text-sm text-amber-800">
+                <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+                <p>
+                  Alguns membros participaram da prova anterior <strong>"{provaAnteriorTitulo}"</strong> e estão bloqueados para esta prova.
+                </p>
+              </div>
+            )}
+
             <Card>
               <CardHeader>
                 <CardTitle className="text-base sm:text-lg">Membros Inscritos</CardTitle>
@@ -228,34 +259,55 @@ export default function CoordDefinirParticipacaoProva() {
                       const membroId = String(membro.id);
                       const isTitular = titularesIds.includes(membroId);
                       const isSuplente = suplentesIds.includes(membroId);
+                      const bloqueadoProvaAnterior = membrosBloquadosIds.has(membroId);
+                      const bloqueadoStatus = isBloqueadoStatus(membro);
+                      const bloqueado = bloqueadoProvaAnterior || bloqueadoStatus;
+                      const statusConfig = STATUS_USUARIO_CONFIG[membro.status];
 
                       return (
                         <div
                           key={membroId}
-                          className="border border-gray-200 rounded-lg p-3 sm:p-4 bg-white"
+                          className={`border rounded-lg p-3 sm:p-4 ${bloqueado ? 'bg-gray-50 border-gray-300 opacity-75' : 'bg-white border-gray-200'}`}
                         >
                           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                             <div className="min-w-0">
-                              <p className="font-semibold text-gray-900 wrap-break-word">{membro.nome}</p>
+                              <div className="flex flex-wrap items-center gap-2 mb-1">
+                                <p className="font-semibold text-gray-900 wrap-break-word">{membro.nome}</p>
+                                {statusConfig && (
+                                  <Badge className={statusConfig.className}>{statusConfig.label}</Badge>
+                                )}
+                                {bloqueadoProvaAnterior && (
+                                  <Badge className="bg-amber-100 text-amber-800 text-xs">
+                                    Bloqueado — prova anterior
+                                  </Badge>
+                                )}
+                              </div>
                               <p className="text-sm text-gray-600 break-all">{membro.email}</p>
                               <p className="text-xs text-gray-500 mt-1">
                                 {membro.tipo}{membro.turma ? ` • ${membro.turma}` : ''}
                               </p>
+                              {bloqueadoStatus && (
+                                <p className="text-xs text-red-600 mt-1">
+                                  Este membro está {membro.status === 'BANIDO' ? 'banido' : 'suspenso'} e não pode participar de provas.
+                                </p>
+                              )}
                             </div>
 
                             <div className="flex flex-wrap gap-3 sm:gap-4">
-                              <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
+                              <label className={`flex items-center gap-2 text-sm ${bloqueado ? 'cursor-not-allowed text-gray-400' : 'cursor-pointer text-gray-700'}`}>
                                 <Checkbox
                                   checked={isTitular}
-                                  onCheckedChange={() => toggleTitular(membroId)}
+                                  onCheckedChange={() => toggleTitular(membroId, membro)}
+                                  disabled={bloqueado}
                                 />
                                 Titular
                               </label>
 
-                              <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
+                              <label className={`flex items-center gap-2 text-sm ${bloqueado ? 'cursor-not-allowed text-gray-400' : 'cursor-pointer text-gray-700'}`}>
                                 <Checkbox
                                   checked={isSuplente}
-                                  onCheckedChange={() => toggleSuplente(membroId)}
+                                  onCheckedChange={() => toggleSuplente(membroId, membro)}
+                                  disabled={bloqueado}
                                 />
                                 Suplente
                               </label>
