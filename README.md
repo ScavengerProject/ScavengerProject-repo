@@ -54,6 +54,7 @@ server/  → backend em Node.js
 │ ├── utils/ # Funções auxiliares gerais 
 │ └── index.js # Ponto de entrada da aplicação
 └── ...
+```
 Ambos possuem suas próprias dependências e precisam ser instalados separadamente.
 
 ---

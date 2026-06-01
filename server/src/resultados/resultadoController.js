@@ -287,7 +287,14 @@ export const lancarResultados = async (req, res) => {
         const pontosPorUnidade = Number(regrasPontuacao.pontos_por_unidade) || 0;
         pontuacao_base = quantidade * pontosPorUnidade;
         detalhes_pontuacao = `${quantidade} ${regrasPontuacao.nome_unidade || 'unidades'}`;
-        console.log('🎯 DEBUG - PROPORCIONAL - Quantidade:', quantidade, 'Pontos por unidade:', pontosPorUnidade, 'Total:', pontuacao_base);
+
+        const limitePorcoes = Number(regrasPontuacao.limite_pontuacao_porcoes) || 0;
+        if (limitePorcoes > 0 && pontuacao_base > limitePorcoes) {
+          pontuacao_base = limitePorcoes;
+          detalhes_pontuacao = `${quantidade} ${regrasPontuacao.nome_unidade || 'unidades'} (teto atingido: ${limitePorcoes} pts)`;
+        }
+
+        console.log('🎯 DEBUG - PROPORCIONAL - Quantidade:', quantidade, 'Pontos por unidade:', pontosPorUnidade, 'Teto:', limitePorcoes || 'sem teto', 'Total:', pontuacao_base);
       }
 
       // Calcular pontuação dos quesitos

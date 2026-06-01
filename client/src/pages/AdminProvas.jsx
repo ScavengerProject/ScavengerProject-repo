@@ -107,6 +107,7 @@ const AdminProvas = () => {
     sequenciamento: {},
     pontuacao: {},
     configuracao_quesitos: {},
+    proibir_membros_consecutivos: false,
   });
 
   // Carregar provas ao montar o componente
@@ -172,6 +173,7 @@ const AdminProvas = () => {
       sequenciamento: {},
       pontuacao: {},
       configuracao_quesitos: {},
+      proibir_membros_consecutivos: false,
     });
     setEditingProva(null);
   };
@@ -291,6 +293,7 @@ const AdminProvas = () => {
       sequenciamento: prova.sequenciamento || {},
       pontuacao: prova.pontuacao || {},
       configuracao_quesitos: prova.configuracao_quesitos || {},
+      proibir_membros_consecutivos: prova.proibir_membros_consecutivos || false,
     });
     setIsDialogOpen(true);
   };
@@ -653,30 +656,58 @@ const AdminProvas = () => {
 
                   {/* 2b. Inputs para TIPO PROPORCIONAL */}
                   {tipoPontuacao === 'PROPORCIONAL' && (
-                    <div className="grid grid-cols-2 gap-4 pt-2">
-                      {/* Pontos */}
-                      <div className="grid gap-1">
-                        <Label htmlFor="pontos_unidade" className="text-sm font-normal text-gray-700">Pontos por Unidade</Label>
-                        <Input
-                          id="pontos_unidade" type="number"
-                          value={formData.pontuacao.pontos_por_unidade || ""}
-                          onChange={(e) => setFormData(prev => ({
-                            ...prev, pontuacao: { ...prev.pontuacao, pontos_por_unidade: Number(e.target.value) }
-                          }))}
-                          placeholder="Ex: 50" className="bg-white border-gray-300" disabled={submitting}
-                        />
+                    <div className="grid gap-4 pt-2">
+                      <div className="grid grid-cols-2 gap-4">
+                        {/* Pontos */}
+                        <div className="grid gap-1">
+                          <Label htmlFor="pontos_unidade" className="text-sm font-normal text-gray-700">Pontos por Unidade</Label>
+                          <Input
+                            id="pontos_unidade" type="number"
+                            value={formData.pontuacao.pontos_por_unidade || ""}
+                            onChange={(e) => setFormData(prev => ({
+                              ...prev, pontuacao: { ...prev.pontuacao, pontos_por_unidade: Number(e.target.value) }
+                            }))}
+                            placeholder="Ex: 50" className="bg-white border-gray-300" disabled={submitting}
+                          />
+                        </div>
+                        {/* Nome da Unidade */}
+                        <div className="grid gap-1">
+                          <Label htmlFor="nome_unidade" className="text-sm font-normal text-gray-700">Nome da Unidade (singular)</Label>
+                          <Input
+                            id="nome_unidade" type="text"
+                            value={formData.pontuacao.nome_unidade || ""}
+                            onChange={(e) => setFormData(prev => ({
+                              ...prev, pontuacao: { ...prev.pontuacao, nome_unidade: e.target.value }
+                            }))}
+                            placeholder="Ex: doação" className="bg-white border-gray-300" disabled={submitting}
+                          />
+                        </div>
                       </div>
-                      {/* Nome da Unidade */}
+                      {/* Teto de pontos */}
                       <div className="grid gap-1">
-                        <Label htmlFor="nome_unidade" className="text-sm font-normal text-gray-700">Nome da Unidade (singular)</Label>
+                        <Label htmlFor="limite_pontuacao_porcoes" className="text-sm font-normal text-gray-700">
+                          Teto de pontos por porção (opcional)
+                        </Label>
                         <Input
-                          id="nome_unidade" type="text"
-                          value={formData.pontuacao.nome_unidade || ""}
-                          onChange={(e) => setFormData(prev => ({
-                            ...prev, pontuacao: { ...prev.pontuacao, nome_unidade: e.target.value }
-                          }))}
-                          placeholder="Ex: doação" className="bg-white border-gray-300" disabled={submitting}
+                          id="limite_pontuacao_porcoes" type="number" min="0"
+                          value={formData.pontuacao.limite_pontuacao_porcoes || ""}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setFormData(prev => ({
+                              ...prev,
+                              pontuacao: {
+                                ...prev.pontuacao,
+                                limite_pontuacao_porcoes: val === "" ? undefined : Number(val),
+                              },
+                            }));
+                          }}
+                          placeholder="Ex: 500 — deixe em branco para sem teto"
+                          className="bg-white border-gray-300"
+                          disabled={submitting}
                         />
+                        <p className="text-xs text-gray-500">
+                          Limite máximo de pontos que uma equipe pode acumular nesta prova. Impede acúmulo desproporcional.
+                        </p>
                       </div>
                     </div>
                   )}
@@ -889,6 +920,26 @@ const AdminProvas = () => {
                   {/* Divisor visual para separar seções básicas das avançadas */}
                   <div className="border-t border-gray-300 my-4"></div>
                   <h3 className="text-lg font-semibold text-gray-900 mb-2">Configurações Avançadas</h3>
+
+                  {/* Proibir membros consecutivos */}
+                  <div className="flex items-start gap-3 p-3 border border-gray-300 rounded-md bg-gray-50">
+                    <Checkbox
+                      id="proibir_membros_consecutivos"
+                      checked={formData.proibir_membros_consecutivos}
+                      onCheckedChange={(checked) =>
+                        setFormData((prev) => ({ ...prev, proibir_membros_consecutivos: !!checked }))
+                      }
+                      disabled={submitting}
+                    />
+                    <div>
+                      <Label htmlFor="proibir_membros_consecutivos" className="text-gray-900 font-medium cursor-pointer select-none">
+                        Proibir membros consecutivos
+                      </Label>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Quando ativado, membros que participaram da prova imediatamente anterior ficam impedidos de participar desta prova (e vice-versa).
+                      </p>
+                    </div>
+                  </div>
 
                   {/* Participantes e Cotas */}
                   <ProvaParticipantesForm

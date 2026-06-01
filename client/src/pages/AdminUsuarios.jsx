@@ -7,15 +7,15 @@ import { Label } from "../components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "../components/ui/dialog";
 import { Badge } from "../components/ui/badge";
-import { 
-  ArrowLeft, 
-  UserPlus, 
-  Search, 
-  Filter, 
-  Pencil, 
-  Trash2, 
-  Users, 
-  UserCheck, 
+import {
+  ArrowLeft,
+  UserPlus,
+  Search,
+  Filter,
+  Pencil,
+  Trash2,
+  Users,
+  UserCheck,
   UserX,
   Loader,
   Eye,
@@ -24,7 +24,9 @@ import {
   GraduationCap,
   BookOpen,
   Heart,
-  Shield
+  Shield,
+  Ban,
+  ChevronDown
 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import MainLayout from "../components/MainLayout";
@@ -45,6 +47,9 @@ const AdminUsuarios = () => {
   const [filtroStatus, setFiltroStatus] = useState("");
   const [filtroTurma, setFiltroTurma] = useState("");
   
+  // Dropdown de status
+  const [dropdownStatusAberto, setDropdownStatusAberto] = useState(null);
+
   // Modal de criar/editar
   const [modalAberto, setModalAberto] = useState(false);
   const [modoEdicao, setModoEdicao] = useState(false);
@@ -82,6 +87,13 @@ const AdminUsuarios = () => {
     "EF - 6º Ano", "EF - 7º Ano", "EF - 8º Ano", "EF - 9º Ano", "EM - 1º Ano",
     "EM - 2º Ano", "EM - 3º Ano"
   ];
+
+  useEffect(() => {
+    if (!dropdownStatusAberto) return;
+    const fechar = () => setDropdownStatusAberto(null);
+    document.addEventListener('click', fechar);
+    return () => document.removeEventListener('click', fechar);
+  }, [dropdownStatusAberto]);
 
   useEffect(() => {
     if (usuarioLogado?.tipo !== 'ADMIN') {
@@ -265,10 +277,12 @@ const AdminUsuarios = () => {
     }
   };
 
-  const handleAlternarStatus = async (usuario) => {
+  const handleDefinirStatus = async (usuario, novoStatus) => {
+    setDropdownStatusAberto(null);
     try {
-      await usuariosService.alternarStatus(usuario._id);
-      toast.success(`Usuário ${usuario.status === 'ATIVO' ? 'desativado' : 'ativado'} com sucesso!`);
+      await usuariosService.definirStatus(usuario._id, novoStatus);
+      const labels = { ATIVO: 'ativado', INATIVO: 'desativado', BANIDO: 'banido', SUSPENSO: 'suspenso' };
+      toast.success(`Usuário ${labels[novoStatus] || 'atualizado'} com sucesso!`);
       carregarDados();
     } catch (error) {
       toast.error(error.message || "Erro ao alterar status");
@@ -301,6 +315,21 @@ const AdminUsuarios = () => {
       'PAI/MÃE': 'bg-pink-100 text-pink-800 border-pink-300'
     };
     return colors[tipo] || 'bg-gray-100 text-gray-800 border-gray-300';
+  };
+
+  const getStatusBadgeColor = (status) => {
+    const colors = {
+      'ATIVO': 'bg-green-100 text-green-800',
+      'INATIVO': 'bg-gray-100 text-gray-700',
+      'BANIDO': 'bg-red-200 text-red-900',
+      'SUSPENSO': 'bg-orange-100 text-orange-800',
+    };
+    return colors[status] || 'bg-gray-100 text-gray-700';
+  };
+
+  const getStatusLabel = (status) => {
+    const labels = { ATIVO: 'Ativo', INATIVO: 'Inativo', BANIDO: 'Banido', SUSPENSO: 'Suspenso' };
+    return labels[status] || status;
   };
 
   if (loading) {
@@ -428,6 +457,8 @@ const AdminUsuarios = () => {
                   <option value="">Todos</option>
                   <option value="ATIVO">Ativo</option>
                   <option value="INATIVO">Inativo</option>
+                  <option value="BANIDO">Banido</option>
+                  <option value="SUSPENSO">Suspenso</option>
                 </select>
               </div>
               <div>
@@ -489,8 +520,8 @@ const AdminUsuarios = () => {
                             {getTipoIcon(usuario.tipo)}
                             {getTipoLabel(usuario.tipo)}
                           </Badge>
-                          <Badge className={`${usuario.status === 'ATIVO' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'} text-xs shrink-0`}>
-                            {usuario.status}
+                          <Badge className={`${getStatusBadgeColor(usuario.status)} text-xs shrink-0`}>
+                            {getStatusLabel(usuario.status)}
                           </Badge>
                         </div>
                         <div className="flex flex-col sm:flex-row sm:flex-wrap gap-1 sm:gap-3 text-xs sm:text-sm text-gray-600">
@@ -502,24 +533,38 @@ const AdminUsuarios = () => {
                       </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto lg:shrink-0">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleAlternarStatus(usuario)}
-                        className={`text-xs ${usuario.status === 'ATIVO' ? 'border-red-300 text-red-600 hover:bg-red-50' : 'border-green-300 text-green-600 hover:bg-green-50'}`}
-                      >
-                        {usuario.status === 'ATIVO' ? (
-                          <>
-                            <UserX className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-1" />
-                            <span className="hidden sm:inline">Desativar</span>
-                          </>
-                        ) : (
-                          <>
-                            <UserCheck className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-1" />
-                            <span className="hidden sm:inline">Ativar</span>
-                          </>
+                      {/* Dropdown de status */}
+                      <div className="relative">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={(e) => { e.stopPropagation(); setDropdownStatusAberto(dropdownStatusAberto === usuario._id ? null : usuario._id); }}
+                          disabled={usuario._id === usuarioLogado.id}
+                          className="text-xs border-gray-300 text-gray-700 hover:bg-gray-50 flex items-center gap-1"
+                        >
+                          <ChevronDown className="h-3 w-3 sm:h-4 sm:w-4" />
+                          <span className="hidden sm:inline">Status</span>
+                        </Button>
+                        {dropdownStatusAberto === usuario._id && (
+                          <div className="absolute right-0 mt-1 w-36 bg-white border border-gray-200 rounded-md shadow-lg z-10">
+                            {[
+                              { value: 'ATIVO', label: 'Ativar', color: 'text-green-700 hover:bg-green-50' },
+                              { value: 'INATIVO', label: 'Desativar', color: 'text-gray-700 hover:bg-gray-50' },
+                              { value: 'SUSPENSO', label: 'Suspender', color: 'text-orange-700 hover:bg-orange-50' },
+                              { value: 'BANIDO', label: 'Banir', color: 'text-red-700 hover:bg-red-50' },
+                            ].map((opcao) => (
+                              <button
+                                key={opcao.value}
+                                onClick={() => handleDefinirStatus(usuario, opcao.value)}
+                                disabled={usuario.status === opcao.value}
+                                className={`w-full text-left px-3 py-2 text-xs ${opcao.color} disabled:opacity-40 disabled:cursor-not-allowed`}
+                              >
+                                {opcao.label}
+                              </button>
+                            ))}
+                          </div>
                         )}
-                      </Button>
+                      </div>
                       <Button
                         variant="outline"
                         size="sm"
@@ -653,6 +698,8 @@ const AdminUsuarios = () => {
                   <SelectContent>
                     <SelectItem value="ATIVO">Ativo</SelectItem>
                     <SelectItem value="INATIVO">Inativo</SelectItem>
+                    <SelectItem value="SUSPENSO">Suspenso</SelectItem>
+                    <SelectItem value="BANIDO">Banido</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

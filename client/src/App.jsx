@@ -2,6 +2,7 @@ import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth.jsx';
 import Login from './pages/Login';
+import CadastroUsuario from './pages/CadastroUsuario';
 import Dashboard from './pages/Dashboard';
 import TodasProvas from './pages/TodasProvas';
 import MinhasInscricoes from './pages/MinhasInscricoes';
@@ -27,6 +28,7 @@ import AdminAprovarSolicitacoes from './pages/AdminAprovarSolicitacoes.jsx';
 import CoordOferecerMembros from './pages/CoordOferecerMembros.jsx';
 import CoordGerenciarOfertas from './pages/CoordGerenciarOfertas.jsx';
 import CoordGerenciarEmprestimos from './pages/CoordGerenciarEmprestimos.jsx';
+import CoordDefinirParticipacaoProva from './pages/CoordDefinirParticipacaoProva.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
 
 function App() {
@@ -66,6 +68,13 @@ function App() {
             <Navigate to="/login" replace />
           )}
         />
+
+        {/* Inscrição de Usuário: se autenticado, manda para dashboard */}
+        <Route
+          path="/inscricao"
+          element={isAuthenticated ? <Navigate to="/" replace /> : <CadastroUsuario />}
+        />
+
 
         {/* Todas as Provas - acessível a todos os usuários autenticados */}
         <Route
@@ -237,6 +246,16 @@ function App() {
           element={
             isAuthenticated
               ? (usuario.tipo === 'COORDENADOR' ? <CoordGerenciarEmprestimos /> : <Navigate to="/" replace />)
+              : <Navigate to="/login" replace />
+          }
+        />
+
+        {/* Coordenador: Definir titulares/suplentes para prova */}
+        <Route
+          path="/coord/provas/participacao"
+          element={
+            isAuthenticated
+              ? (usuario.tipo === 'COORDENADOR' ? <CoordDefinirParticipacaoProva /> : <Navigate to="/" replace />)
               : <Navigate to="/login" replace />
           }
         />
