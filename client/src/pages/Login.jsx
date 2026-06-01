@@ -60,9 +60,9 @@ return (
               <Label htmlFor="senha" className="text-gray-900 font-medium">
                 Senha
               </Label>
-              <a href="#" className="text-sm text-gray-600 hover:text-blue-600 transition-colors">
+              {/* <a href="#" className="text-sm text-gray-600 hover:text-blue-600 transition-colors">
                 Esqueceu a senha?
-              </a>
+              </a> */}
             </div>
             <Input
               id="senha"

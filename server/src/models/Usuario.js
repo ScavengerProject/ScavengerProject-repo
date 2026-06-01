@@ -22,7 +22,6 @@ const UsuarioSchema = new mongoose.Schema({
     default: null
   },
 
-  matricula: { type: String },
   status: { type: String, enum: ['ATIVO', 'INATIVO', 'BANIDO', 'SUSPENSO'], default: 'ATIVO' },
   criado_em: { type: Date, default: Date.now },
   /*

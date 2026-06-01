@@ -180,6 +180,10 @@ export const provasService = {
       method: 'PUT',
       body: JSON.stringify(dados),
     }),
+
+  // Admin: associações de alunos às provas (titulares/suplentes por equipe, com emprestados marcados)
+  listarAssociacoes: () =>
+    request('/provas/associacoes/alunos', { method: 'GET' }),
 };
 
 /**
