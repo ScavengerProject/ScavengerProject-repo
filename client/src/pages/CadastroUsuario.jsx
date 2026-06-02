@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
@@ -8,10 +8,10 @@ import { toast } from "../components/ui/toast";
 import { usuariosService } from "../services/api";
 
 const CadastroUsuario = () => {
+    const navigate = useNavigate();
     const [nome, setNome] = useState("");
     const [email, setEmail] = useState("");
     const [telefone, setTelefone] = useState("");
-    const [matricula, setMatricula] = useState("");
     const [senha, setSenha] = useState("");
     const [confirmacao, setConfirmacao] = useState("");
     const [loading, setLoading] = useState(false);
@@ -19,27 +19,58 @@ const CadastroUsuario = () => {
     const handleSubmit = async (event) => {
     event.preventDefault();
 
-    if (!nome || !email || !telefone || !matricula || !senha || !confirmacao) {
-      toast.error("Por favor, preencha todos os campos");
+    // Validações campo a campo
+    if (!nome.trim()) {
+      toast.error("Informe seu nome completo");
+      return;
+    }
+
+    if (!email.trim()) {
+      toast.error("Informe seu email");
+      return;
+    }
+
+    const emailValido = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    if (!emailValido) {
+      toast.error("Informe um email válido");
+      return;
+    }
+
+    if (!telefone.trim()) {
+      toast.error("Informe seu telefone");
+      return;
+    }
+
+    if (!senha) {
+      toast.error("Crie uma senha");
+      return;
+    }
+
+    if (senha.length < 6) {
+      toast.error("A senha deve ter no mínimo 6 caracteres");
+      return;
+    }
+
+    if (!confirmacao) {
+      toast.error("Confirme sua senha");
       return;
     }
 
     if (senha !== confirmacao) {
-      toast.error("As senhas nao conferem");
+      toast.error("As senhas não conferem");
       return;
     }
 
     setLoading(true);
     try {
       // O backend espera um objeto com a estrutura do Usuario,
-      // mas sem os campos que sao preenchidos automaticamente (id, telefone, tipo, turma)
+      // mas sem os campos que sao preenchidos automaticamente (id, tipo, turma)
       const dadosParaEnviar = {
         nome: nome,
         email: email,
         telefone: telefone || null,
         tipo: "ALUNO",
         turma: null,
-        matricula: matricula || null,
         senha: senha,
         status: "ATIVO"
       };
@@ -50,9 +81,13 @@ const CadastroUsuario = () => {
       setNome("");
       setEmail("");
       setTelefone("");
-      setMatricula("");
       setSenha("");
       setConfirmacao("");
+
+      // Redireciona para a tela de login após o cadastro ser efetivado
+      navigate("/login");
+    } catch (error) {
+      toast.error(error.message || "Não foi possível concluir o cadastro");
     } finally {
       setLoading(false);
     }
@@ -107,20 +142,6 @@ const CadastroUsuario = () => {
                 placeholder="Ex: (00) 00000-0000"
                 value={telefone}
                 onChange={(event) => setTelefone(event.target.value)}
-                className="bg-white border-gray-300 focus:ring-blue-500"
-                disabled={loading}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="matricula" className="text-gray-900 font-medium">
-                Matricula
-              </Label>
-              <Input
-                id="matricula"
-                type="number"
-                placeholder="Ex: 2310102067"
-                value={matricula}
-                onChange={(event) => setMatricula(event.target.value)}
                 className="bg-white border-gray-300 focus:ring-blue-500"
                 disabled={loading}
               />

@@ -1,6 +1,7 @@
 import Prova from '../models/Prova.js';
 import Usuario from '../models/Usuario.js';
 import ProvaUsuario from '../models/ProvaUsuario.js';
+import EquipeMembros from '../models/EquipeMembros.js';
 import Notificacao from '../models/Notificacao.js';
 import { criarNotificacao } from '../notificacoes/notificacaoController.js';
 import { enviarEmailNovaProva } from '../utils/emailService.js';
@@ -10,6 +11,33 @@ const GRUPO_LABEL = {
   ALUNOS_MEDIO: 'alunos do ensino médio',
   PROFESSORES: 'professores',
   'PAI/MÃE': 'pais/mães'
+};
+
+/**
+ * Calcula o status da prova automaticamente com base nas datas, ignorando
+ * qualquer status definido manualmente. Esta é a fonte única de verdade.
+ * - Antes da data de início -> NAO_INICIADA
+ * - Entre início e término  -> EM_ANDAMENTO
+ * - Após a data de término  -> CONCLUIDA (término é inclusivo, até o fim do dia)
+ *
+ * Sem data de término a prova permanece EM_ANDAMENTO após iniciada.
+ */
+export const calcularStatusProva = (data_inicio, data_fim) => {
+  const agora = new Date();
+
+  if (data_inicio) {
+    const inicio = new Date(data_inicio);
+    inicio.setUTCHours(0, 0, 0, 0);
+    if (agora < inicio) return 'NAO_INICIADA';
+  }
+
+  if (data_fim) {
+    const fim = new Date(data_fim);
+    fim.setUTCHours(23, 59, 59, 999);
+    if (agora > fim) return 'CONCLUIDA';
+  }
+
+  return 'EM_ANDAMENTO';
 };
 
 /**
@@ -24,7 +52,6 @@ export const criarProva = async (req, res) => {
       formato,
       data_inicio,
       data_fim,
-      status,
       quesitos_de_avaliacao,
       requisito_usuario,
       pontuacao,
@@ -38,13 +65,17 @@ export const criarProva = async (req, res) => {
       return res.status(400).json({ message: 'Campos título, descrição e formato são obrigatórios.' });
     }
 
+    const dataInicioProva = data_inicio || new Date();
+    const dataFimProva = data_fim || null;
+
     const novaProva = new Prova({
       titulo,
       descricao,
       formato,
-      data_inicio: data_inicio || new Date(),
-      data_fim: data_fim || null,
-      status: status || 'NAO_INICIADA',
+      data_inicio: dataInicioProva,
+      data_fim: dataFimProva,
+      // Status sempre derivado das datas (não é mais definido manualmente).
+      status: calcularStatusProva(dataInicioProva, dataFimProva),
       quesitos_de_avaliacao: quesitos_de_avaliacao || [],
       requisito_usuario: requisito_usuario || {},
       pontuacao: pontuacao || {},
@@ -191,8 +222,13 @@ export const listarProvas = async (req, res) => {
         }
       },
       // 5. $project: Limpa o array temporário
-      { $project: { vencedorArray: 0 } } 
+      { $project: { vencedorArray: 0 } }
     ]);
+
+    // Status calculado automaticamente a partir das datas (fonte única de verdade).
+    provas.forEach((p) => {
+      p.status = calcularStatusProva(p.data_inicio, p.data_fim);
+    });
 
     res.status(200).json(provas);
   } catch (error) {
@@ -215,7 +251,11 @@ export const obterProva = async (req, res) => {
             return res.status(404).json({ message: 'Prova não encontrada.' });
         }
 
-        res.status(200).json(prova);
+        // Status calculado automaticamente a partir das datas (fonte única de verdade).
+        const provaObj = prova.toObject();
+        provaObj.status = calcularStatusProva(provaObj.data_inicio, provaObj.data_fim);
+
+        res.status(200).json(provaObj);
 
     } catch (error) {
         console.error('Erro ao obter prova:', error);
@@ -231,14 +271,24 @@ export const atualizarProva = async (req, res) => {
     try {
         const { id } = req.params;
         const dadosAtualizados = req.body;
-        
-        const prova = await Prova.findByIdAndUpdate(id, dadosAtualizados, { 
-            new: true, 
+
+        // O status nunca é definido manualmente; é sempre derivado das datas.
+        delete dadosAtualizados.status;
+
+        const prova = await Prova.findByIdAndUpdate(id, dadosAtualizados, {
+            new: true,
             runValidators: true
         });
 
         if (!prova) {
             return res.status(404).json({ message: 'Prova não encontrada.' });
+        }
+
+        // Recalcula e persiste o status com base nas datas atualizadas.
+        const statusCalculado = calcularStatusProva(prova.data_inicio, prova.data_fim);
+        if (prova.status !== statusCalculado) {
+            prova.status = statusCalculado;
+            await prova.save();
         }
 
         res.status(200).json(prova);
@@ -332,6 +382,16 @@ export const inscreverUsuarioNaProva = async (req, res) => {
 
     if (!prova) return res.status(404).json({ message: 'Prova não encontrada.' });
     if (!usuario) return res.status(404).json({ message: 'Usuário não encontrado.' });
+
+    // É obrigatório pertencer a uma equipe para se inscrever em uma prova.
+    const possuiEquipe = await EquipeMembros.exists({ usuario_id: usuario._id });
+    if (!possuiEquipe) {
+      return res.status(422).json({
+        ok: false,
+        code: 'SEM_EQUIPE',
+        message: 'Você precisa se inscrever em uma equipe antes de se inscrever em uma prova.'
+      });
+    }
 
     // Determina o macro-tipo do usuário (grupo)
     let grupo = null;

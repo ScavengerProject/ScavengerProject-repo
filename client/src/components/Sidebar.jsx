@@ -82,6 +82,15 @@ export default function Sidebar({ usuario, isOpen, onToggle, isMobile }) {
       color: 'teal',
       show: isAdmin
     },
+    {
+      id: 'alunos-por-prova',
+      icon: UserCheck,
+      title: 'Alunos por Prova',
+      description: 'Associações e emprestados',
+      path: '/admin/provas/associacoes',
+      color: 'blue',
+      show: isAdmin
+    },
     // Seção expansível para Empréstimos (Admin)
     {
       id: 'emprestimos-admin-section',

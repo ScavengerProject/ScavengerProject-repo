@@ -139,9 +139,15 @@ export async function resolverEquipeParaProva(usuarioId, provaId) {
   const emp = await EmprestimoEquipe.findOne({ usuario_id: usuarioId, prova_id: provaId, status: 'ATIVO' })
     .select('equipe_destino_id fim inicio');
 
-  const agora = new Date();
   if (emp) {
-    if (!emp.fim || agora <= emp.fim) {
+    // O empréstimo vale durante o tempo da prova. Após a prova terminar (data_fim),
+    // o aluno volta a contar pela sua equipe de origem — ele nunca trocou de equipe de fato.
+    const prova = await Prova.findById(provaId).select('data_fim');
+    const agora = new Date();
+    const provaEncerrada = prova?.data_fim ? agora > new Date(prova.data_fim) : false;
+    const emprestimoEncerrado = emp.fim ? agora > new Date(emp.fim) : false;
+
+    if (!provaEncerrada && !emprestimoEncerrado) {
       return emp.equipe_destino_id; // equipe “válida” durante a prova
     }
   }

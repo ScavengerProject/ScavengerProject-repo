@@ -70,7 +70,6 @@ const AdminUsuarios = () => {
     telefone: "",
     tipo: "ALUNO",
     turma: "",
-    matricula: "",
     status: "ATIVO"
   });
 
@@ -131,10 +130,9 @@ const AdminUsuarios = () => {
     // Filtro de busca
     if (searchTerm) {
       const termo = searchTerm.toLowerCase();
-      resultado = resultado.filter(u => 
+      resultado = resultado.filter(u =>
         u.nome.toLowerCase().includes(termo) ||
-        u.email.toLowerCase().includes(termo) ||
-        (u.matricula && u.matricula.toLowerCase().includes(termo))
+        u.email.toLowerCase().includes(termo)
       );
     }
 
@@ -166,7 +164,6 @@ const AdminUsuarios = () => {
       telefone: "",
       tipo: "ALUNO",
       turma: "",
-      matricula: "",
       status: "ATIVO"
     });
     setMostrarSenha(false);
@@ -183,7 +180,6 @@ const AdminUsuarios = () => {
       telefone: usuario.telefone || "",
       tipo: usuario.tipo,
       turma: usuario.turma || "",
-      matricula: usuario.matricula || "",
       status: usuario.status
     });
     setMostrarSenha(false);
@@ -225,7 +221,6 @@ const AdminUsuarios = () => {
         telefone: formData.telefone || null,
         tipo: formData.tipo,
         turma: formData.turma || null,
-        matricula: formData.matricula || null,
         status: formData.status
       };
 
@@ -425,7 +420,7 @@ const AdminUsuarios = () => {
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                   <Input
                     id="search"
-                    placeholder="Nome, email ou matrícula..."
+                    placeholder="Nome ou email..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="pl-10"
@@ -527,7 +522,6 @@ const AdminUsuarios = () => {
                         <div className="flex flex-col sm:flex-row sm:flex-wrap gap-1 sm:gap-3 text-xs sm:text-sm text-gray-600">
                           <span className="break-all">{usuario.email}</span>
                           {usuario.telefone && <span className="shrink-0">{usuario.telefone}</span>}
-                          {usuario.matricula && <span className="shrink-0">Mat: {usuario.matricula}</span>}
                           {usuario.turma && <span className="shrink-0">{usuario.turma}</span>}
                         </div>
                       </div>
@@ -731,16 +725,6 @@ const AdminUsuarios = () => {
                     Apenas alunos e coordenadores possuem turma
                   </p>
                 )}
-              </div>
-              <div>
-                <Label htmlFor="matricula">Matrícula</Label>
-                <Input
-                  id="matricula"
-                  name="matricula"
-                  autoComplete="off"
-                  value={formData.matricula}
-                  onChange={(e) => setFormData({ ...formData, matricula: e.target.value })}
-                />
               </div>
             </div>
 

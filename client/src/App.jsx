@@ -7,6 +7,7 @@ import Dashboard from './pages/Dashboard';
 import TodasProvas from './pages/TodasProvas';
 import MinhasInscricoes from './pages/MinhasInscricoes';
 import AdminProvas from './pages/AdminProvas';
+import AdminProvasAssociacoes from './pages/AdminProvasAssociacoes.jsx';
 import AdminEquipes from './pages/AdminEquipes.jsx';
 import GerenciarEquipe from './pages/GerenciarEquipes.jsx';
 import InscricaoEquipes from './pages/InscricaoEquipes.jsx';
@@ -109,6 +110,21 @@ function App() {
               redirectTo="/"
             >
               <AdminProvas />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Admin: Alunos associados a provas */}
+        <Route
+          path="/admin/provas/associacoes"
+          element={
+            <ProtectedRoute
+              requiredRole="ADMIN"
+              usuario={usuario}
+              isAuthenticated={isAuthenticated}
+              redirectTo="/"
+            >
+              <AdminProvasAssociacoes />
             </ProtectedRoute>
           }
         />
