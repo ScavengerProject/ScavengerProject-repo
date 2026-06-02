@@ -201,7 +201,9 @@ export const criarNotificacao = async (
       backoff: {
         type: 'exponential',
         delay: 5000
-      }
+      },
+    removeOnComplete: 1000,
+    removeOnFail: 1000
     });
 
     return notificacaoSalva;
