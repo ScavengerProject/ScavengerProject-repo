@@ -124,6 +124,11 @@ export const criarProva = async (req, res) => {
               email_enviado: true,
               email_enviado_em: new Date()
             });
+          } else if (!resultadoEmail.sucesso) {
+            console.error(
+              `[email] Falha ao enviar email da nova prova para ${participante.email}:`,
+              resultadoEmail.erro
+            );
           }
         } catch (err) {
           // Log do erro mas não interrompe o processo
