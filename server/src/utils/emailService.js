@@ -32,11 +32,18 @@ const createTransporter = () => {
 export const enviarEmail = async (destinatario, assunto, corpoHTML) => {
   try {
     const transporter = createTransporter();
-    
+
     if (!transporter) {
+      console.error(
+        '[email] Transporter NÃO configurado. Verifique as variáveis de ambiente. ' +
+        `EMAIL_HOST=${process.env.EMAIL_HOST ? 'definido' : 'AUSENTE'}, ` +
+        `EMAIL_PORT=${process.env.EMAIL_PORT ? 'definido' : 'AUSENTE'}, ` +
+        `EMAIL_USER=${process.env.EMAIL_USER ? 'definido' : 'AUSENTE'}, ` +
+        `EMAIL_PASS=${process.env.EMAIL_PASS ? 'definido' : 'AUSENTE'}`
+      );
       return { sucesso: false, erro: 'Serviço de email não configurado' };
     }
-    
+
     const info = await transporter.sendMail({
       from: process.env.EMAIL_FROM || '"Sistema RPVI" <noreply@rpvi.com>',
       to: destinatario,
@@ -45,6 +52,7 @@ export const enviarEmail = async (destinatario, assunto, corpoHTML) => {
       text: corpoHTML.replace(/<[^>]*>/g, '') // Versão texto simples
     });
 
+    console.log(`[email] Enviado para ${destinatario} (messageId: ${info.messageId})`);
     return { sucesso: true, messageId: info.messageId };
   } catch (error) {
     console.error('Erro ao enviar email:', error);
