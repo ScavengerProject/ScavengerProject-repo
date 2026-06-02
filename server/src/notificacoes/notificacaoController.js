@@ -189,22 +189,32 @@ export const criarNotificacao = async (
 
     const notificacaoSalva = await notificacao.save();
 
-    await emailQueue.add('enviar-email', {
-      notificacaoId: notificacaoSalva._id,
-      usuarioId,
-      tipo,
-      provaId,
-      titulo,
-      mensagem
-    }, {
-      attempts: 3, // retry automático
-      backoff: {
-        type: 'exponential',
-        delay: 5000
-      },
-    removeOnComplete: 1000,
-    removeOnFail: 1000
-    });
+    // O enfileiramento do email NÃO pode derrubar o fluxo: se o Redis estiver
+    // indisponível/mal configurado, a notificação já foi salva e o envio direto
+    // (feito por provaController/feedbackController) ainda deve acontecer.
+    try {
+      await emailQueue.add('enviar-email', {
+        notificacaoId: notificacaoSalva._id,
+        usuarioId,
+        tipo,
+        provaId,
+        titulo,
+        mensagem
+      }, {
+        attempts: 3, // retry automático
+        backoff: {
+          type: 'exponential',
+          delay: 5000
+        },
+        removeOnComplete: 1000,
+        removeOnFail: 1000
+      });
+    } catch (filaError) {
+      console.error(
+        'Erro ao enfileirar email da notificação (notificação salva mesmo assim):',
+        filaError.message
+      );
+    }
 
     return notificacaoSalva;
 
