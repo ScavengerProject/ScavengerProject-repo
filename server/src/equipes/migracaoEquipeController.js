@@ -26,15 +26,15 @@ function normalizeEquipes(docs) {
     ...doc.toObject(),
     equipe_origem: doc.equipe_origem_id?.equipe_id
       ? {
-          _id: doc.equipe_origem_id.equipe_id._id,
-          nome: doc.equipe_origem_id.equipe_id.nome,
-        }
+        _id: doc.equipe_origem_id.equipe_id._id,
+        nome: doc.equipe_origem_id.equipe_id.nome,
+      }
       : null,
     equipe_destino: doc.equipe_destino_id?.equipe_id
       ? {
-          _id: doc.equipe_destino_id.equipe_id._id,
-          nome: doc.equipe_destino_id.equipe_id.nome,
-        }
+        _id: doc.equipe_destino_id.equipe_id._id,
+        nome: doc.equipe_destino_id.equipe_id.nome,
+      }
       : null,
   }));
 }
@@ -126,7 +126,7 @@ export const solicitarMigracao = async (req, res) => {
     });
 
     if (!egOrigem) {
-       return res.status(404).json({ message: 'Sua equipe atual não está vinculada à gincana ativa.' });
+      return res.status(404).json({ message: 'Sua equipe atual não está vinculada à gincana ativa.' });
     }
 
     const solicitacaoPendente = await MigracaoEquipe.findOne({
@@ -205,19 +205,11 @@ export const decidirMigracao = async (req, res) => {
         });
       }
 
-      console.log('Migração aprovada - Atualizando EquipeMembro:', {
-        usuario_id: mig.usuario_id,
-        equipe_atual: membroExistente.equipe_id,
-        equipe_destino: mig.equipe_destino_id
-      });
-
       // Atualizar a equipe do membro
       const resultadoUpdate = await EquipeMembro.updateOne(
         { usuario_id: mig.usuario_id },
         { $set: { equipe_id: mig.equipe_destino_id } }
       );
-
-      console.log('Resultado do update EquipeMembro:', resultadoUpdate);
 
       // Verificar se a atualização foi bem-sucedida
       const membroAtualizado = await EquipeMembro.findOne({ usuario_id: mig.usuario_id });

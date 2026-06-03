@@ -9,11 +9,8 @@ const updateProvasConfiguracao = async () => {
   try {
     await db();
 
-    console.log('🔄 Atualizando provas existentes...');
-
     // Buscar todas as provas
     const todasProvas = await Prova.find({});
-    console.log(`Encontradas ${todasProvas.length} provas no total`);
 
     let atualizadas = 0;
 
@@ -41,11 +38,9 @@ const updateProvasConfiguracao = async () => {
       if (precisaAtualizar) {
         await prova.save();
         atualizadas++;
-        console.log(`✅ Atualizada prova: ${prova.titulo} (quesitos: ${prova.quesitos_de_avaliacao?.join(', ') || 'nenhum'})`);
       }
     }
 
-    console.log(`🎉 Atualização concluída! ${atualizadas} provas atualizadas.`);
     process.exit(0);
 
   } catch (error) {

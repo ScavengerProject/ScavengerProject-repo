@@ -48,10 +48,6 @@ export default function CoordSolicitarEmprestimo() {
         provasService.listar(),
       ]);
 
-      console.log('📊 Solicitações carregadas:', solicitacoesList);
-      console.log('👤 Usuario ID:', usuario._id);
-      console.log('📋 Total de solicitações:', solicitacoesList?.length || 0);
-      
       setSolicitacoes(solicitacoesList || []);
       setProvas(provasList || []);
     } catch (e) {
@@ -114,7 +110,7 @@ export default function CoordSolicitarEmprestimo() {
       const niveis = prev.criterios.niveis_escolares.includes(nivel)
         ? prev.criterios.niveis_escolares.filter(n => n !== nivel)
         : [...prev.criterios.niveis_escolares, nivel];
-      
+
       return {
         ...prev,
         criterios: {
@@ -148,28 +144,19 @@ export default function CoordSolicitarEmprestimo() {
   };
 
   const solicitacoesFiltradas = React.useMemo(() => {
-    console.log('🔍 Filtrando solicitações...');
-    console.log('Total de solicitações:', solicitacoes.length);
-    console.log('Filtro Status:', filtroStatus);
-    console.log('Usuário completo:', usuario);
-    
     // Usar id ou _id, o que estiver disponível
     const userId = String(usuario._id || usuario.id);
-    console.log('👤 Usuario ID usado:', userId);
-    
-    const filtradas = filtroStatus === 'TODOS' 
+
+    const filtradas = filtroStatus === 'TODOS'
       ? solicitacoes.filter(s => {
-          const solId = String(s.coordenador_solicitante_id?._id);
-          console.log(`Comparando: ${solId} === ${userId}`, solId === userId);
-          return solId === userId;
-        })
+        const solId = String(s.coordenador_solicitante_id?._id);
+        return solId === userId;
+      })
       : solicitacoes.filter(s => {
-          const solId = String(s.coordenador_solicitante_id?._id);
-          return solId === userId && s.status === filtroStatus;
-        });
-    
-    console.log('✅ Solicitações filtradas:', filtradas.length);
-    console.log('Solicitações filtradas:', filtradas);
+        const solId = String(s.coordenador_solicitante_id?._id);
+        return solId === userId && s.status === filtroStatus;
+      });
+
     return filtradas;
   }, [solicitacoes, filtroStatus, usuario]);
 
@@ -316,127 +303,127 @@ export default function CoordSolicitarEmprestimo() {
           )}
         </div>
 
-      {/* Dialog: Criar Solicitação */}
-      <Dialog open={openCriar} onOpenChange={setOpenCriar}>
-        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Nova Solicitação de Empréstimo</DialogTitle>
-            <DialogDescription>
-              Solicite pessoas de outras equipes para ajudar sua equipe em uma prova específica.
-            </DialogDescription>
-          </DialogHeader>
+        {/* Dialog: Criar Solicitação */}
+        <Dialog open={openCriar} onOpenChange={setOpenCriar}>
+          <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Nova Solicitação de Empréstimo</DialogTitle>
+              <DialogDescription>
+                Solicite pessoas de outras equipes para ajudar sua equipe em uma prova específica.
+              </DialogDescription>
+            </DialogHeader>
 
-          <div className="space-y-4">
-            {/* Prova */}
-            <div className="space-y-2">
-              <Label htmlFor="prova" className="text-gray-700">
-                Prova <span className="text-red-500">*</span>
-              </Label>
-              <Select
-                value={formData.prova_id}
-                onValueChange={(value) => setFormData({ ...formData, prova_id: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione uma prova" />
-                </SelectTrigger>
-                <SelectContent>
-                  {provas.map((prova) => (
-                    <SelectItem key={prova._id} value={prova._id}>
-                      {prova.titulo}
-                    </SelectItem>
+            <div className="space-y-4">
+              {/* Prova */}
+              <div className="space-y-2">
+                <Label htmlFor="prova" className="text-gray-700">
+                  Prova <span className="text-red-500">*</span>
+                </Label>
+                <Select
+                  value={formData.prova_id}
+                  onValueChange={(value) => setFormData({ ...formData, prova_id: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione uma prova" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {provas.map((prova) => (
+                      <SelectItem key={prova._id} value={prova._id}>
+                        {prova.titulo}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Quantidade */}
+              <div className="space-y-2">
+                <Label htmlFor="quantidade" className="text-gray-700">
+                  Quantidade de Pessoas <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  id="quantidade"
+                  type="number"
+                  min="1"
+                  value={formData.quantidade_solicitada}
+                  onChange={(e) =>
+                    setFormData({ ...formData, quantidade_solicitada: parseInt(e.target.value) || 1 })
+                  }
+                />
+              </div>
+
+              {/* Gênero */}
+              <div className="space-y-2">
+                <Label htmlFor="genero" className="text-gray-700">
+                  Gênero Preferencial
+                </Label>
+                <Select
+                  value={formData.criterios.genero}
+                  onValueChange={(value) =>
+                    setFormData({
+                      ...formData,
+                      criterios: { ...formData.criterios, genero: value },
+                    })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="QUALQUER">Qualquer</SelectItem>
+                    <SelectItem value="MASCULINO">Masculino</SelectItem>
+                    <SelectItem value="FEMININO">Feminino</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Níveis Escolares */}
+              <div className="space-y-2">
+                <Label className="text-gray-700">Níveis Escolares (opcional)</Label>
+                <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto p-2 border rounded">
+                  {niveisEscolares.map((nivel) => (
+                    <div key={nivel} className="flex items-center gap-2">
+                      <Checkbox
+                        id={nivel}
+                        checked={formData.criterios.niveis_escolares.includes(nivel)}
+                        onCheckedChange={() => toggleNivelEscolar(nivel)}
+                      />
+                      <label htmlFor={nivel} className="text-sm text-gray-700 cursor-pointer">
+                        {nivel}
+                      </label>
+                    </div>
                   ))}
-                </SelectContent>
-              </Select>
-            </div>
+                </div>
+              </div>
 
-            {/* Quantidade */}
-            <div className="space-y-2">
-              <Label htmlFor="quantidade" className="text-gray-700">
-                Quantidade de Pessoas <span className="text-red-500">*</span>
-              </Label>
-              <Input
-                id="quantidade"
-                type="number"
-                min="1"
-                value={formData.quantidade_solicitada}
-                onChange={(e) =>
-                  setFormData({ ...formData, quantidade_solicitada: parseInt(e.target.value) || 1 })
-                }
-              />
-            </div>
-
-            {/* Gênero */}
-            <div className="space-y-2">
-              <Label htmlFor="genero" className="text-gray-700">
-                Gênero Preferencial
-              </Label>
-              <Select
-                value={formData.criterios.genero}
-                onValueChange={(value) =>
-                  setFormData({
-                    ...formData,
-                    criterios: { ...formData.criterios, genero: value },
-                  })
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="QUALQUER">Qualquer</SelectItem>
-                  <SelectItem value="MASCULINO">Masculino</SelectItem>
-                  <SelectItem value="FEMININO">Feminino</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Níveis Escolares */}
-            <div className="space-y-2">
-              <Label className="text-gray-700">Níveis Escolares (opcional)</Label>
-              <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto p-2 border rounded">
-                {niveisEscolares.map((nivel) => (
-                  <div key={nivel} className="flex items-center gap-2">
-                    <Checkbox
-                      id={nivel}
-                      checked={formData.criterios.niveis_escolares.includes(nivel)}
-                      onCheckedChange={() => toggleNivelEscolar(nivel)}
-                    />
-                    <label htmlFor={nivel} className="text-sm text-gray-700 cursor-pointer">
-                      {nivel}
-                    </label>
-                  </div>
-                ))}
+              {/* Motivo */}
+              <div className="space-y-2">
+                <Label htmlFor="motivo" className="text-gray-700">
+                  Motivo/Justificativa <span className="text-red-500">*</span>
+                </Label>
+                <Textarea
+                  id="motivo"
+                  placeholder="Explique por que precisa de reforço..."
+                  value={formData.motivo}
+                  onChange={(e) => setFormData({ ...formData, motivo: e.target.value })}
+                  rows={4}
+                />
               </div>
             </div>
 
-            {/* Motivo */}
-            <div className="space-y-2">
-              <Label htmlFor="motivo" className="text-gray-700">
-                Motivo/Justificativa <span className="text-red-500">*</span>
-              </Label>
-              <Textarea
-                id="motivo"
-                placeholder="Explique por que precisa de reforço..."
-                value={formData.motivo}
-                onChange={(e) => setFormData({ ...formData, motivo: e.target.value })}
-                rows={4}
-              />
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setOpenCriar(false)}>
-              Cancelar
-            </Button>
-            <Button
-              className="bg-blue-600 hover:bg-blue-700 text-white"
-              onClick={criarSolicitacao}
-            >
-              Criar Solicitação
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setOpenCriar(false)}>
+                Cancelar
+              </Button>
+              <Button
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+                onClick={criarSolicitacao}
+              >
+                Criar Solicitação
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </MainLayout>
   );

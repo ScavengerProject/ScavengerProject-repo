@@ -6,7 +6,9 @@
   "scripts": {
     "start": "node src/index.js",
     "worker": "node src/notificacoes/emailWorker.js",
-    "test": "jest"
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:ci": "cross-env CI=true jest --runInBand --ci --coverage --forceExit"
   },
   "keywords": [],
   "author": "",

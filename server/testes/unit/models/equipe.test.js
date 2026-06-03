@@ -22,6 +22,7 @@ let mongoServer;
         mongoServer = await MongoMemoryServer.create();
         await mongoose.connect(mongoServer.getUri());
         await EquipeMembros.createIndexes();
+        await Equipe.createIndexes(); // garante o índice único de "nome"
     });
     
     // para o servidor e desconecta
@@ -48,20 +49,17 @@ describe('US06: Teste de Integração de criarEquipe', () => {
     // TESTE 1: CRIAÇÃO BEM-SUCEDIDA
     // ====================================================================
 
-    it('T1: deve criar Equipe, EquipeGincana e associar o Coordenador', async () => {
-        const coordenador = await Usuario.create({ 
-            nome: 'Coordenador T1', 
-            email: 'coordenador.t1@test.com', 
-            senha: '123', 
-            tipo: 'COORDENADOR', 
-        });
+    // Observação: o controller criarEquipe foi simplificado e hoje recebe apenas
+    // { nome, cor }. A equipe é criada SEM coordenador ("Coordenador pendente"),
+    // que é associado depois por um fluxo próprio. Os testes refletem esse
+    // comportamento atual.
 
+    it('T1: deve criar a Equipe e o EquipeGincana sem coordenador (pendente)', async () => {
         const res = mockResponse();
         const req = {
             body: {
                 nome: 'Equipe Integração Success',
                 cor: '#33FF57',
-                coordenador_usuario_id: coordenador._id.toString(),
             },
         };
 
@@ -72,45 +70,41 @@ describe('US06: Teste de Integração de criarEquipe', () => {
         expect(res.status).toHaveBeenCalledWith(201);
         expect(res.json).toHaveBeenCalledWith(
             expect.objectContaining({
-                message: 'Equipe criada e coordenador associado com sucesso.',
+                message: 'Equipe criada com sucesso. Coordenador pendente.',
                 equipe: expect.objectContaining({
                     nome: 'Equipe Integração Success',
-                    total_membros: 1,
-                    coordenador: expect.objectContaining({ nome: 'Coordenador T1' })
+                    cor: '#33FF57',
+                    total_membros: 0,
+                    coordenador: null,
                 })
             })
         );
-        
+
         // verifica se os dados foram persistidos corretamente no banco
         const equipeCriada = await Equipe.findOne({ nome: 'Equipe Integração Success' });
         expect(equipeCriada).not.toBeNull();
 
         const equipeGincana = await EquipeGincana.findOne({ equipe_id: equipeCriada._id });
         expect(equipeGincana).not.toBeNull();
-        expect(equipeGincana.coordenador_usuario_id.toString()).toBe(coordenador._id.toString());
-        
-        const membroCoordenador = await EquipeMembros.findOne({ usuario_id: coordenador._id });
-        expect(membroCoordenador).not.toBeNull();
-        expect(membroCoordenador.is_coordenador).toBe(true);
+        expect(equipeGincana.coordenador_usuario_id).toBeNull();
+
+        // Nenhum membro é criado na criação da equipe
+        const totalMembros = await EquipeMembros.countDocuments({ equipe_id: equipeCriada._id });
+        expect(totalMembros).toBe(0);
     });
 
     // ====================================================================
-    // TESTE 2: CONFLITO (Coordenador já pertence a uma equipe)
+    // TESTE 2: CONFLITO (Nome de equipe já existente)
     // ====================================================================
 
-    it('T2: deve retornar 409 e não criar a equipe se o Coordenador já tiver equipe', async () => {
-        const coordenador = await Usuario.create({ nome: 'Coordenador T2', email: 'coordenador.t2@test.com', senha: '123', tipo: 'COORDENADOR' });
-        const equipeExistente = await Equipe.create({ nome: 'Equipe Antiga', cor: '#000' });
-        const equipeGincanaExistente = await EquipeGincana.create({ equipe_id: equipeExistente._id, coordenador_usuario_id: coordenador._id, gincana_id: 'GINCANA_PRINCIPAL' });
-
-        await EquipeMembros.create({ equipe_gincana_id: equipeGincanaExistente._id, equipe_id: equipeExistente._id, usuario_id: coordenador._id, is_coordenador: true });
+    it('T2: deve retornar 409 se o nome da equipe já existir', async () => {
+        await Equipe.create({ nome: 'Equipe Repetida', cor: '#000' });
 
         const res = mockResponse();
         const req = {
             body: {
-                nome: 'Equipe Falha Conflito',
+                nome: 'Equipe Repetida', // nome duplicado
                 cor: '#AABBCC',
-                coordenador_usuario_id: coordenador._id.toString(),
             },
         };
 
@@ -118,27 +112,24 @@ describe('US06: Teste de Integração de criarEquipe', () => {
 
         expect(res.status).toHaveBeenCalledWith(409);
         expect(res.json).toHaveBeenCalledWith(
-            expect.objectContaining({ message: 'Coordenador já pertence a outra equipe.' })
+            expect.objectContaining({ message: 'Nome da equipe já existe.' })
         );
 
-        // verifica o Banco de Dados para garantir que a equipe Falha NÃO foi criada
-        const equipeFalha = await Equipe.findOne({ nome: 'Equipe Falha Conflito' });
-        expect(equipeFalha).toBeNull();
+        // garante que não duplicou a equipe
+        const total = await Equipe.countDocuments({ nome: 'Equipe Repetida' });
+        expect(total).toBe(1);
     });
 
     // ====================================================================
     // TESTE 3: FALHA (Dados obrigatórios faltando)
     // ====================================================================
 
-    it('T3: deve retornar 400 se faltar o nome da equipe (validação do Controller)', async () => {
-        const coordenador = await Usuario.create({ nome: 'Coordenador T3', email: 'coordenador.t3@test.com', senha: '123', tipo: 'COORDENADOR' });
-        
+    it('T3: deve retornar 400 se faltar a cor da equipe (validação do Controller)', async () => {
         const res = mockResponse();
         const req = {
             body: {
-                nome: '', // Falha aqui
-                cor: '#AABBCC',
-                coordenador_usuario_id: coordenador._id.toString(),
+                nome: 'Equipe Sem Cor',
+                cor: '', // Falha aqui
             },
         };
 
@@ -148,9 +139,9 @@ describe('US06: Teste de Integração de criarEquipe', () => {
         expect(res.json).toHaveBeenCalledWith(
             expect.objectContaining({ message: expect.stringContaining('obrigatórios') })
         );
-        
-        // Garante que o banco de dados não foi acessado, pq ele deve dar o erro 400 antes disso
-        const count = await Equipe.countDocuments({ nome: '' });
+
+        // Garante que nada foi persistido (validação acontece antes de tocar o banco)
+        const count = await Equipe.countDocuments({ nome: 'Equipe Sem Cor' });
         expect(count).toBe(0);
     });
 });

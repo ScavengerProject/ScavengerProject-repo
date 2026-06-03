@@ -19,11 +19,11 @@ node_modules/
 
 # Pastas de build de produção e desenvolvimento
 # Ignora qualquer pasta build ou dist em qualquer lugar do projeto
-/build
-/dist
+build/
+dist/
 
 # Arquivos de teste
-/coverage
+coverage/
 
 # Arquivos de so
 .DS_Store

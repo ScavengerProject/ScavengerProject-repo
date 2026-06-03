@@ -1,0 +1,98 @@
+name: CI
+
+# Pipeline de integração contínua: roda os testes automatizados do backend
+# (Jest + MongoDB em memória) e valida o build do frontend (Vite) a cada push
+# e pull request. Mantém a branch sempre em um estado verificável.
+
+on:
+  push:
+    branches: [main, release, dev, "dev-*"]
+  pull_request:
+    branches: [main, release, dev]
+
+# Cancela execuções antigas da mesma ref quando um novo push chega.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  server-tests:
+    name: Backend - Testes (Jest)
+    # Fixado em 22.04 por compatibilidade do binário do MongoDB usado pelo
+    # mongodb-memory-server (libssl3).
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        working-directory: server
+    env:
+      # Segredo usado para assinar tokens JWT nos testes (não há .env no CI).
+      JWT_SECRET: test-secret-ci
+      CI: "true"
+
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+
+      # Acelera execuções reaproveitando o binário do MongoDB baixado pelo
+      # mongodb-memory-server entre os runs.
+      - name: Cache do binário do MongoDB
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/mongodb-binaries
+          key: mongodb-binaries-${{ runner.os }}
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Rodar testes com cobertura
+        run: npm run test:ci
+
+      - name: Publicar relatório de cobertura
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-server
+          path: server/coverage
+          if-no-files-found: ignore
+
+  client-tests-build:
+    name: Frontend - Testes (Vitest) + Build (Vite)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: client
+
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Rodar testes com cobertura
+        run: npm run test:ci
+
+      - name: Publicar relatório de cobertura
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-client
+          path: client/coverage
+          if-no-files-found: ignore
+
+      - name: Build de produção
+        run: npm run build
