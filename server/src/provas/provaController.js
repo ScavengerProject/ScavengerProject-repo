@@ -16,9 +16,10 @@ const GRUPO_LABEL = {
 /**
  * Calcula o status da prova automaticamente com base nas datas, ignorando
  * qualquer status definido manualmente. Esta é a fonte única de verdade.
- * - Antes da data de início -> NAO_INICIADA
- * - Entre início e término  -> EM_ANDAMENTO
- * - Após a data de término  -> CONCLUIDA (término é inclusivo, até o fim do dia)
+ * A data de início e de término consideram também o horário informado.
+ * - Antes do horário de início -> NAO_INICIADA
+ * - Entre início e término     -> EM_ANDAMENTO
+ * - Após o horário de término  -> CONCLUIDA
  *
  * Sem data de término a prova permanece EM_ANDAMENTO após iniciada.
  */
@@ -27,13 +28,11 @@ export const calcularStatusProva = (data_inicio, data_fim) => {
 
   if (data_inicio) {
     const inicio = new Date(data_inicio);
-    inicio.setUTCHours(0, 0, 0, 0);
     if (agora < inicio) return 'NAO_INICIADA';
   }
 
   if (data_fim) {
     const fim = new Date(data_fim);
-    fim.setUTCHours(23, 59, 59, 999);
     if (agora > fim) return 'CONCLUIDA';
   }
 

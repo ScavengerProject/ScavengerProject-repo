@@ -22,6 +22,7 @@ const mockRes = () => {
 
 const adminId = new mongoose.Types.ObjectId().toString();
 const umDia = 24 * 60 * 60 * 1000;
+const umHora = 60 * 60 * 1000;
 
 let mongoServer;
 
@@ -54,6 +55,17 @@ describe('calcularStatusProva (lógica pura de status por datas)', () => {
   it('retorna CONCLUIDA quando a data de término já passou', () => {
     const inicio = new Date(Date.now() - 10 * umDia);
     const fim = new Date(Date.now() - 2 * umDia);
+    expect(calcularStatusProva(inicio, fim)).toBe('CONCLUIDA');
+  });
+
+  it('considera o horário: início daqui a poucas horas -> NAO_INICIADA', () => {
+    const daquiAUmaHora = new Date(Date.now() + umHora);
+    expect(calcularStatusProva(daquiAUmaHora, null)).toBe('NAO_INICIADA');
+  });
+
+  it('considera o horário: término há poucas horas -> CONCLUIDA', () => {
+    const inicio = new Date(Date.now() - 5 * umHora);
+    const fim = new Date(Date.now() - umHora);
     expect(calcularStatusProva(inicio, fim)).toBe('CONCLUIDA');
   });
 });

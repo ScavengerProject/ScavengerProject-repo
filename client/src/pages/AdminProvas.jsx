@@ -42,26 +42,37 @@ const QUESITOS_OPCOES = [
 
 /**
  * Calcula o status da prova automaticamente a partir das datas (mesma regra do backend).
- * - Antes da data de início -> NAO_INICIADA
- * - Entre início e término  -> EM_ANDAMENTO
- * - Após a data de término  -> CONCLUIDA (término inclusivo, até o fim do dia)
+ * A data de início e de término consideram também o horário informado.
+ * - Antes do horário de início -> NAO_INICIADA
+ * - Entre início e término     -> EM_ANDAMENTO
+ * - Após o horário de término  -> CONCLUIDA
  */
 const calcularStatusProva = (data_inicio, data_fim) => {
   const agora = new Date();
 
   if (data_inicio) {
     const inicio = new Date(data_inicio);
-    inicio.setUTCHours(0, 0, 0, 0);
     if (agora < inicio) return 'NAO_INICIADA';
   }
 
   if (data_fim) {
     const fim = new Date(data_fim);
-    fim.setUTCHours(23, 59, 59, 999);
     if (agora > fim) return 'CONCLUIDA';
   }
 
   return 'EM_ANDAMENTO';
+};
+
+/**
+ * Converte um valor de data (ISO ou Date) para o formato aceito por
+ * <input type="datetime-local"> (YYYY-MM-DDTHH:mm) em horário local.
+ */
+const paraDatetimeLocal = (data) => {
+  if (!data) return "";
+  const d = new Date(data);
+  if (isNaN(d.getTime())) return "";
+  const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 16);
 };
 
 // Função auxiliar para formatar os requisitos
@@ -241,9 +252,17 @@ const AdminProvas = () => {
     try {
       setSubmitting(true);
 
+      // Converte os valores de datetime-local (horário local) para ISO (UTC),
+      // preservando o horário escolhido independentemente do fuso do servidor.
+      const payload = {
+        ...formData,
+        data_inicio: formData.data_inicio ? new Date(formData.data_inicio).toISOString() : "",
+        data_fim: formData.data_fim ? new Date(formData.data_fim).toISOString() : "",
+      };
+
       if (editingProva) {
         // Atualizar prova existente
-        await provasService.atualizar(editingProva._id, formData);
+        await provasService.atualizar(editingProva._id, payload);
         toast.success("Prova atualizada com sucesso!");
         
         // Atualizar lista localmente (status sempre recalculado pelas datas)
@@ -260,7 +279,7 @@ const AdminProvas = () => {
         );
       } else {
         // Criar nova prova
-        const response = await provasService.criar(formData);
+        const response = await provasService.criar(payload);
         toast.success("Prova criada com sucesso!");
         
         // Adicionar à lista
@@ -310,8 +329,8 @@ const AdminProvas = () => {
       titulo: prova.titulo,
       descricao: prova.descricao,
       formato: prova.formato,
-      data_inicio: prova.data_inicio ? new Date(prova.data_inicio).toISOString().split('T')[0] : "",
-      data_fim: prova.data_fim ? new Date(prova.data_fim).toISOString().split('T')[0] : "",
+      data_inicio: paraDatetimeLocal(prova.data_inicio),
+      data_fim: paraDatetimeLocal(prova.data_fim),
       quesitos_de_avaliacao: prova.quesitos_de_avaliacao || [],
       requisito_usuario: requisitoUsuario,
       restricao_participacao: prova.restricao_participacao || {},
@@ -349,10 +368,10 @@ const AdminProvas = () => {
     carregarProvas(); 
   };
 
-  // Função auxiliar para formatar data
+  // Função auxiliar para formatar data e hora
   const formatarData = (data) => {
     if (!data) return "Não definida";
-    return new Date(data).toLocaleDateString("pt-BR");
+    return new Date(data).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
   };
 
   // Função auxiliar para traduzir status
@@ -544,14 +563,14 @@ const AdminProvas = () => {
                     </Select>
                   </div>
 
-                  {/* Data Início */}
+                  {/* Data e hora de Início */}
                   <div className="grid gap-2">
                     <Label htmlFor="data_inicio" className="text-gray-900 font-medium">
-                      Data de Início
+                      Data e Hora de Início
                     </Label>
                     <Input
                       id="data_inicio"
-                      type="date"
+                      type="datetime-local"
                       value={formData.data_inicio}
                       onChange={(e) => setFormData({ ...formData, data_inicio: e.target.value })}
                       className="bg-white border-gray-300"
@@ -559,14 +578,14 @@ const AdminProvas = () => {
                     />
                   </div>
 
-                  {/* Data Fim */}
+                  {/* Data e hora de Fim */}
                   <div className="grid gap-2">
                     <Label htmlFor="data_fim" className="text-gray-900 font-medium">
-                      Data de Término
+                      Data e Hora de Término
                     </Label>
                     <Input
                       id="data_fim"
-                      type="date"
+                      type="datetime-local"
                       value={formData.data_fim}
                       onChange={(e) => setFormData({ ...formData, data_fim: e.target.value })}
                       className="bg-white border-gray-300"
