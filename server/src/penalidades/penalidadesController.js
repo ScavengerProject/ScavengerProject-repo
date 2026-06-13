@@ -15,7 +15,6 @@ const logFormData = (req, extra = {}, participanteSelecionado = null) => {
     participanteSelecionado,
     ...extra,
   };
-  console.log("📌 Dados atuais do form / request:", JSON.stringify(data, null, 2));
 };
 
 /**
@@ -102,8 +101,6 @@ export const criarPenalidade = async (req, res) => {
             destinatariosIds.delete(remetenteId);
         }
 
-        console.log(`🔔 Enviando notificação de penalidade para ${destinatariosIds.size} pessoas da equipe ${nomeEquipe}.`);
-
         // Disparar notificações em paralelo
         const promises = Array.from(destinatariosIds).map(userId => {
             return criarNotificacao(
@@ -175,7 +172,6 @@ export const listarPenalidades = async (req, res) => {
       criado_em: p.criado_em,
     }));
 
-    console.log(`📌 Penalidades do DB para ${usuarioAtual.tipo}:`, penalidades.length);
     return res.status(200).json(resultado);
   } catch (err) {
     console.error("Erro listarPenalidades:", err);
@@ -233,8 +229,6 @@ export const listarMembrosDaEquipe = async (req, res) => {
       return res.status(400).json({ message: "ID da equipe (EquipeGincana) é obrigatório." });
     }
 
-    console.log(`🔍 Buscando membros da equipe (EquipeGincana): ${equipeId} para ${usuarioAtual.tipo}`);
-
     const equipeGincana = await EquipeGincana.findById(equipeId).populate("equipe_id");
     if (!equipeGincana) return res.status(404).json({ message: "EquipeGincana não encontrada." });
 
@@ -289,7 +283,6 @@ export const buscarParticipante = async (req, res) => {
       turma: usuario.turma || "",
     };
 
-    console.log("Participante selecionado:", resultado);
     logFormData(req, {}, resultado);
 
     return res.status(200).json(resultado);

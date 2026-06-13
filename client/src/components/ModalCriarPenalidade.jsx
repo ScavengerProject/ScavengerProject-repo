@@ -98,8 +98,6 @@ export default function ModalCriarPenalidade({ open, onClose, onSubmit }) {
         console.warn("Resposta inesperada do servidor:", res);
       }
 
-      console.log("✅ Penalidade criada:", res);
-
       // Atualiza os pontos da equipe na tela
       setPontosEquipe(res.pontos_restantes || 0);
       setEquipes((prev) =>

@@ -10,12 +10,11 @@ import { calcularStatusProva } from '../provas/provaController.js';
  */
 export const listarResultadosDaProva = async (req, res) => {
   try {
-    const { provaId } = req.query; 
+    const { provaId } = req.query;
     if (!provaId) {
       return res.status(400).json({ message: 'O ID da prova (provaId) é obrigatório' });
     }
 
-    console.log('🔍 DEBUG - Buscando resultados para provaId:', provaId);
 
     // 1. Busca os resultados E a prova em paralelo
     const [resultados, prova] = await Promise.all([
@@ -37,7 +36,6 @@ export const listarResultadosDaProva = async (req, res) => {
             // Verificar se é um ID de EquipeGincana
             const equipeGincana = await EquipeGincana.findById(equipeIdOriginal);
             if (equipeGincana && equipeGincana.equipe_id) {
-              console.log(`🔧 CORREÇÃO: Resultado ${resultado._id} tem ID de EquipeGincana (${equipeIdOriginal}), corrigindo para Equipe ${equipeGincana.equipe_id}`);
               resultado.equipe_id = equipeGincana.equipe_id;
               resultadosParaCorrigir.push(resultado);
             } else {
@@ -58,7 +56,7 @@ export const listarResultadosDaProva = async (req, res) => {
     // Salvar correções se houver
     if (resultadosParaCorrigir.length > 0) {
       await Promise.all(resultadosParaCorrigir.map(r => r.save()));
-      console.log(`✅ ${resultadosParaCorrigir.length} resultados corrigidos`);
+
       // Recarregar resultados após correção
       const resultadosCorrigidos = await Resultado.find({ prova_id: provaId })
         .sort({ pontuacao_obtida: -1 })
@@ -66,14 +64,6 @@ export const listarResultadosDaProva = async (req, res) => {
       resultados.length = 0;
       resultados.push(...resultadosCorrigidos);
     }
-
-    console.log('🔍 DEBUG - Resultados encontrados:', resultados.length);
-    console.log('🔍 DEBUG - Resultados detalhados:', JSON.stringify(resultados.map(r => ({
-      id: r._id,
-      equipe_id: r.equipe_id,
-      pontuacao_obtida: r.pontuacao_obtida,
-      detalhes_pontuacao: r.detalhes_pontuacao
-    })), null, 2));
 
     if (!prova) {
       return res.status(404).json({ message: 'Prova não encontrada.' });
@@ -104,7 +94,7 @@ export const listarResultadosDaProva = async (req, res) => {
       }
 
       let valor;
-      
+
       // Extrai o input original do texto 'detalhes_pontuacao'
       if (tipo === 'RANKING') {
         // Ex: "1ª Posição" -> extrai "1"
@@ -144,11 +134,6 @@ export const lancarResultados = async (req, res) => {
 
   const { tipo, resultados } = req.body;
 
-  console.log('🔥 DEBUG - Iniciando lancarResultados');
-  console.log('🔥 DEBUG - provaId:', provaId);
-  console.log('🔥 DEBUG - tipo:', tipo);
-  console.log('🔥 DEBUG - resultados recebidos:', JSON.stringify(resultados, null, 2));
-
   if (!tipo || !resultados || !Array.isArray(resultados)) {
     return res.status(400).json({ message: 'Dados inválidos: tipo e resultados são obrigatórios.' });
   }
@@ -167,11 +152,9 @@ export const lancarResultados = async (req, res) => {
       throw new Error('A prova precisa estar "CONCLUIDA"');
     }
     const regrasPontuacao = prova.pontuacao || {};
-    console.log('📊 DEBUG - Regras de pontuação da prova:', JSON.stringify(regrasPontuacao, null, 2));
 
     // Extrair configuração dos quesitos da prova
     const quesitosMarcados = prova.quesitos_de_avaliacao || [];
-    console.log('📊 DEBUG - Quesitos marcados:', quesitosMarcados);
 
     const resultadosAntigos = await Resultado.find({ prova_id: provaId }).session(session);
     if (resultadosAntigos.length > 0) {
@@ -196,8 +179,7 @@ export const lancarResultados = async (req, res) => {
 
     // Validar todos os equipe_ids antes de processar
     const equipeIds = resultados.map(r => r.equipe_id).filter(Boolean);
-    console.log('🔍 DEBUG - Equipe IDs recebidos do frontend (strings):', equipeIds);
-    
+
     // Converter para ObjectId
     const equipeObjectIds = equipeIds.map(id => {
       try {
@@ -207,14 +189,10 @@ export const lancarResultados = async (req, res) => {
         return null;
       }
     }).filter(Boolean);
-    
-    console.log('🔍 DEBUG - Tentando buscar equipes na coleção Equipe com esses ObjectIds...');
+
     const equipesExistentes = await Equipe.find({ _id: { $in: equipeObjectIds } }).select('_id nome').session(session);
     const equipesExistentesMap = new Map(equipesExistentes.map(eq => [eq._id.toString(), eq]));
 
-    console.log('🔍 DEBUG - Equipes encontradas no banco:', equipesExistentes.map(eq => ({ id: eq._id.toString(), nome: eq.nome })));
-    console.log('🔍 DEBUG - Total de equipes encontradas:', equipesExistentes.length);
-    
     // Se não encontrou todas, listar quais estão faltando
     const idsNaoEncontrados = equipeIds.filter(id => {
       try {
@@ -224,7 +202,7 @@ export const lancarResultados = async (req, res) => {
         return true;
       }
     });
-    
+
     if (idsNaoEncontrados.length > 0) {
       console.error('❌ ERRO - Equipes não encontradas na coleção Equipe:', idsNaoEncontrados);
       // Tentar verificar se são IDs de EquipeGincana
@@ -233,9 +211,9 @@ export const lancarResultados = async (req, res) => {
         const equipesGincana = await EquipeGincana.find({ _id: { $in: equipeGincanaObjectIds } }).select('_id equipe_id').session(session);
         if (equipesGincana.length > 0) {
           console.error('⚠️ ATENÇÃO: Os IDs enviados são de EquipeGincana, não de Equipe!');
-          console.error('⚠️ IDs de EquipeGincana encontrados:', equipesGincana.map(eg => ({ 
-            equipeGincana_id: eg._id.toString(), 
-            equipe_id: eg.equipe_id?.toString() 
+          console.error('⚠️ IDs de EquipeGincana encontrados:', equipesGincana.map(eg => ({
+            equipeGincana_id: eg._id.toString(),
+            equipe_id: eg.equipe_id?.toString()
           })));
           throw new Error(`Os IDs enviados são de EquipeGincana (${equipesGincana[0]._id}), mas o sistema espera IDs de Equipe (${equipesGincana[0].equipe_id}). Verifique o endpoint listarEquipesGincana().`);
         }
@@ -256,11 +234,8 @@ export const lancarResultados = async (req, res) => {
       let pontuacao_quesitos = 0;
       let detalhes_pontuacao = "";
 
-      console.log('ID DA EQUIPE RECEBIDO DO FRONTEND:', res.equipe_id);
-
       try {
         var equipeObjId = new mongoose.Types.ObjectId(res.equipe_id);
-        console.log('✅ Equipe ObjectId válido:', equipeObjId);
       } catch (error) {
         console.error('❌ Erro ao converter equipe_id para ObjectId:', res.equipe_id, error);
         throw new Error(`ID de equipe inválido: ${res.equipe_id}`);
@@ -272,19 +247,12 @@ export const lancarResultados = async (req, res) => {
         console.error('❌ ERRO: Equipe não encontrada no banco de dados:', res.equipe_id);
         throw new Error(`Equipe com ID ${res.equipe_id} não existe no banco de dados. Verifique se a equipe foi deletada ou se o ID está correto.`);
       }
-      console.log('✅ Equipe validada:', equipeExiste.nome, 'ID:', equipeExiste._id);
 
       // Calcular pontuação base
-      console.log('🎯 DEBUG - Calculando pontuação para equipe:', res.equipe_id);
-      console.log('🎯 DEBUG - Tipo de prova:', tipo);
-      console.log('🎯 DEBUG - Regras de pontuação:', JSON.stringify(regrasPontuacao, null, 2));
-      console.log('🎯 DEBUG - Valor recebido:', res.valor);
-
       if (tipo === 'RANKING') {
         const posicao = res.valor;
         pontuacao_base = Number(regrasPontuacao[posicao]) || 0;
         detalhes_pontuacao = `${posicao}ª Posição`;
-        console.log('🎯 DEBUG - RANKING - Posição:', posicao, 'Pontos:', pontuacao_base);
       }
       else if (tipo === 'PROPORCIONAL') {
         const quantidade = Number(res.valor) || 0;
@@ -297,8 +265,6 @@ export const lancarResultados = async (req, res) => {
           pontuacao_base = limitePorcoes;
           detalhes_pontuacao = `${quantidade} ${regrasPontuacao.nome_unidade || 'unidades'} (teto atingido: ${limitePorcoes} pts)`;
         }
-
-        console.log('🎯 DEBUG - PROPORCIONAL - Quantidade:', quantidade, 'Pontos por unidade:', pontosPorUnidade, 'Teto:', limitePorcoes || 'sem teto', 'Total:', pontuacao_base);
       }
 
       // Calcular pontuação dos quesitos
@@ -313,14 +279,9 @@ export const lancarResultados = async (req, res) => {
       }
 
       const pontuacao_total = pontuacao_base + pontuacao_quesitos;
-      console.log('🎯 DEBUG - Pontuação total:', pontuacao_total, '(base:', pontuacao_base, '+ quesitos:', pontuacao_quesitos + ')');
-      console.log('🎯 DEBUG - Condição para salvar:', pontuacao_total > 0 || tipo === 'RANKING');
 
       // TEMPORÁRIO: Sempre salvar resultados para debug
-      if (true) { // pontuacao_total > 0 || tipo === 'RANKING'
-        console.log('✅ DEBUG - Adicionando resultado aos documentos...');
-        console.log('✅ DEBUG - Equipe ID que será salvo:', equipeObjId);
-        console.log('✅ DEBUG - Equipe nome:', equipeExiste.nome);
+      if (true) {
         novosResultadosDocs.push({
           gincana_id: gincanaId,
           prova_id: provaId,
@@ -340,25 +301,17 @@ export const lancarResultados = async (req, res) => {
         }
       });
     }
-    console.log('DADOS ENVIADOS PARA O EquipeGincana.bulkWrite:', JSON.stringify(updatesPontuacao, null, 2));
-    console.log('🔥 DEBUG - novosResultadosDocs:', JSON.stringify(novosResultadosDocs, null, 2));
 
     // 4. Inserir novos resultados e aplicar novos pontos
     if (novosResultadosDocs.length > 0) {
-      console.log('🔥 DEBUG - Inserindo resultados...');
       const resultadosInseridos = await Resultado.insertMany(novosResultadosDocs, { session });
-      console.log('🔥 DEBUG - Resultados inseridos:', resultadosInseridos.length);
     }
     if (updatesPontuacao.length > 0) {
-      console.log('🔥 DEBUG - Atualizando pontos das equipes...');
       const resultadoBulk = await EquipeGincana.bulkWrite(updatesPontuacao, { session });
-      console.log('🔥 DEBUG - Bulk write result:', resultadoBulk);
     }
 
     // 5. Lançar os resultados
-    console.log('🔥 DEBUG - Fazendo commit da transação...');
     await session.commitTransaction();
-    console.log('🔥 DEBUG - Transação commitada com sucesso!');
     res.status(201).json({ message: 'Resultados lançados com sucesso!' });
 
   } catch (error) {

@@ -149,10 +149,6 @@ const LancarResultadoModal = ({ prova, isOpen, onClose }) => {
         quesitos: r.quesitos || {}
       }));
 
-      // Debug: verificar dados antes de enviar
-      console.log('📤 DEBUG - Dados que serão enviados:', JSON.stringify(dadosFormatados, null, 2));
-      console.log('📤 DEBUG - Equipes disponíveis:', equipes.map(eq => ({ id: eq._id, nome: eq.nome })));
-
       const body = { tipo: tipoPontuacao, resultados: dadosFormatados };
       await resultadosService.lancarResultados(prova._id, body);
       toast.success("Resultados lançados com sucesso!");
