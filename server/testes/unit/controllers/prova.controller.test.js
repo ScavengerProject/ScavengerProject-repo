@@ -11,7 +11,9 @@ import {
   deletarProva,
   atualizarRequisitoUsuario,
   verificarInscricao,
+  listarProvas,
 } from '../../../src/provas/provaController.js';
+import { emailQueue } from '../../../src/notificacoes/emailQueue.js';
 
 const mockRes = () => {
   const res = {};
@@ -199,6 +201,95 @@ describe('provaController - atualizarRequisitoUsuario', () => {
     expect(res.status).toHaveBeenCalledWith(200);
     const atualizada = await Prova.findById(prova._id);
     expect(atualizada.requisito_usuario.ALUNOS_FUNDAMENTAL).toBe(3);
+  });
+});
+
+describe('provaController - #18 publicação e visibilidade', () => {
+  const baseProvaPub = (overrides = {}) => ({
+    titulo: 'P',
+    descricao: 'd',
+    formato: 'PROVA_PRATICA',
+    data_inicio: new Date(Date.now() - umDia),
+    pontuacao: { '1': 100 },
+    criado_por_usuario_id: adminId,
+    ...overrides,
+  });
+
+  it('listarProvas oculta provas não publicadas para não-ADMIN', async () => {
+    await Prova.create(baseProvaPub({ titulo: 'Publica' }));
+    await Prova.create(baseProvaPub({ titulo: 'Agendada', data_publicacao: new Date(Date.now() + umDia) }));
+
+    const res = mockRes();
+    await listarProvas({ usuario: { tipo: 'ALUNO' } }, res);
+
+    const titulos = res.json.mock.calls[0][0].map((p) => p.titulo);
+    expect(titulos).toContain('Publica');
+    expect(titulos).not.toContain('Agendada');
+  });
+
+  it('listarProvas mostra também as provas agendadas para ADMIN', async () => {
+    await Prova.create(baseProvaPub({ titulo: 'Agendada', data_publicacao: new Date(Date.now() + umDia) }));
+
+    const res = mockRes();
+    await listarProvas({ usuario: { tipo: 'ADMIN' } }, res);
+
+    const titulos = res.json.mock.calls[0][0].map((p) => p.titulo);
+    expect(titulos).toContain('Agendada');
+  });
+
+  it('obterProva retorna 404 para não-ADMIN quando ainda não publicada', async () => {
+    const prova = await Prova.create(baseProvaPub({ data_publicacao: new Date(Date.now() + umDia) }));
+    const res = mockRes();
+
+    await obterProva({ params: { id: prova._id.toString() }, usuario: { tipo: 'ALUNO' } }, res);
+
+    expect(res.status).toHaveBeenCalledWith(404);
+  });
+
+  it('obterProva retorna a prova agendada para ADMIN', async () => {
+    const prova = await Prova.create(baseProvaPub({ data_publicacao: new Date(Date.now() + umDia) }));
+    const res = mockRes();
+
+    await obterProva({ params: { id: prova._id.toString() }, usuario: { tipo: 'ADMIN' } }, res);
+
+    expect(res.status).toHaveBeenCalledWith(200);
+  });
+
+  it('criarProva agenda a notificação quando a publicação é futura', async () => {
+    emailQueue.add.mockClear();
+    const req = {
+      usuario: { id: adminId },
+      body: {
+        titulo: 'Futura',
+        descricao: 'd',
+        formato: 'PROVA_PRATICA',
+        data_inicio: new Date(),
+        data_publicacao: new Date(Date.now() + umDia),
+      },
+    };
+    const res = mockRes();
+
+    await criarProva(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.json.mock.calls[0][0].notificacao_publicacao_enviada).toBe(false);
+    expect(emailQueue.add).toHaveBeenCalledWith(
+      'publicarProva',
+      expect.objectContaining({ tipo: 'PUBLICAR_PROVA' }),
+      expect.objectContaining({ delay: expect.any(Number) })
+    );
+  });
+
+  it('criarProva dispara imediatamente quando não há data de publicação', async () => {
+    const req = {
+      usuario: { id: adminId },
+      body: { titulo: 'Imediata', descricao: 'd', formato: 'PROVA_PRATICA', data_inicio: new Date() },
+    };
+    const res = mockRes();
+
+    await criarProva(req, res);
+
+    expect(res.json.mock.calls[0][0].notificacao_publicacao_enviada).toBe(true);
   });
 });
 

@@ -129,6 +129,7 @@ const AdminProvas = () => {
     formato: "",
     data_inicio: "",
     data_fim: "",
+    data_publicacao: "",
     status: "NAO_INICIADA",
     quesitos_de_avaliacao: [],
     requisito_usuario: {
@@ -195,6 +196,7 @@ const AdminProvas = () => {
       formato: "",
       data_inicio: "",
       data_fim: "",
+      data_publicacao: "",
       quesitos_de_avaliacao: [],
       requisito_usuario: {
         ALUNOS_FUNDAMENTAL: 0,
@@ -258,6 +260,7 @@ const AdminProvas = () => {
         ...formData,
         data_inicio: formData.data_inicio ? new Date(formData.data_inicio).toISOString() : "",
         data_fim: formData.data_fim ? new Date(formData.data_fim).toISOString() : "",
+        data_publicacao: formData.data_publicacao ? new Date(formData.data_publicacao).toISOString() : "",
       };
 
       if (editingProva) {
@@ -331,6 +334,7 @@ const AdminProvas = () => {
       formato: prova.formato,
       data_inicio: paraDatetimeLocal(prova.data_inicio),
       data_fim: paraDatetimeLocal(prova.data_fim),
+      data_publicacao: paraDatetimeLocal(prova.data_publicacao),
       quesitos_de_avaliacao: prova.quesitos_de_avaliacao || [],
       requisito_usuario: requisitoUsuario,
       restricao_participacao: prova.restricao_participacao || {},
@@ -591,6 +595,25 @@ const AdminProvas = () => {
                       className="bg-white border-gray-300"
                       disabled={submitting}
                     />
+                  </div>
+
+                  {/* Data e hora de Publicação */}
+                  <div className="grid gap-2">
+                    <Label htmlFor="data_publicacao" className="text-gray-900 font-medium">
+                      Data e Hora de Publicação
+                    </Label>
+                    <Input
+                      id="data_publicacao"
+                      type="datetime-local"
+                      value={formData.data_publicacao}
+                      onChange={(e) => setFormData({ ...formData, data_publicacao: e.target.value })}
+                      className="bg-white border-gray-300"
+                      disabled={submitting}
+                    />
+                    <p className="text-xs text-gray-500">
+                      A prova fica oculta para alunos e coordenadores até este momento, quando também
+                      são enviadas as notificações. Deixe em branco para publicar imediatamente.
+                    </p>
                   </div>
 
                   {/* Status (definido automaticamente pelas datas) */}
@@ -1060,6 +1083,11 @@ const AdminProvas = () => {
                         <CardDescription className="text-xs sm:text-sm text-gray-600">
                           {traduzirFormato(prova.formato)} • {traduzirStatus(prova.status)}
                         </CardDescription>
+                        {prova.data_publicacao && new Date(prova.data_publicacao) > new Date() && (
+                          <span className="inline-block mt-1 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-0.5">
+                            Agendada para {formatarData(prova.data_publicacao)}
+                          </span>
+                        )}
                       </div>
                       <div className="flex gap-2 shrink-0">
                         {prova.status === 'CONCLUIDA' && (
