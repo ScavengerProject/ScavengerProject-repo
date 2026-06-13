@@ -78,8 +78,8 @@ export default function AprovarMigracoes() {
       <div className="container mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-6 md:py-8">
         <Card className="bg-white border-gray-200 shadow-md">
           <CardHeader>
-            <CardTitle className="text-gray-900">Pendentes</CardTitle>
-            <CardDescription>Aprove ou rejeite os pedidos para as equipes que você coordena.</CardDescription>
+            <CardTitle className="text-gray-900">Solicitações de entrada</CardTitle>
+            <CardDescription>Aprove ou rejeite os pedidos de entrada nas equipes que você coordena.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {pendentes.length === 0 && <p className="text-gray-600">Nenhuma solicitação pendente.</p>}

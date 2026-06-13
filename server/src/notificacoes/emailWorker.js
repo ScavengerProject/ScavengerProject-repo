@@ -74,6 +74,15 @@ const worker = new Worker(
           break;
         }
 
+        case 'MIGRACAO': {
+          resultado = await enviarEmail(
+            usuario.email,
+            titulo,
+            `<p>Olá ${usuario.nome},</p><p>${mensagem}</p>`
+          );
+          break;
+        }
+
         case 'PENALIDADE': {
           resultado = await enviarEmail(
             usuario.email,
