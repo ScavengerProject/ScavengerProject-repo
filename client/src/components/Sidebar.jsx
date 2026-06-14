@@ -204,7 +204,7 @@ export default function Sidebar({ usuario, isOpen, onToggle, isMobile }) {
       description: 'Ver histórico',
       path: '/meus-feedbacks',
       color: 'indigo',
-      show: true
+      show: ['COORDENADOR'].includes(usuario?.tipo)
     }
   ];
 
