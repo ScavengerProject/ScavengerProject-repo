@@ -121,5 +121,5 @@ export default function MainLayout({ usuario, onLogout, children }) {
       )}
     </div>
   );
-}
+} 
 
