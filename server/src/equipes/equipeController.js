@@ -3,6 +3,7 @@ import EquipeGincana from '../models/EquipeGincana.js';
 import EquipeMembros from '../models/EquipeMembros.js';
 import Usuario from '../models/Usuario.js';
 import ConfiguracaoGincana from '../models/ConfiguracaoGincana.js';
+import { getEquipeGincanaDoCoordenador } from './coordenadorEquipe.js';
 
 const GINCANA_ATUAL_ID = 'GINCANA_PRINCIPAL';
 
@@ -78,16 +79,26 @@ export const listarEquipes = async (req, res) => {
         const equipes = await Promise.all(gincanaRecords.map(async (rec) => {
             if (!rec.equipe_id) return null;
 
-            // Busca o total de membros na tabela correta.
+            // Busca o total de membros e a lista de coordenadores (is_coordenador).
             // Membros são vinculados pelo _id da Equipe mestra (Equipe._id), não pelo da EquipeGincana.
-            const total_membros = await EquipeMembros.countDocuments({ equipe_id: rec.equipe_id._id });
+            const [total_membros, registrosCoord] = await Promise.all([
+                EquipeMembros.countDocuments({ equipe_id: rec.equipe_id._id }),
+                EquipeMembros.find({ equipe_id: rec.equipe_id._id, is_coordenador: true })
+                    .populate('usuario_id', 'nome email'),
+            ]);
+
+            const coordenadores = registrosCoord
+                .filter((m) => m.usuario_id)
+                .map((m) => ({ id: m.usuario_id._id, nome: m.usuario_id.nome, email: m.usuario_id.email }));
 
             return {
                 id: rec.equipe_id._id,
                 nome: rec.equipe_id.nome,
                 cor: rec.equipe_id.cor,
                 pontos_acumulados: rec.pontos_acumulados,
-                coordenador: rec.coordenador_usuario_id,
+                coordenador: rec.coordenador_usuario_id, // principal (compatibilidade)
+                coordenadores, // lista completa de coordenadores (poderes iguais)
+                max_coordenadores: rec.max_coordenadores ?? 1,
                 total_membros: total_membros,
             };
         }));
@@ -394,21 +405,19 @@ export const visualizarEquipe = async (req, res) => {
     try {
         const coordenadorId = req.usuario.id;
 
-        // 1. Valida se o usuário é o coordenador e obtém o ID da equipe
-        const registroGincana = await EquipeGincana.findOne({ coordenador_usuario_id: coordenadorId });
+        // 1. Valida se o usuário é coordenador (qualquer co-coordenador) e obtém a equipe
+        const registroGincana = await getEquipeGincanaDoCoordenador(coordenadorId);
         if (!registroGincana) return res.status(403).json({ message: 'Você não é o coordenador de uma equipe.' });
 
-        const equipeId = registroGincana.equipe_id;
+        const equipeId = registroGincana.equipe_id?._id || registroGincana.equipe_id;
 
-        // 2. Busca os detalhes da equipe e os membros em paralelo
+        // 2. Busca os detalhes da equipe e os membros em paralelo.
+        //    Inclui TODOS os membros (inclusive coordenadores) para que o front
+        //    possa exibir a tag de quais membros são coordenadores.
         const [equipe, membrosDaEquipe] = await Promise.all([
             Equipe.findById(equipeId),
-
-            // Filtra os membros para excluir o próprio Coordenador.
-            EquipeMembros.find({
-                equipe_id: equipeId,
-                usuario_id: { $ne: coordenadorId } // Adiciona a condição: usuario_id NÃO É IGUAL ao coordenadorId
-            }).populate('usuario_id', 'nome email tipo turma')
+            EquipeMembros.find({ equipe_id: equipeId })
+                .populate('usuario_id', 'nome email tipo turma')
         ]);
 
         if (!equipe) return res.status(404).json({ message: 'Equipe não encontrada.' });
@@ -420,11 +429,12 @@ export const visualizarEquipe = async (req, res) => {
                 nome: equipe.nome,
                 cor: equipe.cor,
             },
-            // Mantém a estrutura completa com _id e usuario_id populado
+            // Mantém a estrutura completa com _id e usuario_id populado + flag de coordenador
             membros: membrosDaEquipe.map(membro => ({
                 _id: membro._id,
                 usuario_id: membro.usuario_id,
-                equipe_id: membro.equipe_id
+                equipe_id: membro.equipe_id,
+                is_coordenador: membro.is_coordenador,
             }))
         };
 
@@ -451,16 +461,28 @@ export const removerMembroEquipe = async (req, res) => {
             return res.status(400).json({ message: 'O coordenador não pode remover a si mesmo.' });
         }
 
-        // valida se o requisitante é o coordenador da equipe
-        const registroGincana = await EquipeGincana.findOne({ coordenador_usuario_id: coordenadorId });
+        // valida se o requisitante é coordenador (qualquer co-coordenador) da equipe
+        const registroGincana = await getEquipeGincanaDoCoordenador(coordenadorId);
         if (!registroGincana) {
             return res.status(403).json({ message: 'Você não coordena uma equipe.' });
+        }
+
+        const equipeIdMestre = registroGincana.equipe_id?._id || registroGincana.equipe_id;
+
+        // Não permite remover um membro que também é coordenador (gestão de
+        // coordenadores é responsabilidade do ADMIN).
+        const membro = await EquipeMembros.findOne({ _id: membroId, equipe_id: equipeIdMestre });
+        if (!membro) {
+            return res.status(404).json({ message: 'Membro não encontrado nesta equipe.' });
+        }
+        if (membro.is_coordenador) {
+            return res.status(403).json({ message: 'Não é possível remover um coordenador. Solicite ao administrador.' });
         }
 
         // encontra e remove o registro do membro na tabela de ligação
         const resultado = await EquipeMembros.findOneAndDelete({
             _id: membroId,
-            equipe_id: registroGincana.equipe_id
+            equipe_id: equipeIdMestre
         });
 
         if (!resultado) {
@@ -973,5 +995,171 @@ export const buscarMinhaEquipeId = async (req, res) => {
     } catch (error) {
         console.error('Erro ao buscar ID da equipe do usuário:', error);
         res.status(500).json({ message: 'Erro interno ao buscar ID da equipe.' });
+    }
+};
+
+/**
+ * Formata uma equipe (pelo Equipe._id mestre) no mesmo formato de listarEquipes,
+ * incluindo a lista de coordenadores e o limite máximo. Reutilizado pelos
+ * endpoints de gestão de coordenadores.
+ */
+const formatarEquipeComCoordenadores = async (equipeId) => {
+    const rec = await EquipeGincana.findOne({ equipe_id: equipeId, gincana_id: GINCANA_ATUAL_ID })
+        .populate('equipe_id', 'nome cor')
+        .populate('coordenador_usuario_id', 'nome email');
+
+    if (!rec || !rec.equipe_id) return null;
+
+    const [total_membros, registrosCoord] = await Promise.all([
+        EquipeMembros.countDocuments({ equipe_id: equipeId }),
+        EquipeMembros.find({ equipe_id: equipeId, is_coordenador: true }).populate('usuario_id', 'nome email'),
+    ]);
+
+    const coordenadores = registrosCoord
+        .filter((m) => m.usuario_id)
+        .map((m) => ({ id: m.usuario_id._id, nome: m.usuario_id.nome, email: m.usuario_id.email }));
+
+    return {
+        id: rec.equipe_id._id,
+        nome: rec.equipe_id.nome,
+        cor: rec.equipe_id.cor,
+        pontos_acumulados: rec.pontos_acumulados,
+        coordenador: rec.coordenador_usuario_id,
+        coordenadores,
+        max_coordenadores: rec.max_coordenadores ?? 1,
+        total_membros,
+    };
+};
+
+/**
+ * [POST] Adiciona um coordenador à equipe (respeitando o limite máximo).
+ * Rota: /api/equipes/:id/coordenadores
+ * Quem exerce: ADMIN
+ */
+export const adicionarCoordenador = async (req, res) => {
+    try {
+        const { id: equipeId } = req.params;
+        const { usuario_id } = req.body;
+
+        if (!usuario_id) return res.status(400).json({ message: 'O ID do usuário é obrigatório.' });
+
+        const equipeContexto = await EquipeGincana.findOne({ equipe_id: equipeId, gincana_id: GINCANA_ATUAL_ID });
+        if (!equipeContexto) return res.status(404).json({ message: 'Contexto da equipe na gincana não encontrado.' });
+
+        const usuario = await Usuario.findById(usuario_id);
+        if (!usuario) return res.status(404).json({ message: 'Usuário não encontrado.' });
+
+        // Verifica o limite máximo de coordenadores da equipe.
+        const totalCoordenadores = await EquipeMembros.countDocuments({ equipe_id: equipeId, is_coordenador: true });
+        const maxCoordenadores = equipeContexto.max_coordenadores ?? 1;
+        if (totalCoordenadores >= maxCoordenadores) {
+            return res.status(409).json({ message: `Limite máximo de ${maxCoordenadores} coordenador(es) atingido para esta equipe.` });
+        }
+
+        // O usuário não pode ser membro/coordenador de OUTRA equipe.
+        const membroExistente = await EquipeMembros.findOne({ usuario_id });
+        if (membroExistente && String(membroExistente.equipe_id) !== String(equipeId)) {
+            return res.status(409).json({ message: 'Usuário já pertence a outra equipe.' });
+        }
+
+        // Promove a COORDENADOR (caso ainda não seja).
+        if (usuario.tipo !== 'COORDENADOR') {
+            usuario.tipo = 'COORDENADOR';
+            await usuario.save();
+        }
+
+        // Cria/atualiza o vínculo como coordenador.
+        await EquipeMembros.findOneAndUpdate(
+            { equipe_id: equipeId, usuario_id },
+            { $set: { is_coordenador: true, equipe_gincana_id: equipeContexto._id } },
+            { upsert: true, new: true }
+        );
+
+        // Se a equipe ainda não tinha coordenador principal, define este.
+        if (!equipeContexto.coordenador_usuario_id) {
+            equipeContexto.coordenador_usuario_id = usuario_id;
+            await equipeContexto.save();
+        }
+
+        const equipeFormatada = await formatarEquipeComCoordenadores(equipeId);
+        return res.status(200).json({ message: 'Coordenador adicionado com sucesso.', equipe: equipeFormatada });
+
+    } catch (error) {
+        console.error('Erro ao adicionar coordenador:', error);
+        return res.status(500).json({ message: 'Erro interno ao adicionar coordenador.', details: error.message });
+    }
+};
+
+/**
+ * [DELETE] Remove um coordenador da equipe.
+ * Rota: /api/equipes/:id/coordenadores/:usuarioId
+ * Quem exerce: ADMIN
+ */
+export const removerCoordenador = async (req, res) => {
+    try {
+        const { id: equipeId, usuarioId } = req.params;
+
+        const equipeContexto = await EquipeGincana.findOne({ equipe_id: equipeId, gincana_id: GINCANA_ATUAL_ID });
+        if (!equipeContexto) return res.status(404).json({ message: 'Contexto da equipe na gincana não encontrado.' });
+
+        const vinculo = await EquipeMembros.findOne({ equipe_id: equipeId, usuario_id: usuarioId, is_coordenador: true });
+        if (!vinculo) return res.status(404).json({ message: 'Coordenador não encontrado nesta equipe.' });
+
+        // Remove o vínculo e reverte o tipo para ALUNO (deixa de ser coordenador).
+        await Promise.all([
+            EquipeMembros.deleteOne({ _id: vinculo._id }),
+            Usuario.findByIdAndUpdate(usuarioId, { $set: { tipo: 'ALUNO' } }),
+        ]);
+
+        // Se era o coordenador principal, reatribui a outro coordenador restante (ou null).
+        if (String(equipeContexto.coordenador_usuario_id) === String(usuarioId)) {
+            const outro = await EquipeMembros.findOne({ equipe_id: equipeId, is_coordenador: true }).select('usuario_id');
+            equipeContexto.coordenador_usuario_id = outro ? outro.usuario_id : null;
+            await equipeContexto.save();
+        }
+
+        const equipeFormatada = await formatarEquipeComCoordenadores(equipeId);
+        return res.status(200).json({ message: 'Coordenador removido com sucesso.', equipe: equipeFormatada });
+
+    } catch (error) {
+        console.error('Erro ao remover coordenador:', error);
+        return res.status(500).json({ message: 'Erro interno ao remover coordenador.', details: error.message });
+    }
+};
+
+/**
+ * [PATCH] Define o número máximo de coordenadores da equipe.
+ * Rota: /api/equipes/:id/max-coordenadores
+ * Quem exerce: ADMIN
+ */
+export const atualizarMaxCoordenadores = async (req, res) => {
+    try {
+        const { id: equipeId } = req.params;
+        const max = parseInt(req.body.max_coordenadores, 10);
+
+        if (Number.isNaN(max) || max < 1) {
+            return res.status(400).json({ message: 'max_coordenadores deve ser um número inteiro maior ou igual a 1.' });
+        }
+
+        const equipeContexto = await EquipeGincana.findOne({ equipe_id: equipeId, gincana_id: GINCANA_ATUAL_ID });
+        if (!equipeContexto) return res.status(404).json({ message: 'Contexto da equipe na gincana não encontrado.' });
+
+        // Não permite reduzir abaixo do número atual de coordenadores.
+        const totalCoordenadores = await EquipeMembros.countDocuments({ equipe_id: equipeId, is_coordenador: true });
+        if (max < totalCoordenadores) {
+            return res.status(409).json({
+                message: `A equipe já possui ${totalCoordenadores} coordenador(es). Remova coordenadores antes de reduzir o limite.`,
+            });
+        }
+
+        equipeContexto.max_coordenadores = max;
+        await equipeContexto.save();
+
+        const equipeFormatada = await formatarEquipeComCoordenadores(equipeId);
+        return res.status(200).json({ message: 'Limite de coordenadores atualizado.', equipe: equipeFormatada });
+
+    } catch (error) {
+        console.error('Erro ao atualizar máximo de coordenadores:', error);
+        return res.status(500).json({ message: 'Erro interno ao atualizar limite de coordenadores.', details: error.message });
     }
 };

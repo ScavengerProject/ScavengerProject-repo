@@ -6,6 +6,7 @@ import EquipeMembro from '../models/EquipeMembros.js';
 import EmprestimoEquipe from '../models/EmprestimoEquipe.js';
 import Usuario from '../models/Usuario.js';
 import Notificacao from '../models/Notificacao.js';
+import { getEquipeGincanaDoCoordenador } from './coordenadorEquipe.js';
 
 const basePopulate = [
   { path: 'coordenador_ofertante_id', select: 'nome email tipo' },
@@ -47,7 +48,7 @@ export const criarOferta = async (req, res) => {
     }
 
     // Buscar a equipe que o coordenador gerencia
-    const minhaEquipe = await EquipeGincana.findOne({ coordenador_usuario_id: me.id });
+    const minhaEquipe = await getEquipeGincanaDoCoordenador(me.id);
     if (!minhaEquipe) {
       return res.status(404).json({ message: 'Você não é coordenador de nenhuma equipe.' });
     }
@@ -148,7 +149,7 @@ export const listarOfertas = async (req, res) => {
       // Coordenador vê:
       // 1. Ofertas que ele fez
       // 2. Ofertas para suas solicitações
-      const minhaEquipe = await EquipeGincana.findOne({ coordenador_usuario_id: me.id });
+      const minhaEquipe = await getEquipeGincanaDoCoordenador(me.id);
       if (!minhaEquipe) {
         return res.status(200).json([]);
       }

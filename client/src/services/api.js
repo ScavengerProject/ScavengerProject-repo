@@ -275,6 +275,35 @@ export const equipesService = {
             body: JSON.stringify({ usuario_id: novoCoordenadorId }), // Envia o ID ou null
         }),
 
+    /**
+     * [POST] /api/equipes/:equipeId/coordenadores
+     * Adiciona um coordenador à equipe (respeita o limite máximo).
+     */
+    adicionarCoordenador: (equipeId, usuarioId) =>
+        request(`/equipes/${equipeId}/coordenadores`, {
+            method: 'POST',
+            body: JSON.stringify({ usuario_id: usuarioId }),
+        }),
+
+    /**
+     * [DELETE] /api/equipes/:equipeId/coordenadores/:usuarioId
+     * Remove um coordenador da equipe.
+     */
+    removerCoordenador: (equipeId, usuarioId) =>
+        request(`/equipes/${equipeId}/coordenadores/${usuarioId}`, {
+            method: 'DELETE',
+        }),
+
+    /**
+     * [PATCH] /api/equipes/:equipeId/max-coordenadores
+     * Define o número máximo de coordenadores da equipe.
+     */
+    atualizarMaxCoordenadores: (equipeId, maxCoordenadores) =>
+        request(`/equipes/${equipeId}/max-coordenadores`, {
+            method: 'PATCH',
+            body: JSON.stringify({ max_coordenadores: maxCoordenadores }),
+        }),
+
   listarMembrosDisponiveis: () =>
     request('/equipes/membros-disponiveis', { method: 'GET' }),
 

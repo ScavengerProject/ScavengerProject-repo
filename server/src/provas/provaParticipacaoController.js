@@ -5,6 +5,7 @@ import ProvaUsuario from '../models/ProvaUsuario.js';
 import ProvaEquipeParticipacao from '../models/ProvaEquipeParticipacao.js';
 import EmprestimoEquipe from '../models/EmprestimoEquipe.js';
 import Usuario from '../models/Usuario.js';
+import { getEquipeGincanaDoCoordenador } from '../equipes/coordenadorEquipe.js';
 
 // Uma prova está "encerrada" (e portanto não recebe mais empréstimos) quando já passou da data_fim.
 const provaJaEncerrou = (prova) => {
@@ -17,7 +18,8 @@ const toUniqueStrings = (arr) => Array.from(new Set((arr || []).map((item) => St
 async function carregarContextoCoordenadorParaProva(coordenadorId, provaId) {
   const [prova, equipeGincana] = await Promise.all([
     Prova.findById(provaId).select('_id titulo status data_inicio data_fim proibir_membros_consecutivos'),
-    EquipeGincana.findOne({ coordenador_usuario_id: coordenadorId }).populate('equipe_id', 'nome cor'),
+    // Qualquer coordenador (is_coordenador) da equipe pode atuar — não só o principal.
+    getEquipeGincanaDoCoordenador(coordenadorId, { populateEquipe: true }),
   ]);
 
   if (!prova) {
@@ -148,10 +150,24 @@ export const listarEquipeParticipanteDaProva = async (req, res) => {
     const participacao = await ProvaEquipeParticipacao.findOne({
       prova_id: provaId,
       equipe_id: equipeId,
-    }).select('titulares_usuario_ids suplentes_usuario_ids updatedAt criado_por_usuario_id');
+    })
+      .select('titulares_usuario_ids suplentes_usuario_ids updatedAt definido_por_usuario_id')
+      .populate('definido_por_usuario_id', 'nome');
 
     const titularesIds = toUniqueStrings(participacao?.titulares_usuario_ids || []);
     const suplentesIds = toUniqueStrings(participacao?.suplentes_usuario_ids || []);
+
+    // Log: quem definiu por último os titulares/suplentes desta equipe nesta prova.
+    // Serve para avisar quando OUTRO coordenador da mesma equipe já fez a definição.
+    const definidoPor = participacao?.definido_por_usuario_id
+      ? {
+          id: participacao.definido_por_usuario_id._id,
+          nome: participacao.definido_por_usuario_id.nome,
+        }
+      : null;
+    const definidoPorOutro = Boolean(
+      definidoPor && String(definidoPor.id) !== String(coordenadorId)
+    );
 
     const { bloqueados, provaTitulo } = await buscarMemblosBloqueadosDaProvaAnterior(prova, equipeId);
 
@@ -183,6 +199,8 @@ export const listarEquipeParticipanteDaProva = async (req, res) => {
       membros_bloqueados_ids: bloqueados,
       prova_anterior_titulo: provaTitulo,
       atualizado_em: participacao?.updatedAt || null,
+      definido_por: definidoPor,
+      definido_por_outro: definidoPorOutro,
     });
   } catch (error) {
     return res.status(500).json({
