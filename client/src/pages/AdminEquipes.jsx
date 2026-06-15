@@ -190,17 +190,19 @@ const AdminEquipes = () => {
         const equipeId = currentEquipe.id || currentEquipe._id;
 
         try {
-            const response = await equipesService.adicionarMembro(equipeId, selectedUsuarioId);
+            // A API de adicionarMembro retorna apenas { message, membro }, não a equipe completa.
+            // Atualizamos o contador de membros localmente para refletir a adição sem quebrar o estado.
+            await equipesService.adicionarMembro(equipeId, selectedUsuarioId);
 
-            setEquipes((prevEquipes) => 
+            setEquipes((prevEquipes) =>
                 prevEquipes.map((equipe) => {
                     if (equipe.id === equipeId || equipe._id === equipeId) {
-                        return response.equipe; 
+                        return { ...equipe, total_membros: (equipe.total_membros || 0) + 1 };
                     }
                     return equipe;
                 })
             );
-            
+
             setMembrosDisponiveis(prev => prev.filter(u => u._id !== selectedUsuarioId));
             
             toast.success('Participante adicionado com sucesso!');
