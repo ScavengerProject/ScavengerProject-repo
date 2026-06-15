@@ -10,6 +10,7 @@ export default function MainLayout({ usuario, onLogout, children }) {
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
+  const isCoordenador = usuario?.tipo === 'COORDENADOR';
 
   // Detectar se é mobile
   useEffect(() => {
@@ -115,7 +116,9 @@ export default function MainLayout({ usuario, onLogout, children }) {
       </div>
 
       {/* Feedback FAB */}
-      <FeedbackFAB />
+      {isCoordenador && (
+        <FeedbackFAB />
+      )}
     </div>
   );
 }
