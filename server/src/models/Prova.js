@@ -54,6 +54,9 @@ const ProvaSchema = new mongoose.Schema({
   descricao: { type: String, required: [true, 'A descrição é obrigatória.'] },
   data_inicio: { type: Date, required: [true, 'A data de início é obrigatória.'] },
   data_fim: { type: Date },
+  // Data/hora a partir da qual a prova fica visível e as notificações são
+  // disparadas. null = publicada imediatamente.
+  data_publicacao: { type: Date, default: null },
   pontuacao: { type: mongoose.Schema.Types.Mixed, required: [true, 'A pontuação é obrigatória.'] }, 
   anexos: { type: mongoose.Schema.Types.Mixed },    
   formato: {
@@ -81,6 +84,10 @@ const ProvaSchema = new mongoose.Schema({
   configuracao_quesitos: { type: ConfiguracaoQuesitosSchema, default: () => ({}) },
   
   proibir_membros_consecutivos: { type: Boolean, default: false },
+
+  // Controle interno: garante que as notificações de publicação sejam
+  // disparadas uma única vez (na criação imediata ou no job agendado).
+  notificacao_publicacao_enviada: { type: Boolean, default: false },
 
   criado_por_usuario_id: {
     type: mongoose.Schema.Types.ObjectId,
