@@ -384,7 +384,12 @@ export const inscreverUsuarioNaProva = async (req, res) => {
     }
 
     if (!grupo) {
-      return res.status(422).json({ ok: false, motivo: 'GRUPO_INDETERMINADO', detalhe: 'Tipo/turma do usuário não permite determinar grupo.' });
+      return res.status(422).json({
+        ok: false,
+        code: 'GRUPO_INDETERMINADO',
+        message: 'Não foi possível determinar seu ano escolar. Verifique se a sua turma está definida (obrigatória para alunos). Se o problema persistir, contate os organizadores da gincana.',
+        detalhe: 'Tipo/turma do usuário não permite determinar grupo.'
+      });
     }
 
   const cotas = (prova.requisito_usuario && typeof prova.requisito_usuario === 'object')
