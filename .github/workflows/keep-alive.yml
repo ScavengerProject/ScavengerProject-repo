@@ -1,0 +1,28 @@
+name: Keep Render awake
+
+# Pinga o endpoint /health do backend a cada 10 minutos para impedir que o
+# Web Service gratuito do Render hiberne. Mantendo o serviço acordado, o worker
+# de email (que roda no mesmo processo) fica sempre vivo — garantindo que provas
+# agendadas disparem suas notificações no horário.
+#
+# Pré-requisito: defina a variável de repositório RENDER_HEALTH_URL em
+# Settings > Secrets and variables > Actions > Variables, ex.:
+#   https://seu-app.onrender.com/health
+
+on:
+  schedule:
+    - cron: '*/10 * * * *' # a cada 10 minutos (UTC)
+  workflow_dispatch: {}     # permite disparar manualmente pela aba Actions
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping no endpoint de health
+        run: |
+          if [ -z "${{ vars.RENDER_HEALTH_URL }}" ]; then
+            echo "Defina a variável de repositório RENDER_HEALTH_URL (Actions > Variables)."
+            exit 1
+          fi
+          echo "Pingando ${{ vars.RENDER_HEALTH_URL }}"
+          curl -fsS --max-time 60 "${{ vars.RENDER_HEALTH_URL }}"

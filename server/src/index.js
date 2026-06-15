@@ -15,15 +15,29 @@ import notificacaoRoutes from './notificacoes/notificacaoRoutes.js';
 import penalidadesRoutes from "./penalidades/penalidadesRoutes.js";
 import resultadoRoutes from './resultados/resultadoRoutes.js';
 import configuracaoRoutes from './configuracoes/configuracaoRoutes.js';
+import { iniciarEmailWorker } from './notificacoes/emailWorker.js';
 
 dotenv.config();
 connectDB(); // BD
+
+// No plano free do Render não há Background Worker, então o worker de email roda
+// no MESMO processo da API. Mantém a fila viva enquanto o Web Service estiver
+// acordado (use um ping em /health para evitar a hibernação).
+iniciarEmailWorker();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
 app.use(cors());
 app.use(express.json());
+
+// Endpoint leve de health check. Usado pelo pinger externo (GitHub Actions /
+// UptimeRobot / cron-job.org) para manter o Web Service free acordado, e assim
+// o worker de email sempre vivo (importante para provas agendadas dispararem
+// no horário).
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
+});
 
 app.use('/api/auth', authRoutes);
 app.use('/api/provas', provaRoutes);

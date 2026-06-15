@@ -117,13 +117,22 @@ const GerenciarEquipe = () => {
                         <User className="h-6 w-6 text-green-600" />
                       </div>
                       <div>
-                        <p className="font-semibold text-gray-900">{membro.usuario_id?.nome || '—'}</p>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-semibold text-gray-900">{membro.usuario_id?.nome || '—'}</p>
+                          {membro.is_coordenador && (
+                            <span className="text-xs font-semibold px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full">
+                              Coordenador
+                            </span>
+                          )}
+                        </div>
                         <p className="text-sm text-gray-600">{membro.usuario_id?.email || '—'}</p>
                       </div>
                     </div>
-                    <Button variant="destructive" size="icon" onClick={() => openRemoveMemberDialog(membro)}>
-                        <Trash2 size={16} />
-                    </Button>
+                    {!membro.is_coordenador && (
+                      <Button variant="destructive" size="icon" onClick={() => openRemoveMemberDialog(membro)}>
+                          <Trash2 size={16} />
+                      </Button>
+                    )}
                   </div>
                 ))
               ) : (

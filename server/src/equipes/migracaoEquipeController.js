@@ -4,6 +4,7 @@ import Equipe from '../models/Equipe.js';
 import EquipeGincana from '../models/EquipeGincana.js';
 import EquipeMembro from '../models/EquipeMembros.js';
 import { criarNotificacao } from '../notificacoes/notificacaoController.js';
+import { getEquipesGincanaDoCoordenador, getCoordenadoresIdsDaEquipe } from './coordenadorEquipe.js';
 
 const GINCANA_ATUAL_ID = 'GINCANA_PRINCIPAL';
 
@@ -73,9 +74,7 @@ export const listarMigracoesPendentes = async (req, res) => {
     let filtro = { status: 'PENDENTE' };
 
     if (me.tipo === 'COORDENADOR') {
-      const equipesCoord = await EquipeGincana.find({
-        coordenador_usuario_id: me.id,
-      }).select('_id');
+      const equipesCoord = await getEquipesGincanaDoCoordenador(me.id);
 
       const ids = equipesCoord.map((e) => e._id);
 
@@ -158,17 +157,21 @@ export const solicitarMigracao = async (req, res) => {
     // #16: notifica o coordenador da equipe de destino sobre a nova solicitação
     // de entrada. Falhas aqui não devem derrubar o fluxo de solicitação.
     try {
-      if (egDestino.coordenador_usuario_id) {
-        const nomeSolicitante = result.usuario_id?.nome || 'Um participante';
-        await criarNotificacao(
-          egDestino.coordenador_usuario_id,
-          'MIGRACAO',
-          'Nova solicitação de entrada',
-          `${nomeSolicitante} solicitou entrada na equipe "${equipeDestino.nome}". Avalie a solicitação na tela de aprovações.`,
-          null,
-          doc._id
-        );
-      }
+      // Notifica TODOS os coordenadores da equipe de destino (poderes iguais).
+      const coordenadoresDestino = await getCoordenadoresIdsDaEquipe(egDestino);
+      const nomeSolicitante = result.usuario_id?.nome || 'Um participante';
+      await Promise.all(
+        coordenadoresDestino.map((coordId) =>
+          criarNotificacao(
+            coordId,
+            'MIGRACAO',
+            'Nova solicitação de entrada',
+            `${nomeSolicitante} solicitou entrada na equipe "${equipeDestino.nome}". Avalie a solicitação na tela de aprovações.`,
+            null,
+            doc._id
+          )
+        )
+      );
     } catch (notifErr) {
       console.error('Erro ao notificar coordenador de destino sobre migração:', notifErr);
     }
@@ -203,9 +206,7 @@ export const decidirMigracao = async (req, res) => {
     }
 
     if (me.tipo === 'COORDENADOR') {
-      const coordEquipes = await EquipeGincana.find({
-        coordenador_usuario_id: me.id,
-      }).select('_id');
+      const coordEquipes = await getEquipesGincanaDoCoordenador(me.id);
       const ids = coordEquipes.map((e) => e._id.toString());
 
       // #16: a entrada é aprovada pelo coordenador de DESTINO.

@@ -15,6 +15,12 @@ const uri = ambiente === 'production'
   : process.env.MONGO_URI_DEV;
 
 const connectDB = async () => {
+  // Idempotente: se já estiver conectado (1) ou conectando (2), não reabre.
+  // Importante porque o worker in-process e a API podem chamar connectDB().
+  if (mongoose.connection.readyState !== 0) {
+    return;
+  }
+
   if (!uri) {
     console.error(
       `❌ ERRO: variável de conexão não definida para o ambiente "${ambiente}". ` +
