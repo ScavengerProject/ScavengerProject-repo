@@ -56,7 +56,7 @@ const MinhasInscricoes = () => {
     if (!data) return "Data não definida";
     const date = new Date(data);
     if (isNaN(date.getTime())) return "Data inválida";
-    return date.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
+    return date.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
   };
 
   // Traduzir status

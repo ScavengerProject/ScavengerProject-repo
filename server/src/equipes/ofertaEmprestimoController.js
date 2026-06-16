@@ -6,6 +6,7 @@ import EquipeMembro from '../models/EquipeMembros.js';
 import EmprestimoEquipe from '../models/EmprestimoEquipe.js';
 import Usuario from '../models/Usuario.js';
 import Notificacao from '../models/Notificacao.js';
+import { getEquipeGincanaDoCoordenador } from './coordenadorEquipe.js';
 
 const basePopulate = [
   { path: 'coordenador_ofertante_id', select: 'nome email tipo' },
@@ -19,7 +20,7 @@ const basePopulate = [
     path: 'solicitacao_id',
     populate: [
       { path: 'coordenador_solicitante_id', select: 'nome email' },
-      { 
+      {
         path: 'equipe_solicitante_id',
         populate: { path: 'equipe_id', model: 'Equipe', select: 'nome cor' }
       },
@@ -36,8 +37,8 @@ export const criarOferta = async (req, res) => {
     const { solicitacao_id, membros_oferecidos_ids, mensagem } = req.body;
 
     if (!solicitacao_id || !membros_oferecidos_ids || membros_oferecidos_ids.length === 0) {
-      return res.status(400).json({ 
-        message: 'solicitacao_id e membros_oferecidos_ids são obrigatórios.' 
+      return res.status(400).json({
+        message: 'solicitacao_id e membros_oferecidos_ids são obrigatórios.'
       });
     }
 
@@ -47,7 +48,7 @@ export const criarOferta = async (req, res) => {
     }
 
     // Buscar a equipe que o coordenador gerencia
-    const minhaEquipe = await EquipeGincana.findOne({ coordenador_usuario_id: me.id });
+    const minhaEquipe = await getEquipeGincanaDoCoordenador(me.id);
     if (!minhaEquipe) {
       return res.status(404).json({ message: 'Você não é coordenador de nenhuma equipe.' });
     }
@@ -59,15 +60,15 @@ export const criarOferta = async (req, res) => {
     }
 
     if (!['APROVADA', 'EM_ANDAMENTO'].includes(solicitacao.status)) {
-      return res.status(409).json({ 
-        message: 'Solicitação não está disponível para ofertas.' 
+      return res.status(409).json({
+        message: 'Solicitação não está disponível para ofertas.'
       });
     }
 
     // Não pode ofertar para sua própria solicitação
     if (String(solicitacao.equipe_solicitante_id) === String(minhaEquipe._id)) {
-      return res.status(409).json({ 
-        message: 'Você não pode ofertar membros para sua própria solicitação.' 
+      return res.status(409).json({
+        message: 'Você não pode ofertar membros para sua própria solicitação.'
       });
     }
 
@@ -79,8 +80,8 @@ export const criarOferta = async (req, res) => {
     });
 
     if (membros.length !== membros_oferecidos_ids.length) {
-      return res.status(422).json({ 
-        message: 'Alguns membros não pertencem à sua equipe.' 
+      return res.status(422).json({
+        message: 'Alguns membros não pertencem à sua equipe.'
       });
     }
 
@@ -92,8 +93,8 @@ export const criarOferta = async (req, res) => {
     });
 
     if (ofertaExistente) {
-      return res.status(409).json({ 
-        message: 'Você já possui uma oferta pendente para esta solicitação.' 
+      return res.status(409).json({
+        message: 'Você já possui uma oferta pendente para esta solicitação.'
       });
     }
 
@@ -126,9 +127,9 @@ export const criarOferta = async (req, res) => {
     return res.status(201).json(result);
   } catch (error) {
     console.error('Erro ao criar oferta:', error);
-    return res.status(500).json({ 
-      message: 'Erro ao criar oferta.', 
-      error: error.message 
+    return res.status(500).json({
+      message: 'Erro ao criar oferta.',
+      error: error.message
     });
   }
 };
@@ -148,15 +149,15 @@ export const listarOfertas = async (req, res) => {
       // Coordenador vê:
       // 1. Ofertas que ele fez
       // 2. Ofertas para suas solicitações
-      const minhaEquipe = await EquipeGincana.findOne({ coordenador_usuario_id: me.id });
+      const minhaEquipe = await getEquipeGincanaDoCoordenador(me.id);
       if (!minhaEquipe) {
         return res.status(200).json([]);
       }
 
-      const minhasSolicitacoes = await SolicitacaoEmprestimo.find({ 
-        equipe_solicitante_id: minhaEquipe._id 
+      const minhasSolicitacoes = await SolicitacaoEmprestimo.find({
+        equipe_solicitante_id: minhaEquipe._id
       }).select('_id');
-      
+
       const solicitacaoIds = minhasSolicitacoes.map(s => s._id);
 
       filtro.$or = [
@@ -173,9 +174,9 @@ export const listarOfertas = async (req, res) => {
     return res.status(200).json(ofertas);
   } catch (error) {
     console.error('Erro ao listar ofertas:', error);
-    return res.status(500).json({ 
-      message: 'Erro ao listar ofertas.', 
-      error: error.message 
+    return res.status(500).json({
+      message: 'Erro ao listar ofertas.',
+      error: error.message
     });
   }
 };
@@ -198,25 +199,19 @@ export const aceitarOferta = async (req, res) => {
     }
 
     const solicitacao = oferta.solicitacao_id;
-    
+
     // Verificar se é o coordenador solicitante
     if (String(solicitacao.coordenador_solicitante_id) !== String(me.id) && me.tipo !== 'ADMIN') {
-      return res.status(403).json({ 
-        message: 'Apenas o coordenador solicitante ou admin pode aceitar ofertas.' 
+      return res.status(403).json({
+        message: 'Apenas o coordenador solicitante ou admin pode aceitar ofertas.'
       });
     }
 
     // Criar empréstimos para cada membro oferecido
     const emprestimos = [];
-    console.log('🔄 Iniciando criação de empréstimos...');
-    console.log('Membros oferecidos:', oferta.membros_oferecidos);
-    console.log('Equipe origem (ofertante):', oferta.equipe_ofertante_id);
-    console.log('Equipe destino (solicitante):', solicitacao.equipe_solicitante_id);
-    console.log('Prova ID:', solicitacao.prova_id);
-    
+
     for (const membro of oferta.membros_oferecidos) {
       try {
-        console.log(`Criando empréstimo para usuário ${membro.usuario_id}...`);
         const emprestimo = await EmprestimoEquipe.create({
           usuario_id: membro.usuario_id,
           equipe_origem_id: oferta.equipe_ofertante_id,
@@ -227,15 +222,13 @@ export const aceitarOferta = async (req, res) => {
           status: 'ATIVO',
           criado_por: me.id,
         });
-        console.log(`✅ Empréstimo criado com sucesso:`, emprestimo._id);
+
         emprestimos.push(emprestimo._id);
       } catch (err) {
         console.error(`❌ Erro ao criar empréstimo para ${membro.usuario_id}:`, err);
         console.error('Detalhes do erro:', err.message);
       }
     }
-    
-    console.log(`✅ Total de empréstimos criados: ${emprestimos.length}`);
 
     // Atualizar oferta
     oferta.status = 'ACEITA';
@@ -271,9 +264,9 @@ export const aceitarOferta = async (req, res) => {
     return res.status(200).json(result);
   } catch (error) {
     console.error('Erro ao aceitar oferta:', error);
-    return res.status(500).json({ 
-      message: 'Erro ao aceitar oferta.', 
-      error: error.message 
+    return res.status(500).json({
+      message: 'Erro ao aceitar oferta.',
+      error: error.message
     });
   }
 };
@@ -296,11 +289,11 @@ export const recusarOferta = async (req, res) => {
     }
 
     const solicitacao = oferta.solicitacao_id;
-    
+
     // Verificar se é o coordenador solicitante
     if (String(solicitacao.coordenador_solicitante_id) !== String(me.id) && me.tipo !== 'ADMIN') {
-      return res.status(403).json({ 
-        message: 'Apenas o coordenador solicitante ou admin pode recusar ofertas.' 
+      return res.status(403).json({
+        message: 'Apenas o coordenador solicitante ou admin pode recusar ofertas.'
       });
     }
 
@@ -326,9 +319,9 @@ export const recusarOferta = async (req, res) => {
     return res.status(200).json(result);
   } catch (error) {
     console.error('Erro ao recusar oferta:', error);
-    return res.status(500).json({ 
-      message: 'Erro ao recusar oferta.', 
-      error: error.message 
+    return res.status(500).json({
+      message: 'Erro ao recusar oferta.',
+      error: error.message
     });
   }
 };
@@ -347,14 +340,14 @@ export const cancelarOferta = async (req, res) => {
 
     // Verificar se é o coordenador ofertante
     if (String(oferta.coordenador_ofertante_id) !== String(me.id)) {
-      return res.status(403).json({ 
-        message: 'Apenas o coordenador ofertante pode cancelar sua oferta.' 
+      return res.status(403).json({
+        message: 'Apenas o coordenador ofertante pode cancelar sua oferta.'
       });
     }
 
     if (oferta.status !== 'PENDENTE') {
-      return res.status(409).json({ 
-        message: 'Apenas ofertas pendentes podem ser canceladas.' 
+      return res.status(409).json({
+        message: 'Apenas ofertas pendentes podem ser canceladas.'
       });
     }
 
@@ -365,9 +358,9 @@ export const cancelarOferta = async (req, res) => {
     return res.status(200).json(result);
   } catch (error) {
     console.error('Erro ao cancelar oferta:', error);
-    return res.status(500).json({ 
-      message: 'Erro ao cancelar oferta.', 
-      error: error.message 
+    return res.status(500).json({
+      message: 'Erro ao cancelar oferta.',
+      error: error.message
     });
   }
 };

@@ -76,7 +76,7 @@ const CadastroUsuario = () => {
       };
 
       await usuariosService.registrar(dadosParaEnviar);
-      toast.success("Cadastro enviado para aprovacao");
+      toast.success("Cadastro efetuado com sucesso!");
 
       setNome("");
       setEmail("");

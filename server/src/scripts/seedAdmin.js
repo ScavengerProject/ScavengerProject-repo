@@ -26,7 +26,6 @@ const createAdmin = async () => {
     const adminExists = await Usuario.findOne({ tipo: 'ADMIN' });
     
     if (adminExists) {
-      console.log('Usuário ADMIN já existe no banco de dados.');
       return;
     }
 
@@ -42,16 +41,10 @@ const createAdmin = async () => {
     // Salva o novo usuário no banco de dados
     await adminUser.save();
 
-    console.log('Usuário ADMIN criado com sucesso!');
-    console.log(`- Email: ${emailAdmin}`);
-    console.log(`- Senha: ${senhaAdmin}`);
-    console.log('Use estas credenciais para fazer login na API.');
-
   } catch (error) {
     console.error('Erro ao tentar criar o usuário ADMIN:', error.message);
   } finally {
     await mongoose.connection.close();
-    console.log('Conexão com o MongoDB encerrada.');
   }
 };
 

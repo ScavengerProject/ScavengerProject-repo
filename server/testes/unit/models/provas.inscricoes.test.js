@@ -8,6 +8,7 @@ import dotenv from 'dotenv';
 import Prova from '../../../src/models/Prova.js';
 import Usuario from '../../../src/models/Usuario.js';
 import ProvaUsuario from '../../../src/models/ProvaUsuario.js';
+import EquipeMembros from '../../../src/models/EquipeMembros.js';
 
 import authRoutes from '../../../src/auth/authRoutes.js';
 import provaRoutes from '../../../src/provas/provaRoutes.js';
@@ -53,7 +54,18 @@ describe('Provas - Inscrições com cotas por requisito_usuario', () => {
     await ProvaUsuario.deleteMany({});
     await Prova.deleteMany({});
     await Usuario.deleteMany({});
+    await EquipeMembros.deleteMany({});
   });
+
+  // Regra de negócio atual: só é possível se inscrever em uma prova se o usuário
+  // pertencer a alguma equipe. Este helper garante esse vínculo nos testes de cota.
+  async function darEquipe(usuario) {
+    await EquipeMembros.create({
+      equipe_id: new mongoose.Types.ObjectId(),
+      usuario_id: usuario._id,
+    });
+    return usuario;
+  }
 
   // Cria usuários utilitários
   async function seedUsers() {
@@ -124,6 +136,11 @@ describe('Provas - Inscrições com cotas por requisito_usuario', () => {
       tipo: 'PAI/MÃE',
       status: 'ATIVO'
     });
+
+    // Todos os usuários que poderão se inscrever precisam pertencer a uma equipe.
+    await Promise.all(
+      [alunoEF1, alunoEF2, alunoEF3, alunoEM1, professor, pai].map(darEquipe)
+    );
 
     return { admin, coord, alunoEF1, alunoEF2, alunoEF3, alunoEM1, professor, pai };
   }
@@ -286,5 +303,33 @@ describe('Provas - Inscrições com cotas por requisito_usuario', () => {
     expect(r.status).toBe(422);
     expect(r.body.code).toBe('GRUPO_NAO_PERMITIDO');
     expect(r.body.message).toMatch(/alunos do ensino médio/i);
+  });
+
+  it('US03.6 | Usuário sem equipe não consegue se inscrever (422 SEM_EQUIPE)', async () => {
+    const agent = request(app);
+    const { admin } = await seedUsers();
+
+    // Cria um aluno SEM vínculo de equipe (não passa por darEquipe)
+    await Usuario.create({
+      nome: 'Aluno Sem Equipe',
+      email: 'semequipe@x.com',
+      senha: 'SemEquipe1!',
+      tipo: 'ALUNO',
+      turma: 'EF - 6º Ano',
+      status: 'ATIVO'
+    });
+
+    const { token: tokenAdmin } = await loginAndGetToken(agent, 'admin@x.com', 'Admin123!');
+    const prova = await createProvaComCotas(agent, tokenAdmin);
+
+    const { token: tokenSemEquipe } = await loginAndGetToken(agent, 'semequipe@x.com', 'SemEquipe1!');
+    const r = await agent
+      .post(`/api/provas/${prova._id}/inscricoes`)
+      .set('Authorization', `Bearer ${tokenSemEquipe}`)
+      .send({});
+
+    expect(r.status).toBe(422);
+    expect(r.body.code).toBe('SEM_EQUIPE');
+    expect(r.body.message).toMatch(/equipe/i);
   });
 });

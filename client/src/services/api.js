@@ -119,6 +119,7 @@ export const provasService = {
         formato: dados.formato,
         data_inicio: dados.data_inicio || null,
         data_fim: dados.data_fim || null,
+        data_publicacao: dados.data_publicacao || null,
         status: dados.status || 'NAO_INICIADA',
         quesitos_de_avaliacao: dados.quesitos_de_avaliacao || [],
         requisito_usuario: dados.requisito_usuario || null,
@@ -138,6 +139,7 @@ export const provasService = {
         formato: dados.formato,
         data_inicio: dados.data_inicio || null,
         data_fim: dados.data_fim || null,
+        data_publicacao: dados.data_publicacao || null,
         status: dados.status || 'NAO_INICIADA',
         quesitos_de_avaliacao: dados.quesitos_de_avaliacao || [],
         requisito_usuario: dados.requisito_usuario || null,
@@ -271,6 +273,35 @@ export const equipesService = {
         request(`/equipes/${equipeId}/coordenador`, {
             method: 'PATCH',
             body: JSON.stringify({ usuario_id: novoCoordenadorId }), // Envia o ID ou null
+        }),
+
+    /**
+     * [POST] /api/equipes/:equipeId/coordenadores
+     * Adiciona um coordenador à equipe (respeita o limite máximo).
+     */
+    adicionarCoordenador: (equipeId, usuarioId) =>
+        request(`/equipes/${equipeId}/coordenadores`, {
+            method: 'POST',
+            body: JSON.stringify({ usuario_id: usuarioId }),
+        }),
+
+    /**
+     * [DELETE] /api/equipes/:equipeId/coordenadores/:usuarioId
+     * Remove um coordenador da equipe.
+     */
+    removerCoordenador: (equipeId, usuarioId) =>
+        request(`/equipes/${equipeId}/coordenadores/${usuarioId}`, {
+            method: 'DELETE',
+        }),
+
+    /**
+     * [PATCH] /api/equipes/:equipeId/max-coordenadores
+     * Define o número máximo de coordenadores da equipe.
+     */
+    atualizarMaxCoordenadores: (equipeId, maxCoordenadores) =>
+        request(`/equipes/${equipeId}/max-coordenadores`, {
+            method: 'PATCH',
+            body: JSON.stringify({ max_coordenadores: maxCoordenadores }),
         }),
 
   listarMembrosDisponiveis: () =>

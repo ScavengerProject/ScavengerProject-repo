@@ -138,7 +138,13 @@ const ProvaDetalhesModal = ({ prova, isOpen, onClose, onInscricaoSucesso }) => {
     if (!data) return "Não definida";
     const date = new Date(data);
     if (isNaN(date.getTime())) return "Data inválida";
-    return date.toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" });
+    return date.toLocaleString("pt-BR", {
+      day: "2-digit",
+      month: "long",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
   };
 
   const traduzirStatus = (status) => {

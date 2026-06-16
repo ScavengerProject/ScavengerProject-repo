@@ -140,6 +140,14 @@ export default function CoordDefinirParticipacaoProva() {
   const provaAnteriorTitulo = contextoProva?.prova_anterior_titulo;
   const temBloqueados = membrosBloquadosIds.size > 0;
 
+  // Log: quem definiu por último os titulares/suplentes desta equipe nesta prova.
+  const definidoPor = contextoProva?.definido_por;
+  const definidoPorOutro = contextoProva?.definido_por_outro;
+  const atualizadoEm = contextoProva?.atualizado_em;
+  const dataDefinicao = atualizadoEm
+    ? new Date(atualizadoEm).toLocaleString('pt-BR')
+    : null;
+
   return (
     <MainLayout usuario={usuario} onLogout={logout}>
       <div className="container mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-6 md:py-8">
@@ -199,6 +207,34 @@ export default function CoordDefinirParticipacaoProva() {
 
         {!loadingContexto && provaSelecionadaId && (
           <div className="space-y-5">
+            {/* Log: definição anterior dos titulares (por outro coordenador ou por você) */}
+            {definidoPor && (
+              <div
+                className={`flex items-start gap-2 p-3 rounded-lg text-sm border ${
+                  definidoPorOutro
+                    ? 'bg-amber-50 border-amber-300 text-amber-800'
+                    : 'bg-blue-50 border-blue-200 text-blue-800'
+                }`}
+              >
+                <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+                <p>
+                  {definidoPorOutro ? (
+                    <>
+                      Atenção: os titulares desta prova já foram definidos por{' '}
+                      <strong>{definidoPor.nome}</strong>
+                      {dataDefinicao ? ` em ${dataDefinicao}` : ''}. Ao salvar, você
+                      irá sobrescrever essa definição.
+                    </>
+                  ) : (
+                    <>
+                      Você definiu os titulares desta prova
+                      {dataDefinicao ? ` em ${dataDefinicao}` : ''}.
+                    </>
+                  )}
+                </p>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <Card className="border-blue-200 bg-blue-50">
                 <CardContent className="py-4 flex items-center gap-3">

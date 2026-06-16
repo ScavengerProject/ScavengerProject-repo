@@ -76,6 +76,45 @@ describe('Auth Controller (Integration Test - Login)', () => {
 
     //Confere o erro
     expect(res.status).toHaveBeenCalledWith(401);
-    expect(res.json).toHaveBeenCalledWith({ message: 'Credenciais inválidas.' });
+    expect(res.json).toHaveBeenCalledWith({ message: 'Email ou senha inválidos.' });
+  });
+
+  // --- Teste 3: Email inexistente ---
+  it('deve retornar 401 quando o email não existe', async () => {
+    req.body.email = 'naoexiste@exemplo.com';
+
+    await login(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(res.json).toHaveBeenCalledWith({ message: 'Email ou senha inválidos.' });
+  });
+
+  // --- Teste 4: Campos faltando ---
+  it('deve retornar 400 quando email ou senha não são fornecidos', async () => {
+    req.body = { email: '' };
+
+    await login(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ success: false })
+    );
+  });
+
+  // --- Teste 5: Compatibilidade com campo "password" ---
+  it('deve aceitar o campo "password" como alternativa a "senha"', async () => {
+    await new Usuario({
+      nome: 'Usuário Password',
+      email: 'teste.real@exemplo.com',
+      senha: 'senhasegura123',
+      tipo: 'ALUNO',
+    }).save();
+
+    req.body = { email: 'teste.real@exemplo.com', password: 'senhasegura123' };
+
+    await login(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ token: expect.any(String) }));
   });
 });

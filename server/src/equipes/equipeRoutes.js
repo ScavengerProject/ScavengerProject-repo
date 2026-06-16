@@ -16,6 +16,9 @@ import {
   listarMembrosPorEquipe,
   atualizarEquipe,
   atribuirCoordenador,
+  adicionarCoordenador,
+  removerCoordenador,
+  atualizarMaxCoordenadores,
   listarUsuariosElegiveisCoordenador,
   visualizarRankingEquipes,
   buscarMinhaEquipeId
@@ -41,8 +44,13 @@ router.delete('/:id', proteger, autorizar('ADMIN'), deletarEquipe);
 router.get('/:equipeId/membros', proteger, autorizar('ADMIN', 'COORDENADOR', 'PROFESSOR', 'ALUNO'), listarMembrosPorEquipe);
 // [PUT] Atualizar equipe (Admin)
 router.put('/:id', proteger, autorizar('ADMIN'), atualizarEquipe);
-// [PATCH] Atribuir/Trocar Coordenador
+// [PATCH] Atribuir/Trocar Coordenador (legado, coordenador único)
 router.patch('/:id/coordenador', proteger, autorizar('ADMIN'), atribuirCoordenador);
+
+// Gestão de MÚLTIPLOS coordenadores por equipe (ADMIN)
+router.post('/:id/coordenadores', proteger, autorizar('ADMIN'), adicionarCoordenador);
+router.delete('/:id/coordenadores/:usuarioId', proteger, autorizar('ADMIN'), removerCoordenador);
+router.patch('/:id/max-coordenadores', proteger, autorizar('ADMIN'), atualizarMaxCoordenadores);
 
 router.patch('/:id/membros', proteger, autorizar('ADMIN'), adicionarMembro);
 router.get('/coordenadores-disponiveis', proteger, autorizar('ADMIN'), listarCoordenadoresDisponiveis);

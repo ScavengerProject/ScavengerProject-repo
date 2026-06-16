@@ -29,33 +29,24 @@ export default function CoordGerenciarEmprestimos() {
       setLoading(true);
       const status = filtroStatus === 'TODOS' ? null : filtroStatus;
       const emprestimosList = await emprestimosService.listar(status);
-      
-      console.log('💼 Empréstimos carregados:', emprestimosList);
-      console.log('👤 Usuario ID:', usuario._id);
-      console.log('📋 Total de empréstimos:', emprestimosList?.length || 0);
-      
+
       setEmprestimos(emprestimosList || []);
-      
+
       // Buscar ID da equipe se ainda não tiver
       if (!minhaEquipeId && emprestimosList.length > 0) {
         // Tentar encontrar a equipe do coordenador nos empréstimos
         const empComOrigem = emprestimosList.find(e => e.equipe_origem_id?.equipe_gincana_id?.coordenador_usuario_id === usuario._id);
         const empComDestino = emprestimosList.find(e => e.equipe_destino_id?.equipe_gincana_id?.coordenador_usuario_id === usuario._id);
-        
+
         if (empComOrigem) {
           const equipId = String(empComOrigem.equipe_origem_id.equipe_id._id);
-          console.log('✅ Equipe encontrada (origem):', equipId);
           setMinhaEquipeId(equipId);
         } else if (empComDestino) {
           const equipId = String(empComDestino.equipe_destino_id.equipe_id._id);
-          console.log('✅ Equipe encontrada (destino):', equipId);
           setMinhaEquipeId(equipId);
-        } else {
-          console.log('⚠️ Equipe não encontrada nos empréstimos');
         }
       }
     } catch (e) {
-      console.error('❌ Erro ao carregar empréstimos:', e);
       toast.error(e?.message || 'Erro ao carregar dados');
     } finally {
       setLoading(false);
@@ -112,10 +103,10 @@ export default function CoordGerenciarEmprestimos() {
   // Filtrar empréstimos por tipo (emprestados ou recebidos)
   const emprestimosFiltrados = emprestimos.filter(emp => {
     if (!minhaEquipeId) return true; // Se não temos o ID ainda, mostra todos
-    
+
     const origemId = String(emp.equipe_origem_id?.equipe_id?._id || emp.equipe_origem_id?._id);
     const destinoId = String(emp.equipe_destino_id?.equipe_id?._id || emp.equipe_destino_id?._id);
-    
+
     if (filtroTipo === 'EMPRESTADOS') {
       // Membros que minha equipe emprestou para outras
       return origemId === minhaEquipeId;
@@ -299,55 +290,55 @@ export default function CoordGerenciarEmprestimos() {
           )}
         </div>
 
-      {/* Dialog: Encerrar Empréstimo */}
-      <Dialog open={openEncerrar} onOpenChange={setOpenEncerrar}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Encerrar Empréstimo</DialogTitle>
-            <DialogDescription>
-              Você tem certeza que deseja encerrar este empréstimo? O membro retornará à sua equipe original.
-            </DialogDescription>
-          </DialogHeader>
+        {/* Dialog: Encerrar Empréstimo */}
+        <Dialog open={openEncerrar} onOpenChange={setOpenEncerrar}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Encerrar Empréstimo</DialogTitle>
+              <DialogDescription>
+                Você tem certeza que deseja encerrar este empréstimo? O membro retornará à sua equipe original.
+              </DialogDescription>
+            </DialogHeader>
 
-          <div className="space-y-4">
-            {emprestimoSelecionado && (
-              <div className="bg-gray-50 p-3 rounded border border-gray-200">
-                <p className="text-sm font-medium text-gray-900">
-                  {emprestimoSelecionado.usuario_id?.nome}
-                </p>
-                <p className="text-xs text-gray-600">
-                  {emprestimoSelecionado.equipe_origem_id?.equipe_id?.nome} → {emprestimoSelecionado.equipe_destino_id?.equipe_id?.nome}
-                </p>
+            <div className="space-y-4">
+              {emprestimoSelecionado && (
+                <div className="bg-gray-50 p-3 rounded border border-gray-200">
+                  <p className="text-sm font-medium text-gray-900">
+                    {emprestimoSelecionado.usuario_id?.nome}
+                  </p>
+                  <p className="text-xs text-gray-600">
+                    {emprestimoSelecionado.equipe_origem_id?.equipe_id?.nome} → {emprestimoSelecionado.equipe_destino_id?.equipe_id?.nome}
+                  </p>
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <Label htmlFor="justificativa" className="text-gray-700">
+                  Justificativa (opcional)
+                </Label>
+                <Textarea
+                  id="justificativa"
+                  placeholder="Motivo do encerramento..."
+                  value={justificativa}
+                  onChange={(e) => setJustificativa(e.target.value)}
+                  rows={3}
+                />
               </div>
-            )}
-
-            <div className="space-y-2">
-              <Label htmlFor="justificativa" className="text-gray-700">
-                Justificativa (opcional)
-              </Label>
-              <Textarea
-                id="justificativa"
-                placeholder="Motivo do encerramento..."
-                value={justificativa}
-                onChange={(e) => setJustificativa(e.target.value)}
-                rows={3}
-              />
             </div>
-          </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setOpenEncerrar(false)}>
-              Cancelar
-            </Button>
-            <Button
-              className="bg-red-600 hover:bg-red-700 text-white"
-              onClick={encerrarEmprestimo}
-            >
-              Encerrar Empréstimo
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setOpenEncerrar(false)}>
+                Cancelar
+              </Button>
+              <Button
+                className="bg-red-600 hover:bg-red-700 text-white"
+                onClick={encerrarEmprestimo}
+              >
+                Encerrar Empréstimo
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </MainLayout>
   );

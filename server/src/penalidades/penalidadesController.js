@@ -3,6 +3,7 @@ import EquipeGincana from "../models/EquipeGincana.js";
 import Usuario from "../models/Usuario.js";  
 import EquipeMembros from "../models/EquipeMembros.js";
 import { criarNotificacao } from "../notificacoes/notificacaoController.js";
+import { getEquipesGincanaDoCoordenador, isCoordenadorDaEquipe } from "../equipes/coordenadorEquipe.js";
 
 /**
  * 🆕 Função auxiliar para logar todos os dados recebidos ou preenchidos até o momento
@@ -15,7 +16,6 @@ const logFormData = (req, extra = {}, participanteSelecionado = null) => {
     participanteSelecionado,
     ...extra,
   };
-  console.log("📌 Dados atuais do form / request:", JSON.stringify(data, null, 2));
 };
 
 /**
@@ -46,9 +46,11 @@ export const criarPenalidade = async (req, res) => {
     // Identificar ID do Coordenador (pode estar na Gincana ou na Equipe Base)
     const idCoordenador = equipeGincana.coordenador_usuario_id || equipeGincana.equipe_id?.coordenador_usuario_id;
 
-    // Se quem está aplicando for COORDENADOR, verifica se ele é dono desta equipe
+    // Se quem está aplicando for COORDENADOR, verifica se ele coordena esta equipe
+    // (qualquer coordenador da equipe pode penalizar — poderes iguais).
     if (usuarioAtual.tipo === 'COORDENADOR') {
-        if (idCoordenador?.toString() !== usuarioAtual.id) {
+        const podePenalizar = await isCoordenadorDaEquipe(usuarioAtual.id, equipeGincana);
+        if (!podePenalizar) {
             return res.status(403).json({ message: "Você não tem permissão para penalizar esta equipe." });
         }
     }
@@ -102,8 +104,6 @@ export const criarPenalidade = async (req, res) => {
             destinatariosIds.delete(remetenteId);
         }
 
-        console.log(`🔔 Enviando notificação de penalidade para ${destinatariosIds.size} pessoas da equipe ${nomeEquipe}.`);
-
         // Disparar notificações em paralelo
         const promises = Array.from(destinatariosIds).map(userId => {
             return criarNotificacao(
@@ -145,9 +145,8 @@ export const listarPenalidades = async (req, res) => {
 
     // Se for COORDENADOR, filtra apenas penalidades das equipes que ele coordena
     if (usuarioAtual.tipo === 'COORDENADOR') {
-      // Primeiro, encontra as EquipeGincana que o coordenador gerencia
-      const EquipeGincana = (await import("../models/EquipeGincana.js")).default;
-      const equipesCoordenadas = await EquipeGincana.find({ coordenador_usuario_id: usuarioAtual.id });
+      // Encontra as EquipeGincana que o coordenador gerencia (via is_coordenador).
+      const equipesCoordenadas = await getEquipesGincanaDoCoordenador(usuarioAtual.id);
       const equipeGincanaIds = equipesCoordenadas.map(eg => eg._id);
       query.equipe_gincana_id = { $in: equipeGincanaIds };
     }
@@ -175,7 +174,6 @@ export const listarPenalidades = async (req, res) => {
       criado_em: p.criado_em,
     }));
 
-    console.log(`📌 Penalidades do DB para ${usuarioAtual.tipo}:`, penalidades.length);
     return res.status(200).json(resultado);
   } catch (err) {
     console.error("Erro listarPenalidades:", err);
@@ -193,9 +191,10 @@ export const listarEquipesParaPenalidade = async (req, res) => {
     const usuarioAtual = req.usuario;
     let query = {};
 
-    // Se for COORDENADOR, filtra apenas equipes que ele coordena
+    // Se for COORDENADOR, filtra apenas equipes que ele coordena (via is_coordenador)
     if (usuarioAtual.tipo === 'COORDENADOR') {
-      query.coordenador_usuario_id = usuarioAtual.id;
+      const equipesCoordenadas = await getEquipesGincanaDoCoordenador(usuarioAtual.id);
+      query._id = { $in: equipesCoordenadas.map((eg) => eg._id) };
     }
 
     const equipes = await EquipeGincana.find(query).populate("equipe_id", "nome cor").sort({ "equipe_id.nome": 1 });
@@ -233,13 +232,11 @@ export const listarMembrosDaEquipe = async (req, res) => {
       return res.status(400).json({ message: "ID da equipe (EquipeGincana) é obrigatório." });
     }
 
-    console.log(`🔍 Buscando membros da equipe (EquipeGincana): ${equipeId} para ${usuarioAtual.tipo}`);
-
     const equipeGincana = await EquipeGincana.findById(equipeId).populate("equipe_id");
     if (!equipeGincana) return res.status(404).json({ message: "EquipeGincana não encontrada." });
 
-    // Se for COORDENADOR, verifica se ele coordena esta equipe
-    if (usuarioAtual.tipo === 'COORDENADOR' && equipeGincana.coordenador_usuario_id.toString() !== usuarioAtual.id) {
+    // Se for COORDENADOR, verifica se ele coordena esta equipe (via is_coordenador)
+    if (usuarioAtual.tipo === 'COORDENADOR' && !(await isCoordenadorDaEquipe(usuarioAtual.id, equipeGincana))) {
       return res.status(403).json({ message: "Você não tem permissão para ver membros desta equipe." });
     }
 
@@ -289,7 +286,6 @@ export const buscarParticipante = async (req, res) => {
       turma: usuario.turma || "",
     };
 
-    console.log("Participante selecionado:", resultado);
     logFormData(req, {}, resultado);
 
     return res.status(200).json(resultado);

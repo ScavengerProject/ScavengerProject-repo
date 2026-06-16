@@ -16,12 +16,22 @@ const EquipeGincanaSchema = new mongoose.Schema({
         default: 'GINCANA_PRINCIPAL', // usando valor padrão
     },
     
+    // Coordenador "principal" da equipe (compatibilidade/exibição/notificações).
+    // A fonte da verdade do CONJUNTO de coordenadores é EquipeMembros.is_coordenador.
     coordenador_usuario_id: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'Usuario', 
+        ref: 'Usuario',
         default: null,
     },
-    
+
+    // Número máximo de coordenadores que esta equipe pode ter (definido pelo ADMIN).
+    // Não é obrigatório atingir o limite; a equipe pode ter menos coordenadores.
+    max_coordenadores: {
+        type: Number,
+        default: 1,
+        min: 1,
+    },
+
     pontos_acumulados: {
         type: Number,
         default: 0,

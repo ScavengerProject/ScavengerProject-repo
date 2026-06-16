@@ -46,10 +46,11 @@ const AdminEquipes = () => {
     const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
     const [selectedUsuarioId, setSelectedUsuarioId] = useState('');
 
-    // NOVO ESTADO: Controle do Modal de Atribuição de Coordenador
+    // Controle do Modal de Gestão de Coordenadores (múltiplos)
     const [isSetCoordinatorOpen, setIsSetCoordinatorOpen] = useState(false);
     const [coordChangeEquipe, setCoordChangeEquipe] = useState(null);
     const [selectedNewCoordId, setSelectedNewCoordId] = useState('');
+    const [maxCoordInput, setMaxCoordInput] = useState(1);
 
     
     // --- FUNÇÕES DE BUSCA ---
@@ -189,17 +190,19 @@ const AdminEquipes = () => {
         const equipeId = currentEquipe.id || currentEquipe._id;
 
         try {
-            const response = await equipesService.adicionarMembro(equipeId, selectedUsuarioId);
+            // A API de adicionarMembro retorna apenas { message, membro }, não a equipe completa.
+            // Atualizamos o contador de membros localmente para refletir a adição sem quebrar o estado.
+            await equipesService.adicionarMembro(equipeId, selectedUsuarioId);
 
-            setEquipes((prevEquipes) => 
+            setEquipes((prevEquipes) =>
                 prevEquipes.map((equipe) => {
                     if (equipe.id === equipeId || equipe._id === equipeId) {
-                        return response.equipe; 
+                        return { ...equipe, total_membros: (equipe.total_membros || 0) + 1 };
                     }
                     return equipe;
                 })
             );
-            
+
             setMembrosDisponiveis(prev => prev.filter(u => u._id !== selectedUsuarioId));
             
             toast.success('Participante adicionado com sucesso!');
@@ -243,51 +246,81 @@ const AdminEquipes = () => {
     };
 
 
-    // --- FUNÇÕES DE ATRIBUIÇÃO DE COORDENADOR ---
-    const openSetCoordinatorDialog = async (equipe) => {
-        setCoordChangeEquipe(equipe);
-        const currentCoordId = equipe.coordenador 
-            ? equipe.coordenador._id?.toString() || equipe.coordenador.id?.toString() 
-            : ''; 
-        setSelectedNewCoordId(currentCoordId);
+    // --- FUNÇÕES DE GESTÃO DE COORDENADORES (MÚLTIPLOS) ---
+    const carregarElegiveis = async (equipeId) => {
         try {
-            const equipeId = equipe.id || equipe._id;
             const usuarios = await equipesService.listarElegiveisParaCoordenador(equipeId);
-
-            const coordsDisponiveis = usuarios.map(u => ({ 
-                _id: u._id, 
-                nome: `${u.nome} (${u.tipo})` 
-            }));
-            setCoordenadoresDisponiveis(coordsDisponiveis);
-            setIsSetCoordinatorOpen(true);
-
+            setCoordenadoresDisponiveis(usuarios.map(u => ({
+                _id: u._id,
+                nome: `${u.nome} (${u.tipo})`,
+            })));
         } catch (error) {
             console.error('Erro ao carregar coordenadores elegíveis:', error);
             toast.error(`Erro ao carregar lista de usuários: ${error.message}`);
+            setCoordenadoresDisponiveis([]);
         }
     };
 
-    const handleSetCoordinator = async () => {
-        if (!coordChangeEquipe) return;
-        
+    const openManageCoordinatorsDialog = async (equipe) => {
+        setCoordChangeEquipe(equipe);
+        setSelectedNewCoordId('');
+        setMaxCoordInput(equipe.max_coordenadores ?? 1);
+        const equipeId = equipe.id || equipe._id;
+        await carregarElegiveis(equipeId);
+        setIsSetCoordinatorOpen(true);
+    };
+
+    // Sincroniza o estado da lista e o snapshot do modal após uma operação.
+    const aplicarEquipeAtualizada = (equipeId, equipeAtualizada) => {
+        setEquipes(prevEquipes => prevEquipes.map(e =>
+            (e.id === equipeId || e._id === equipeId) ? equipeAtualizada : e
+        ));
+        setCoordChangeEquipe(equipeAtualizada);
+    };
+
+    const handleAddCoordinator = async () => {
+        if (!coordChangeEquipe || !selectedNewCoordId) return;
         const equipeId = coordChangeEquipe.id || coordChangeEquipe._id;
-        const coordId = selectedNewCoordId === '' ? null : selectedNewCoordId;
 
         try {
-            const response = await equipesService.atribuirCoordenador(equipeId, coordId);
-
-            setEquipes(prevEquipes => prevEquipes.map(e => 
-                (e.id === equipeId || e._id === equipeId) ? response.equipe : e
-            ));
-            
-            toast.success('Coordenador atribuído/trocado com sucesso.');
-            setIsSetCoordinatorOpen(false);
-            
-            fetchCoordenadores(); 
+            const response = await equipesService.adicionarCoordenador(equipeId, selectedNewCoordId);
+            aplicarEquipeAtualizada(equipeId, response.equipe);
+            toast.success('Coordenador adicionado com sucesso.');
+            setSelectedNewCoordId('');
+            await carregarElegiveis(equipeId);
+            fetchCoordenadores();
             fetchMembros();
-            
         } catch (error) {
-            toast.error(error.message || 'Erro ao atribuir coordenador.');
+            toast.error(error.message || 'Erro ao adicionar coordenador.');
+        }
+    };
+
+    const handleRemoveCoordinator = async (usuarioId) => {
+        if (!coordChangeEquipe || !usuarioId) return;
+        const equipeId = coordChangeEquipe.id || coordChangeEquipe._id;
+
+        try {
+            const response = await equipesService.removerCoordenador(equipeId, usuarioId);
+            aplicarEquipeAtualizada(equipeId, response.equipe);
+            toast.success('Coordenador removido com sucesso.');
+            await carregarElegiveis(equipeId);
+            fetchCoordenadores();
+            fetchMembros();
+        } catch (error) {
+            toast.error(error.message || 'Erro ao remover coordenador.');
+        }
+    };
+
+    const handleSaveMaxCoordenadores = async () => {
+        if (!coordChangeEquipe) return;
+        const equipeId = coordChangeEquipe.id || coordChangeEquipe._id;
+
+        try {
+            const response = await equipesService.atualizarMaxCoordenadores(equipeId, Number(maxCoordInput));
+            aplicarEquipeAtualizada(equipeId, response.equipe);
+            toast.success('Limite de coordenadores atualizado.');
+        } catch (error) {
+            toast.error(error.message || 'Erro ao atualizar limite de coordenadores.');
         }
     };
 
@@ -374,9 +407,16 @@ const AdminEquipes = () => {
                                 </CardHeader>
                                 <CardContent className="pt-2 flex flex-col gap-4">
                                     <div className="text-sm text-gray-700 flex flex-wrap items-center gap-2 sm:gap-3">
-                                        <Users className='inline h-4 w-4 text-gray-500'/> 
-                                        <span className="break-words">Coordenador: {equipe.coordenador?.nome || 'Não definido'}</span>
-                                        <Button 
+                                        <Users className='inline h-4 w-4 text-gray-500'/>
+                                        <span className="break-words">
+                                            {(equipe.coordenadores && equipe.coordenadores.length > 0)
+                                                ? `Coordenadores: ${equipe.coordenadores.map(c => c.nome).join(', ')}`
+                                                : 'Coordenadores: Não definido'}
+                                            <span className="text-gray-400 ml-1">
+                                                ({(equipe.coordenadores?.length || 0)}/{equipe.max_coordenadores ?? 1})
+                                            </span>
+                                        </span>
+                                        <Button
                                             variant="outline"
                                             size="sm"
                                             className="text-gray-600 hover:bg-gray-100 text-xs"
@@ -396,15 +436,15 @@ const AdminEquipes = () => {
                                             <Edit className="h-3 w-3 sm:h-4 sm:w-4" />
                                         </Button>
 
-                                        {/* NOVO BOTÃO: Trocar Coordenador */}
-                                        <Button 
-                                            size="sm" 
+                                        {/* Gerenciar coordenadores (múltiplos) */}
+                                        <Button
+                                            size="sm"
                                             variant="outline"
                                             className="text-purple-600 border-purple-300 hover:bg-purple-50 text-xs"
-                                            onClick={() => openSetCoordinatorDialog(equipe)} 
+                                            onClick={() => openManageCoordinatorsDialog(equipe)}
                                         >
-                                            <Edit className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
-                                            <span className="hidden sm:inline">{equipe.coordenador ? 'Trocar Coord.' : 'Atrib. Coord.'}</span>
+                                            <Users className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+                                            <span className="hidden sm:inline">Gerenciar Coord.</span>
                                             <span className="sm:hidden">Coord.</span>
                                         </Button>
                                         
@@ -439,54 +479,112 @@ const AdminEquipes = () => {
                     )}
                 </div>
 
-                {/* Diálogo de Atribuir/Trocar Coordenador */}
+                {/* Diálogo de Gestão de Coordenadores (múltiplos) */}
                 <Dialog open={isSetCoordinatorOpen} onOpenChange={setIsSetCoordinatorOpen}>
-                    <DialogContent className="sm:max-w-[450px]">
+                    <DialogContent className="sm:max-w-[500px]">
                         <DialogHeader>
-                            <DialogTitle>
-                                {coordChangeEquipe?.coordenador 
-                                    ? `Trocar Coordenador da Equipe ${coordChangeEquipe?.nome}`
-                                    : `Atribuir Coordenador à Equipe ${coordChangeEquipe?.nome}`}
-                            </DialogTitle>
+                            <DialogTitle>Gerenciar Coordenadores — {coordChangeEquipe?.nome}</DialogTitle>
                             <DialogDescription>
-                                Selecione o coordenador desejado entre os usuários disponíveis.
+                                Defina o limite máximo e quais usuários são coordenadores desta equipe.
+                                Todos os coordenadores têm os mesmos poderes.
                             </DialogDescription>
                         </DialogHeader>
 
-                        <div className="grid gap-4 py-4">
+                        <div className="grid gap-5 py-2">
+                            {/* Limite máximo */}
                             <div className="grid gap-2">
-                                <Label htmlFor="coordenador">Selecionar Coordenador</Label>
-                                <Select
-                                    onValueChange={setSelectedNewCoordId}
-                                    value={selectedNewCoordId}
-                                    disabled={coordenadoresDisponiveis.length === 0}
-                                >
-                                    <SelectTrigger>
-                                        <SelectValue placeholder={
-                                            coordenadoresDisponiveis.length === 0
-                                                ? "Nenhum coordenador disponível"
-                                                : "Selecione um coordenador"
-                                        } />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {coordenadoresDisponiveis.map(coord => (
-                                            <SelectItem key={coord._id} value={coord._id}>
-                                                {coord.nome}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                                <Label htmlFor="max-coord">Número máximo de coordenadores</Label>
+                                <div className="flex items-center gap-2">
+                                    <Input
+                                        id="max-coord"
+                                        type="number"
+                                        min={1}
+                                        value={maxCoordInput}
+                                        onChange={(e) => setMaxCoordInput(e.target.value)}
+                                        className="w-24"
+                                    />
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={handleSaveMaxCoordenadores}
+                                    >
+                                        Salvar limite
+                                    </Button>
+                                </div>
+                            </div>
+
+                            {/* Coordenadores atuais */}
+                            <div className="grid gap-2">
+                                <Label>
+                                    Coordenadores atuais ({coordChangeEquipe?.coordenadores?.length || 0}/{coordChangeEquipe?.max_coordenadores ?? 1})
+                                </Label>
+                                <div className="space-y-2 max-h-48 overflow-y-auto">
+                                    {(coordChangeEquipe?.coordenadores?.length || 0) === 0 ? (
+                                        <p className="text-sm text-gray-500">Nenhum coordenador definido.</p>
+                                    ) : (
+                                        coordChangeEquipe.coordenadores.map((coord) => (
+                                            <div key={coord.id} className="flex items-center justify-between p-2 border rounded-md">
+                                                <div className="min-w-0">
+                                                    <p className="font-medium text-gray-800 truncate">{coord.nome}</p>
+                                                    <p className="text-xs text-gray-500 truncate">{coord.email}</p>
+                                                </div>
+                                                <Button
+                                                    size="icon"
+                                                    variant="ghost"
+                                                    className="text-red-600 hover:bg-red-50 shrink-0"
+                                                    onClick={() => handleRemoveCoordinator(coord.id)}
+                                                >
+                                                    <Trash2 className="h-4 w-4" />
+                                                </Button>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Adicionar coordenador */}
+                            <div className="grid gap-2">
+                                <Label htmlFor="add-coord">Adicionar coordenador</Label>
+                                {(coordChangeEquipe?.coordenadores?.length || 0) >= (coordChangeEquipe?.max_coordenadores ?? 1) ? (
+                                    <p className="text-sm text-amber-600">
+                                        Limite máximo atingido. Aumente o limite ou remova um coordenador para adicionar outro.
+                                    </p>
+                                ) : (
+                                    <div className="flex items-center gap-2">
+                                        <Select
+                                            onValueChange={setSelectedNewCoordId}
+                                            value={selectedNewCoordId}
+                                            disabled={coordenadoresDisponiveis.length === 0}
+                                        >
+                                            <SelectTrigger className="flex-1">
+                                                <SelectValue placeholder={
+                                                    coordenadoresDisponiveis.length === 0
+                                                        ? "Nenhum usuário disponível"
+                                                        : "Selecione um usuário"
+                                                } />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {coordenadoresDisponiveis.map(coord => (
+                                                    <SelectItem key={coord._id} value={coord._id}>
+                                                        {coord.nome}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                        <Button
+                                            onClick={handleAddCoordinator}
+                                            disabled={!selectedNewCoordId}
+                                            className="bg-purple-600 hover:bg-purple-700 text-white"
+                                        >
+                                            <Plus className="h-4 w-4 mr-1" /> Adicionar
+                                        </Button>
+                                    </div>
+                                )}
                             </div>
                         </div>
 
                         <DialogFooter>
-                            <Button 
-                                onClick={handleSetCoordinator} 
-                                disabled={!selectedNewCoordId}
-                                className="bg-purple-600 hover:bg-purple-700 text-white"
-                            >
-                                Confirmar
-                            </Button>
+                            <Button variant="outline" onClick={() => setIsSetCoordinatorOpen(false)}>Fechar</Button>
                         </DialogFooter>
                     </DialogContent>
                 </Dialog>

@@ -2,9 +2,10 @@ import Prova from '../models/Prova.js';
 import Usuario from '../models/Usuario.js';
 import ProvaUsuario from '../models/ProvaUsuario.js';
 import EquipeMembros from '../models/EquipeMembros.js';
-import Notificacao from '../models/Notificacao.js';
-import { criarNotificacao } from '../notificacoes/notificacaoController.js';
-import { enviarEmailNovaProva } from '../utils/emailService.js';
+import {
+  estaPublicada,
+  agendarOuDispararPublicacao,
+} from './provaPublicacao.js';
 
 const GRUPO_LABEL = {
   ALUNOS_FUNDAMENTAL: 'alunos do ensino fundamental',
@@ -16,9 +17,10 @@ const GRUPO_LABEL = {
 /**
  * Calcula o status da prova automaticamente com base nas datas, ignorando
  * qualquer status definido manualmente. Esta é a fonte única de verdade.
- * - Antes da data de início -> NAO_INICIADA
- * - Entre início e término  -> EM_ANDAMENTO
- * - Após a data de término  -> CONCLUIDA (término é inclusivo, até o fim do dia)
+ * A data de início e de término consideram também o horário informado.
+ * - Antes do horário de início -> NAO_INICIADA
+ * - Entre início e término     -> EM_ANDAMENTO
+ * - Após o horário de término  -> CONCLUIDA
  *
  * Sem data de término a prova permanece EM_ANDAMENTO após iniciada.
  */
@@ -27,13 +29,11 @@ export const calcularStatusProva = (data_inicio, data_fim) => {
 
   if (data_inicio) {
     const inicio = new Date(data_inicio);
-    inicio.setUTCHours(0, 0, 0, 0);
     if (agora < inicio) return 'NAO_INICIADA';
   }
 
   if (data_fim) {
     const fim = new Date(data_fim);
-    fim.setUTCHours(23, 59, 59, 999);
     if (agora > fim) return 'CONCLUIDA';
   }
 
@@ -52,6 +52,7 @@ export const criarProva = async (req, res) => {
       formato,
       data_inicio,
       data_fim,
+      data_publicacao,
       quesitos_de_avaliacao,
       requisito_usuario,
       pontuacao,
@@ -74,6 +75,7 @@ export const criarProva = async (req, res) => {
       formato,
       data_inicio: dataInicioProva,
       data_fim: dataFimProva,
+      data_publicacao: data_publicacao || null,
       // Status sempre derivado das datas (não é mais definido manualmente).
       status: calcularStatusProva(dataInicioProva, dataFimProva),
       quesitos_de_avaliacao: quesitos_de_avaliacao || [],
@@ -88,63 +90,13 @@ export const criarProva = async (req, res) => {
 
     const provaSalva = await novaProva.save();
 
-    // US17: Enviar notificações para ALUNO e COORDENADOR quando uma nova prova é criada
+    // US17/#18: Notifica ALUNOS e COORDENADORES sobre a nova prova. Se houver
+    // data de publicação futura, o disparo é agendado para esse momento; caso
+    // contrário, acontece imediatamente. Falhas aqui não derrubam a criação.
     try {
-      // Buscar todos os usuários ALUNO e COORDENADOR que estão ativos
-      const participantes = await Usuario.find({
-        tipo: { $in: ['ALUNO', 'COORDENADOR'] },
-        status: 'ATIVO'
-      }).select('_id nome email tipo');
-
-      // Criar notificações e enviar emails em paralelo (sem bloquear a resposta)
-      const promessasNotificacoes = participantes.map(async (participante) => {
-        try {
-          // Criar notificação no banco de dados
-          const titulo = `Nova Prova: ${provaSalva.titulo}`;
-          const mensagem = `Uma nova prova "${provaSalva.titulo}" foi criada e está disponível para você.`;
-          
-          const notificacao = await criarNotificacao(
-            participante._id,
-            'NOVA_PROVA',
-            titulo,
-            mensagem,
-            provaSalva._id
-          );
-
-          // Enviar email (não bloqueia se falhar)
-          const resultadoEmail = await enviarEmailNovaProva(
-            participante.email,
-            participante.nome,
-            provaSalva
-          );
-
-          // Atualizar notificação com status do email
-          if (resultadoEmail.sucesso && notificacao) {
-            await Notificacao.findByIdAndUpdate(notificacao._id, {
-              email_enviado: true,
-              email_enviado_em: new Date()
-            });
-          } else if (!resultadoEmail.sucesso) {
-            console.error(
-              `[email] Falha ao enviar email da nova prova para ${participante.email}:`,
-              resultadoEmail.erro
-            );
-          }
-        } catch (err) {
-          // Log do erro mas não interrompe o processo
-          console.error(`Erro ao notificar usuário ${participante._id}:`, err);
-        }
-      });
-
-      // Executa todas as notificações em paralelo (não espera pela conclusão)
-      Promise.all(promessasNotificacoes).catch(err => {
-        console.error('Erro ao processar notificações:', err);
-      });
-
-      console.log(`Notificações enviadas para ${participantes.length} participantes sobre a prova "${provaSalva.titulo}"`);
+      await agendarOuDispararPublicacao(provaSalva);
     } catch (notificacaoError) {
-      // Log do erro mas não falha a criação da prova
-      console.error('Erro ao enviar notificações:', notificacaoError);
+      console.error('Erro ao agendar/disparar notificações da prova:', notificacaoError);
     }
 
     res.status(201).json(provaSalva);
@@ -160,9 +112,17 @@ export const criarProva = async (req, res) => {
  */
 export const listarProvas = async (req, res) => {
   try {
+    // #18: ADMIN enxerga todas as provas (inclusive as agendadas). Os demais
+    // perfis só veem as já publicadas (sem data de publicação ou com data já
+    // alcançada).
+    const isAdmin = req.usuario?.tipo === 'ADMIN';
+    const matchVisibilidade = isAdmin
+      ? {}
+      : { $or: [{ data_publicacao: null }, { data_publicacao: { $lte: new Date() } }] };
+
     const provas = await Prova.aggregate([
-      // Encontra todas as provas
-      { $match: {} }, 
+      // Filtra pela visibilidade conforme o perfil do usuário
+      { $match: matchVisibilidade },
       
       // Garante que o campo 'pontuacao' seja incluído
       { 
@@ -256,6 +216,12 @@ export const obterProva = async (req, res) => {
             return res.status(404).json({ message: 'Prova não encontrada.' });
         }
 
+        // #18: prova ainda não publicada fica indisponível para não-ADMIN.
+        const isAdmin = req.usuario?.tipo === 'ADMIN';
+        if (!isAdmin && !estaPublicada(prova)) {
+            return res.status(404).json({ message: 'Prova não encontrada.' });
+        }
+
         // Status calculado automaticamente a partir das datas (fonte única de verdade).
         const provaObj = prova.toObject();
         provaObj.status = calcularStatusProva(provaObj.data_inicio, provaObj.data_fim);
@@ -294,6 +260,14 @@ export const atualizarProva = async (req, res) => {
         if (prova.status !== statusCalculado) {
             prova.status = statusCalculado;
             await prova.save();
+        }
+
+        // #18: se a data de publicação foi definida/alterada e ainda não houve
+        // disparo, (re)agenda ou dispara as notificações conforme a nova data.
+        try {
+            await agendarOuDispararPublicacao(prova);
+        } catch (notificacaoError) {
+            console.error('Erro ao agendar/disparar notificações da prova:', notificacaoError);
         }
 
         res.status(200).json(prova);
@@ -410,7 +384,12 @@ export const inscreverUsuarioNaProva = async (req, res) => {
     }
 
     if (!grupo) {
-      return res.status(422).json({ ok: false, motivo: 'GRUPO_INDETERMINADO', detalhe: 'Tipo/turma do usuário não permite determinar grupo.' });
+      return res.status(422).json({
+        ok: false,
+        code: 'GRUPO_INDETERMINADO',
+        message: 'Não foi possível determinar seu ano escolar. Verifique se a sua turma está definida (obrigatória para alunos). Se o problema persistir, contate os organizadores da gincana.',
+        detalhe: 'Tipo/turma do usuário não permite determinar grupo.'
+      });
     }
 
   const cotas = (prova.requisito_usuario && typeof prova.requisito_usuario === 'object')

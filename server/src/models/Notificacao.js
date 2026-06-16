@@ -3,10 +3,10 @@ import mongoose from 'mongoose';
 const NotificacaoSchema = new mongoose.Schema({
   usuario_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Usuario', required: true },
   
-  tipo: { 
-    type: String, 
-    enum: ['NOVA_PROVA', 'RESULTADO', 'COMUNICADO', 'PENALIDADE'], 
-    required: true 
+  tipo: {
+    type: String,
+    enum: ['NOVA_PROVA', 'RESULTADO', 'COMUNICADO', 'PENALIDADE', 'MIGRACAO'],
+    required: true
   },
   
   titulo: { type: String, required: true },
