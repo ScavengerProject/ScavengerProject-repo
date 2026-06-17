@@ -94,9 +94,9 @@ describe('migracaoController - #16 aprovação pelo coordenador de destino', () 
   });
 
   it('decidirMigracao retorna 403 para o coordenador de ORIGEM', async () => {
-    const { egA, egB } = await criarCenario();
+    const { equipeA, egA, egB } = await criarCenario();
     const meId = oid().toString();
-    await EquipeMembro.create({ usuario_id: meId, equipe_id: egA._id });
+    await EquipeMembro.create({ usuario_id: meId, equipe_id: equipeA._id });
     const mig = await MigracaoEquipe.create({
       usuario_id: meId,
       equipe_origem_id: egA._id,
@@ -116,9 +116,9 @@ describe('migracaoController - #16 aprovação pelo coordenador de destino', () 
   });
 
   it('decidirMigracao do coordenador de DESTINO aprova, move o membro e notifica o solicitante', async () => {
-    const { egA, egB } = await criarCenario();
+    const { equipeA, equipeB, egA, egB } = await criarCenario();
     const meId = oid().toString();
-    await EquipeMembro.create({ usuario_id: meId, equipe_id: egA._id });
+    await EquipeMembro.create({ usuario_id: meId, equipe_id: equipeA._id });
     const mig = await MigracaoEquipe.create({
       usuario_id: meId,
       equipe_origem_id: egA._id,
@@ -137,7 +137,7 @@ describe('migracaoController - #16 aprovação pelo coordenador de destino', () 
     expect(res.status).toHaveBeenCalledWith(200);
 
     const membro = await EquipeMembro.findOne({ usuario_id: meId });
-    expect(membro.equipe_id.toString()).toBe(egB._id.toString());
+    expect(membro.equipe_id.toString()).toBe(equipeB._id.toString());
 
     const notif = await Notificacao.findOne({ usuario_id: meId, tipo: 'MIGRACAO' });
     expect(notif).not.toBeNull();
@@ -146,9 +146,9 @@ describe('migracaoController - #16 aprovação pelo coordenador de destino', () 
 
 describe('migracaoController - #16 notificação ao coordenador de destino', () => {
   it('solicitarMigracao cria a solicitação e notifica o coordenador de destino', async () => {
-    const { equipeB, egA } = await criarCenario();
+    const { equipeA, equipeB } = await criarCenario();
     const meId = oid().toString();
-    await EquipeMembro.create({ usuario_id: meId, equipe_id: egA._id });
+    await EquipeMembro.create({ usuario_id: meId, equipe_id: equipeA._id });
 
     const res = mockRes();
     await solicitarMigracao(

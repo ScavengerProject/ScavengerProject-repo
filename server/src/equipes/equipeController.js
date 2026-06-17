@@ -658,7 +658,9 @@ export const listarEquipesPublicas = async (req, res) => {
     try {
         const meId = req.usuario.id;
 
-        // Busca a equipe atual do usuário (através de EquipeMembros)
+        // Busca a equipe atual do usuário (através de EquipeMembros).
+        // EquipeMembros.equipe_id guarda o Equipe._id (mesma convenção de
+        // inscreverAlunoEmEquipe/adicionarMembro), então excluímos esse id diretamente.
         const membroAtual = await EquipeMembros.findOne({ usuario_id: meId });
 
         // Se não está em nenhuma equipe, retorna todas
@@ -667,15 +669,8 @@ export const listarEquipesPublicas = async (req, res) => {
             return res.status(200).json(equipes);
         }
 
-        // membroAtual.equipe_id é o _id de EquipeGincana, então precisamos buscar o equipe_id real
-        const equipeGincana = await EquipeGincana.findById(membroAtual.equipe_id);
-        if (!equipeGincana) {
-            const equipes = await Equipe.find({}, 'nome cor');
-            return res.status(200).json(equipes);
-        }
-
-        // Agora excluímos a equipe atual (usando o equipe_id de EquipeGincana)
-        const equipes = await Equipe.find({ _id: { $ne: equipeGincana.equipe_id } }, 'nome cor');
+        // Exclui a equipe atual do usuário (todas menos a própria)
+        const equipes = await Equipe.find({ _id: { $ne: membroAtual.equipe_id } }, 'nome cor');
         return res.status(200).json(equipes);
     } catch (error) {
         return res.status(500).json({ message: 'Erro ao listar equipes públicas.', error: error.message });

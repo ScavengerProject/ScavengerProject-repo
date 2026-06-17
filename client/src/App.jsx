@@ -11,8 +11,8 @@ import AdminProvasAssociacoes from './pages/AdminProvasAssociacoes.jsx';
 import AdminEquipes from './pages/AdminEquipes.jsx';
 import GerenciarEquipe from './pages/GerenciarEquipes.jsx';
 import InscricaoEquipes from './pages/InscricaoEquipes.jsx';
-// import SolicitarMigracao from './pages/SolicitarMigracao.jsx';
-// import AprovarMigracoes from './pages/AprovarMigracoes.jsx';
+import SolicitarMigracao from './pages/solicitarMigracao.jsx';
+import AprovarMigracoes from './pages/AprovarMigracoes.jsx';
 import AdminEmprestimos from './pages/AdminEmprestimos.jsx';
 import AdminUsuarios from './pages/AdminUsuarios.jsx';
 import AdminFeedbacks from './pages/AdminFeedbacks.jsx';
@@ -169,20 +169,20 @@ function App() {
           element={<Navigate to={isAuthenticated ? "/" : "/login"} replace />}
         />
         {/* Solicitar migração (qualquer autenticado não-admin tb pode; se quiser, deixe livre a todos) */}
-        {/* <Route
+        <Route
           path="/migracoes/solicitar"
           element={isAuthenticated ? <SolicitarMigracao /> : <Navigate to="/login" replace />}
-        /> */}
+        />
 
         {/* Aprovar migrações (somente coordenador) */}
-        {/*<Route
+        <Route
           path="/migracoes/pendentes"
           element={
             isAuthenticated
               ? (usuario.tipo === 'COORDENADOR' ? <AprovarMigracoes /> : <Navigate to="/" replace />)
               : <Navigate to="/login" replace />
           }
-        />*/}
+        />
 
         {/* Rota para Penalidades (Admin) */}
         <Route
