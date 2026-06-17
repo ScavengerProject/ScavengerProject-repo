@@ -121,9 +121,11 @@ export const solicitarMigracao = async (req, res) => {
     const membroAtual = await EquipeMembro.findOne({ usuario_id: me.id });
     if (!membroAtual) return res.status(422).json({ message: 'Você não pertence a nenhuma equipe no momento.' });
 
-    // Verifica se a equipe atual do usuário está na gincana ativa
+    // EquipeMembro.equipe_id guarda o Equipe._id (convenção de produção:
+    // inscreverAlunoEmEquipe/adicionarMembro). Buscamos a EquipeGincana da
+    // equipe atual pela referência equipe_id, não pelo _id.
     const egOrigem = await EquipeGincana.findOne({
-      _id: membroAtual.equipe_id,
+      equipe_id: membroAtual.equipe_id,
       gincana_id: GINCANA_ATUAL_ID
     });
 
@@ -226,15 +228,25 @@ export const decidirMigracao = async (req, res) => {
         });
       }
 
+      // mig.equipe_destino_id referencia uma EquipeGincana, mas EquipeMembro.equipe_id
+      // guarda o Equipe._id (convenção de produção). Resolvemos o id da Equipe de destino.
+      const egDestino = await EquipeGincana.findById(mig.equipe_destino_id);
+      if (!egDestino) {
+        return res.status(422).json({
+          message: 'Equipe de destino não encontrada. Migração não pode ser processada.'
+        });
+      }
+      const destinoEquipeId = egDestino.equipe_id;
+
       // Atualizar a equipe do membro
-      const resultadoUpdate = await EquipeMembro.updateOne(
+      await EquipeMembro.updateOne(
         { usuario_id: mig.usuario_id },
-        { $set: { equipe_id: mig.equipe_destino_id } }
+        { $set: { equipe_id: destinoEquipeId } }
       );
 
       // Verificar se a atualização foi bem-sucedida
       const membroAtualizado = await EquipeMembro.findOne({ usuario_id: mig.usuario_id });
-      if (!membroAtualizado || membroAtualizado.equipe_id.toString() !== mig.equipe_destino_id.toString()) {
+      if (!membroAtualizado || membroAtualizado.equipe_id.toString() !== destinoEquipeId.toString()) {
         return res.status(500).json({
           message: 'Falha ao atualizar a equipe do membro. Migração não foi concluída.'
         });

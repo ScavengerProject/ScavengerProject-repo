@@ -46,15 +46,15 @@ export default function Sidebar({ usuario, isOpen, onToggle, isMobile }) {
       color: 'indigo',
       show: usuario?.tipo === 'ALUNO'
     },
-    // {
-    //   id: 'migracao',
-    //   icon: Users,
-    //   title: 'Migrar de Equipe',
-    //   description: 'Solicitar mudança',
-    //   path: '/migracoes/solicitar',
-    //   color: 'amber',
-    //   show: ['ALUNO', 'PROFESSOR', 'PAI/MÃE'].includes(usuario?.tipo)
-    // },
+    {
+      id: 'migracao',
+      icon: Users,
+      title: 'Migrar de Equipe',
+      description: 'Solicitar mudança',
+      path: '/migracoes/solicitar',
+      color: 'amber',
+      show: ['ALUNO', 'PROFESSOR', 'PAI/MÃE'].includes(usuario?.tipo)
+    },
     {
       id: 'gerenciar-provas',
       icon: BookOpen,
@@ -135,11 +135,11 @@ export default function Sidebar({ usuario, isOpen, onToggle, isMobile }) {
           title: 'Definir Titulares da Prova',
           path: '/coord/provas/participacao',
         },
-        // {
-        //   id: 'migracoes-pendentes',
-        //   title: 'Solicitações de migração',
-        //   path: '/migracoes/pendentes',
-        // }
+        {
+          id: 'migracoes-pendentes',
+          title: 'Solicitações de migração',
+          path: '/migracoes/pendentes',
+        }
       ]
     },
     // Seção expansível para Empréstimos (Coordenador)
