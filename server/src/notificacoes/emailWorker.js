@@ -115,7 +115,22 @@ export const iniciarEmailWorker = () => {
         throw error;
       }
     },
-    redisConfig
+    {
+      ...redisConfig,
+      // concurrency 1: envia um email por vez. Evita abrir uma rajada de
+      // conexões SMTP simultâneas (causa dos timeouts ETIMEDOUT/CONN sob carga).
+      concurrency: 1,
+      // Rate limit diário: processa no máximo `max` jobs por `duration`. Quando
+      // o teto é atingido, os jobs excedentes NÃO falham — ficam aguardando no
+      // Redis e são processados quando a janela libera. É assim que a cota da
+      // Brevo (300/dia) é respeitada sem perder nenhuma notificação.
+      // Margem de segurança abaixo de 300 porque a janela é deslizante e não
+      // alinha exatamente com o reset diário da Brevo.
+      limiter: {
+        max: Number(process.env.EMAIL_RATE_MAX) || 280,
+        duration: Number(process.env.EMAIL_RATE_DURATION_MS) || 24 * 60 * 60 * 1000,
+      },
+    }
   );
 
   worker.on('completed', job => {

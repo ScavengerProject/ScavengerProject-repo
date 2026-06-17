@@ -36,6 +36,13 @@ const construirConexao = () => {
   };
 };
 
+// Isola as filas por ambiente para que o desenvolvimento local NÃO compartilhe
+// jobs com a produção (comum quando ambos apontam para o mesmo Redis do Render).
+// Em produção o prefixo é "bull:prod"; em qualquer outro ambiente, "bull:dev".
+// Queue e Worker precisam usar o MESMO prefixo para enxergarem os mesmos jobs.
+const prefix = process.env.NODE_ENV === 'production' ? 'bull:prod' : 'bull:dev';
+
 export const redisConfig = {
-  connection: construirConexao()
+  connection: construirConexao(),
+  prefix
 };
