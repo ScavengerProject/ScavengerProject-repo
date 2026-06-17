@@ -1,4 +1,6 @@
 import Usuario from '../models/Usuario.js';
+import EquipeMembros from '../models/EquipeMembros.js';
+import EquipeGincana from '../models/EquipeGincana.js';
 import bcrypt from 'bcryptjs';
 
 /**
@@ -218,9 +220,19 @@ export const deletarUsuario = async (req, res) => {
     if (!usuario) {
       return res.status(404).json({ message: 'Usuário não encontrado.' });
     }
-    
+
+    // Remove os vínculos de membro/coordenador para não deixar registros órfãos
+    // em EquipeMembros (que inflavam a contagem de membros das equipes).
+    await EquipeMembros.deleteMany({ usuario_id: id });
+
+    // Se o usuário era o coordenador principal de alguma equipe, limpa a referência.
+    await EquipeGincana.updateMany(
+      { coordenador_usuario_id: id },
+      { $set: { coordenador_usuario_id: null } }
+    );
+
     await Usuario.findByIdAndDelete(id);
-    
+
     res.status(200).json({ message: 'Usuário deletado com sucesso!' });
   } catch (error) {
     console.error('Erro ao deletar usuário:', error);
