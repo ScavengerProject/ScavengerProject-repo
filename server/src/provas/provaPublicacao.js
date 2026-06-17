@@ -1,7 +1,5 @@
 import Usuario from '../models/Usuario.js';
-import Notificacao from '../models/Notificacao.js';
 import { criarNotificacao } from '../notificacoes/notificacaoController.js';
-import { enviarEmailNovaProva } from '../utils/emailService.js';
 import { emailQueue } from '../notificacoes/emailQueue.js';
 
 /**
@@ -14,9 +12,17 @@ export const estaPublicada = (prova) => {
 };
 
 /**
- * Dispara as notificações e e-mails de "nova prova" para ALUNOS e
- * COORDENADORES ativos. Falhas individuais são registradas mas não
- * interrompem o restante dos envios.
+ * Cria as notificações de "nova prova" para ALUNOS e COORDENADORES ativos.
+ *
+ * O ENVIO do e-mail NÃO acontece aqui: cada `criarNotificacao` enfileira um job
+ * na emailQueue, e o worker é quem envia — respeitando o rate limit diário
+ * (cota da Brevo) e enviando em série (sem rajada de conexões SMTP). Assim, ao
+ * publicar uma prova com muitos participantes, os e-mails que excederem a cota
+ * ficam aguardando no Redis e são enviados depois, sem se perderem.
+ *
+ * Importante: com isso o envio de e-mail passa a DEPENDER do Redis/worker. Não
+ * há mais fallback inline; se o Redis estiver fora, a notificação ainda é salva
+ * (in-app), mas o e-mail só sai quando a fila voltar a ser processada.
  */
 export const dispatchNotificacoesNovaProva = async (prova) => {
   const participantes = await Usuario.find({
@@ -24,42 +30,22 @@ export const dispatchNotificacoesNovaProva = async (prova) => {
     status: 'ATIVO',
   }).select('_id nome email tipo');
 
-  const promessas = participantes.map(async (participante) => {
-    try {
-      const titulo = `Nova Prova: ${prova.titulo}`;
-      const mensagem = `Uma nova prova "${prova.titulo}" foi criada e está disponível para você.`;
+  const titulo = `Nova Prova: ${prova.titulo}`;
+  const mensagem = `Uma nova prova "${prova.titulo}" foi criada e está disponível para você.`;
 
-      const notificacao = await criarNotificacao(
+  for (const participante of participantes) {
+    try {
+      await criarNotificacao(
         participante._id,
         'NOVA_PROVA',
         titulo,
         mensagem,
         prova._id
       );
-
-      const resultadoEmail = await enviarEmailNovaProva(
-        participante.email,
-        participante.nome,
-        prova
-      );
-
-      if (resultadoEmail.sucesso && notificacao) {
-        await Notificacao.findByIdAndUpdate(notificacao._id, {
-          email_enviado: true,
-          email_enviado_em: new Date(),
-        });
-      } else if (!resultadoEmail.sucesso) {
-        console.error(
-          `[email] Falha ao enviar email da nova prova para ${participante.email}:`,
-          resultadoEmail.erro
-        );
-      }
     } catch (err) {
       console.error(`Erro ao notificar usuário ${participante._id}:`, err);
     }
-  });
-
-  await Promise.all(promessas);
+  }
 };
 
 /**
