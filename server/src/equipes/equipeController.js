@@ -11,6 +11,16 @@ import { getEquipeGincanaDoCoordenador } from './coordenadorEquipe.js';
 const escopoGincana = (req) => req.gincanaId || 'GINCANA_PRINCIPAL';
 
 /**
+ * Conta apenas os vínculos cujo usuário ainda existe, ignorando registros
+ * órfãos (deixados pela exclusão de usuários). Mantém a contagem consistente
+ * com listarMembrosPorEquipe, que descarta membros sem usuário válido.
+ */
+const contarMembrosValidos = async (equipeId) => {
+    const registros = await EquipeMembros.find({ equipe_id: equipeId }).populate('usuario_id', '_id');
+    return registros.filter((reg) => reg.usuario_id).length;
+};
+
+/**
  * [POST] Cria uma nova equipe principal e o registro da Gincana.
  * Quem exerce: ADMIN. O Coordenador é atribuído posteriormente.
  */
@@ -86,7 +96,7 @@ export const listarEquipes = async (req, res) => {
             // Busca o total de membros e a lista de coordenadores (is_coordenador).
             // Membros são vinculados pelo _id da Equipe mestra (Equipe._id), não pelo da EquipeGincana.
             const [total_membros, registrosCoord] = await Promise.all([
-                EquipeMembros.countDocuments({ equipe_id: rec.equipe_id._id }),
+                contarMembrosValidos(rec.equipe_id._id),
                 EquipeMembros.find({ equipe_id: rec.equipe_id._id, is_coordenador: true })
                     .populate('usuario_id', 'nome email'),
             ]);
@@ -647,7 +657,7 @@ export const atualizarEquipe = async (req, res) => {
             .populate('equipe_id', 'nome cor')
             .populate('coordenador_usuario_id', 'nome email');
         // Membros são vinculados pelo _id da Equipe mestra (Equipe._id), não pelo da EquipeGincana.
-        const total_membros = await EquipeMembros.countDocuments({ equipe_id: equipeId });
+        const total_membros = await contarMembrosValidos(equipeId);
 
         const equipeFormatada = {
             id: equipeId,
@@ -768,7 +778,7 @@ export const atribuirCoordenador = async (req, res) => {
             .populate('equipe_id', 'nome cor')
             .populate('coordenador_usuario_id', 'nome email');
         // Membros são vinculados pelo _id da Equipe mestra (Equipe._id), não pelo da EquipeGincana.
-        const total_membros = await EquipeMembros.countDocuments({ equipe_id: equipeId });
+        const total_membros = await contarMembrosValidos(equipeId);
 
         const equipeFormatada = {
             id: equipeId,
@@ -810,7 +820,7 @@ export const listarEquipesParaInscricao = async (req, res) => {
             if (!rec.equipe_id) return null;
 
             // Membros são vinculados pelo _id da Equipe mestra (Equipe._id), não pelo da EquipeGincana.
-            const total_membros = await EquipeMembros.countDocuments({ equipe_id: rec.equipe_id._id });
+            const total_membros = await contarMembrosValidos(rec.equipe_id._id);
             const isMinhaEquipe = equipeAtualId && rec.equipe_id._id.toString() === equipeAtualId;
 
             return {
@@ -1019,7 +1029,7 @@ const formatarEquipeComCoordenadores = async (equipeId, gincanaId) => {
     if (!rec || !rec.equipe_id) return null;
 
     const [total_membros, registrosCoord] = await Promise.all([
-        EquipeMembros.countDocuments({ equipe_id: equipeId }),
+        contarMembrosValidos(equipeId),
         EquipeMembros.find({ equipe_id: equipeId, is_coordenador: true }).populate('usuario_id', 'nome email'),
     ]);
 
