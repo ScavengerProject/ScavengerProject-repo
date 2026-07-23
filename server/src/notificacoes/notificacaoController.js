@@ -3,6 +3,9 @@ import { emailQueue } from './emailQueue.js';
 import Usuario from '../models/Usuario.js';
 import Prova from '../models/Prova.js';
 
+// Escopo da gincana ativa (injetado por resolverGincana; fallback p/ gincana legada).
+const escopoGincana = (req) => req.gincanaId || 'GINCANA_PRINCIPAL';
+
 /**
  * Listar notificações do usuário autenticado
  * GET /api/notificacoes
@@ -12,7 +15,7 @@ export const listarNotificacoes = async (req, res) => {
     const usuarioId = req.usuario.id;
     const { lida, tipo } = req.query;
 
-    const filtro = { usuario_id: usuarioId };
+    const filtro = { usuario_id: usuarioId, gincana_id: escopoGincana(req) };
     if (lida !== undefined) {
       filtro.lida = lida === 'true';
     }
@@ -41,6 +44,7 @@ export const contarNotificacoesNaoLidas = async (req, res) => {
     const usuarioId = req.usuario.id;
     const contagem = await Notificacao.countDocuments({
       usuario_id: usuarioId,
+      gincana_id: escopoGincana(req),
       lida: false
     });
 
@@ -89,8 +93,8 @@ export const marcarTodasComoLidas = async (req, res) => {
     const usuarioId = req.usuario.id;
 
     const resultado = await Notificacao.updateMany(
-      { usuario_id: usuarioId, lida: false },
-      { 
+      { usuario_id: usuarioId, gincana_id: escopoGincana(req), lida: false },
+      {
         lida: true,
         lida_em: new Date()
       }
@@ -173,11 +177,13 @@ export const criarNotificacao = async (
   titulo,
   mensagem,
   provaId = null,
-  referenciaId = null
+  referenciaId = null,
+  gincanaId = 'GINCANA_PRINCIPAL'
 ) => {
   try {
     const notificacao = new Notificacao({
       usuario_id: usuarioId,
+      gincana_id: gincanaId,
       tipo,
       titulo,
       mensagem,
@@ -197,6 +203,7 @@ export const criarNotificacao = async (
     emailQueue.add('enviar-email', {
       notificacaoId: notificacaoSalva._id,
       usuarioId,
+      gincanaId,
       tipo,
       provaId,
       titulo,

@@ -5,6 +5,9 @@ import EquipeMembros from "../models/EquipeMembros.js";
 import { criarNotificacao } from "../notificacoes/notificacaoController.js";
 import { getEquipesGincanaDoCoordenador, isCoordenadorDaEquipe } from "../equipes/coordenadorEquipe.js";
 
+// Escopo da gincana ativa (injetado por resolverGincana; fallback p/ gincana legada).
+const escopoGincana = (req) => req.gincanaId || 'GINCANA_PRINCIPAL';
+
 /**
  * 🆕 Função auxiliar para logar todos os dados recebidos ou preenchidos até o momento
  */
@@ -70,6 +73,7 @@ export const criarPenalidade = async (req, res) => {
 
     const penalidade = new Penalidade({
       nome: gerarNomePenalidade(),
+      gincana_id: equipeGincana.gincana_id,
       equipe_gincana_id: equipeId,
       participante_id: participanteId || null,
       pontos_removidos: pontosNumber,
@@ -112,7 +116,8 @@ export const criarPenalidade = async (req, res) => {
                 'Penalidade Aplicada ⚠️',
                 `A equipe ${nomeEquipe} perdeu ${pontosNumber} pontos. Motivo: ${descricao}`,
                 null,
-                penalidade._id
+                penalidade._id,
+                equipeGincana.gincana_id
             ).catch(err => console.error(`Erro ao notificar usuário ${userId}:`, err.message));
         });
 
@@ -141,12 +146,13 @@ export const criarPenalidade = async (req, res) => {
 export const listarPenalidades = async (req, res) => {
   try {
     const usuarioAtual = req.usuario; // Obtém o usuário do middleware de autenticação
-    let query = {};
+    const gincanaId = escopoGincana(req);
+    let query = { gincana_id: gincanaId };
 
     // Se for COORDENADOR, filtra apenas penalidades das equipes que ele coordena
     if (usuarioAtual.tipo === 'COORDENADOR') {
       // Encontra as EquipeGincana que o coordenador gerencia (via is_coordenador).
-      const equipesCoordenadas = await getEquipesGincanaDoCoordenador(usuarioAtual.id);
+      const equipesCoordenadas = await getEquipesGincanaDoCoordenador(usuarioAtual.id, { gincanaId });
       const equipeGincanaIds = equipesCoordenadas.map(eg => eg._id);
       query.equipe_gincana_id = { $in: equipeGincanaIds };
     }
