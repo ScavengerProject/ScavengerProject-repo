@@ -40,7 +40,9 @@ export const dispatchNotificacoesNovaProva = async (prova) => {
         'NOVA_PROVA',
         titulo,
         mensagem,
-        prova._id
+        prova._id,
+        null,
+        prova.gincana_id
       );
     } catch (err) {
       console.error(`Erro ao notificar usuário ${participante._id}:`, err);

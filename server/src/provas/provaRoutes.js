@@ -15,9 +15,12 @@ import {
   salvarEquipeParticipanteDaProva,
   listarAssociacoesProvas,
 } from './provaParticipacaoController.js';
-import { proteger, autorizar } from '../auth/authPermissions.js';
+import { proteger, autorizar, resolverGincana } from '../auth/authPermissions.js';
 
 const router = express.Router();
+
+// Resolve o escopo da gincana ativa (X-Gincana-Id) para todas as rotas de provas.
+router.use(proteger, resolverGincana);
 
 // Rotas públicas (protegidas)
 router.get('/', proteger, listarProvas);

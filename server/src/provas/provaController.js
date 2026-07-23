@@ -14,6 +14,9 @@ const GRUPO_LABEL = {
   'PAI/MÃE': 'pais/mães'
 };
 
+// Escopo da gincana ativa (injetado por resolverGincana; fallback p/ gincana legada).
+const escopoGincana = (req) => req.gincanaId || 'GINCANA_PRINCIPAL';
+
 /**
  * Calcula o status da prova automaticamente com base nas datas, ignorando
  * qualquer status definido manualmente. Esta é a fonte única de verdade.
@@ -85,6 +88,7 @@ export const criarProva = async (req, res) => {
       criterio_elegibilidade: criterio_elegibilidade || {},
       sequenciamento: sequenciamento || {},
       configuracao_quesitos: configuracao_quesitos || {},
+      gincana_id: escopoGincana(req),
       criado_por_usuario_id: req.usuario.id,
     });
 
@@ -116,9 +120,10 @@ export const listarProvas = async (req, res) => {
     // perfis só veem as já publicadas (sem data de publicação ou com data já
     // alcançada).
     const isAdmin = req.usuario?.tipo === 'ADMIN';
+    const gincanaId = escopoGincana(req);
     const matchVisibilidade = isAdmin
-      ? {}
-      : { $or: [{ data_publicacao: null }, { data_publicacao: { $lte: new Date() } }] };
+      ? { gincana_id: gincanaId }
+      : { gincana_id: gincanaId, $or: [{ data_publicacao: null }, { data_publicacao: { $lte: new Date() } }] };
 
     const provas = await Prova.aggregate([
       // Filtra pela visibilidade conforme o perfil do usuário
@@ -429,7 +434,7 @@ export const inscreverUsuarioNaProva = async (req, res) => {
       });
     }
 
-    const vinculo = await ProvaUsuario.create({ prova_id: prova._id, usuario_id: usuario._id });
+    const vinculo = await ProvaUsuario.create({ prova_id: prova._id, usuario_id: usuario._id, gincana_id: prova.gincana_id });
     return res.status(201).json({ ok: true, message: 'Inscrição realizada com sucesso.', inscricao: vinculo });
 
   } catch (error) {
