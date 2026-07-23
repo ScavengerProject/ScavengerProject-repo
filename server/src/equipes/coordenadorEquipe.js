@@ -19,7 +19,8 @@ const toId = (valor) => (valor?._id ? valor._id : valor);
  * Retorna as EquipeGincana que o usuário coordena (via is_coordenador, com
  * união do campo legado por segurança).
  * @param {string} usuarioId
- * @param {{ populateEquipe?: boolean }} [opcoes]
+ * @param {{ populateEquipe?: boolean, gincanaId?: string }} [opcoes]
+ *        gincanaId: quando informado, restringe às participações daquela gincana.
  * @returns {Promise<Array>} lista de documentos EquipeGincana
  */
 export async function getEquipesGincanaDoCoordenador(usuarioId, opcoes = {}) {
@@ -37,6 +38,12 @@ export async function getEquipesGincanaDoCoordenador(usuarioId, opcoes = {}) {
             { coordenador_usuario_id: usuarioId },
         ],
     };
+
+    // Escopo opcional por gincana (multi-gincana). Sem gincanaId, mantém o
+    // comportamento anterior (todas as edições coordenadas pelo usuário).
+    if (opcoes.gincanaId) {
+        filtro.gincana_id = opcoes.gincanaId;
+    }
 
     const query = EquipeGincana.find(filtro);
     if (opcoes.populateEquipe) {

@@ -1,9 +1,12 @@
 // src/equipes/emprestimoEquipeRoutes.js
 import express from 'express';
-import { proteger, autorizar } from '../auth/authPermissions.js';
+import { proteger, autorizar, resolverGincana } from '../auth/authPermissions.js';
 import { criarEmprestimo, listarEmprestimos, encerrarEmprestimo } from './emprestimoEquipeController.js';
 
 const router = express.Router();
+
+// Resolve o escopo da gincana ativa (X-Gincana-Id) para todas as rotas de empréstimos.
+router.use(proteger, resolverGincana);
 
 // Admin cria empréstimo
 router.post('/', proteger, autorizar('ADMIN'), criarEmprestimo);

@@ -7,6 +7,9 @@ import Usuario from '../models/Usuario.js';
 import Notificacao from '../models/Notificacao.js';
 import { getEquipeGincanaDoCoordenador } from './coordenadorEquipe.js';
 
+// Escopo da gincana ativa (injetado por resolverGincana; fallback p/ gincana legada).
+const escopoGincana = (req) => req.gincanaId || 'GINCANA_PRINCIPAL';
+
 const basePopulate = [
   { path: 'coordenador_solicitante_id', select: 'nome email tipo' },
   {
@@ -36,8 +39,10 @@ export const criarSolicitacao = async (req, res) => {
       return res.status(403).json({ message: 'Apenas coordenadores podem criar solicitações.' });
     }
 
+    const gincanaId = escopoGincana(req);
+
     // Buscar a equipe que o coordenador gerencia
-    const equipeGincana = await getEquipeGincanaDoCoordenador(me.id);
+    const equipeGincana = await getEquipeGincanaDoCoordenador(me.id, { gincanaId });
     if (!equipeGincana) {
       return res.status(404).json({ message: 'Você não é coordenador de nenhuma equipe.' });
     }
@@ -51,6 +56,7 @@ export const criarSolicitacao = async (req, res) => {
     // Criar solicitação
     const solicitacao = await SolicitacaoEmprestimo.create({
       coordenador_solicitante_id: me.id,
+      gincana_id: gincanaId,
       equipe_solicitante_id: equipeGincana._id,
       prova_id,
       quantidade_solicitada,
@@ -63,6 +69,7 @@ export const criarSolicitacao = async (req, res) => {
     const admins = await Usuario.find({ tipo: 'ADMIN' }).select('_id');
     const notificacoes = admins.map(admin => ({
       usuario_id: admin._id,
+      gincana_id: gincanaId,
       tipo: 'COMUNICADO',
       titulo: 'Nova Solicitação de Empréstimo',
       mensagem: `${me.nome} solicitou ${quantidade_solicitada} pessoa(s) para a prova "${prova.titulo}".`,
@@ -88,7 +95,8 @@ export const listarSolicitacoes = async (req, res) => {
     const me = req.usuario;
     const { status, prova_id } = req.query;
 
-    const filtro = {};
+    const gincanaId = escopoGincana(req);
+    const filtro = { gincana_id: gincanaId };
     if (status) filtro.status = status;
     if (prova_id) filtro.prova_id = prova_id;
 
@@ -96,7 +104,7 @@ export const listarSolicitacoes = async (req, res) => {
       // Coordenador vê:
       // 1. Suas próprias solicitações
       // 2. Solicitações aprovadas de outras equipes (para poder ofertar)
-      const minhaEquipe = await getEquipeGincanaDoCoordenador(me.id);
+      const minhaEquipe = await getEquipeGincanaDoCoordenador(me.id, { gincanaId });
       if (!minhaEquipe) {
         return res.status(200).json([]);
       }
@@ -188,15 +196,17 @@ export const aprovarSolicitacao = async (req, res) => {
     // Notificar coordenador solicitante
     await Notificacao.create({
       usuario_id: solicitacao.coordenador_solicitante_id,
+      gincana_id: solicitacao.gincana_id,
       tipo: 'COMUNICADO',
       titulo: 'Solicitação de Empréstimo Aprovada',
       mensagem: `Sua solicitação de empréstimo para a prova foi aprovada. Aguarde ofertas de outras equipes.`,
       referencia_id: solicitacao._id,
     });
 
-    // Notificar TODOS os coordenadores (exceto o solicitante) sobre a solicitação aprovada
-    const todasEquipes = await EquipeGincana.find({ 
+    // Notificar TODOS os coordenadores da MESMA gincana (exceto o solicitante) sobre a solicitação aprovada
+    const todasEquipes = await EquipeGincana.find({
       _id: { $ne: solicitacao.equipe_solicitante_id },
+      gincana_id: solicitacao.gincana_id,
       coordenador_usuario_id: { $exists: true, $ne: null }
     }).select('coordenador_usuario_id');
 
@@ -204,6 +214,7 @@ export const aprovarSolicitacao = async (req, res) => {
       .filter(eq => eq.coordenador_usuario_id)
       .map(eq => ({
         usuario_id: eq.coordenador_usuario_id,
+        gincana_id: solicitacao.gincana_id,
         tipo: 'COMUNICADO',
         titulo: 'Nova Solicitação de Empréstimo Disponível',
         mensagem: `Uma equipe precisa de ${solicitacao.quantidade_solicitada} pessoa(s) para uma prova. Você pode ofertar membros da sua equipe.`,
@@ -255,6 +266,7 @@ export const rejeitarSolicitacao = async (req, res) => {
     // Notificar coordenador solicitante
     await Notificacao.create({
       usuario_id: solicitacao.coordenador_solicitante_id,
+      gincana_id: solicitacao.gincana_id,
       tipo: 'COMUNICADO',
       titulo: 'Solicitação de Empréstimo Rejeitada',
       mensagem: `Sua solicitação de empréstimo foi rejeitada. ${justificativa_admin || ''}`,

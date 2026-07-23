@@ -1,6 +1,6 @@
 // src/equipes/ofertaEmprestimoRoutes.js
 import express from 'express';
-import { proteger, autorizar } from '../auth/authPermissions.js';
+import { proteger, autorizar, resolverGincana } from '../auth/authPermissions.js';
 import {
   criarOferta,
   listarOfertas,
@@ -10,6 +10,9 @@ import {
 } from './ofertaEmprestimoController.js';
 
 const router = express.Router();
+
+// Resolve o escopo da gincana ativa (X-Gincana-Id) para todas as rotas de ofertas.
+router.use(proteger, resolverGincana);
 
 // Coordenador cria oferta
 router.post('/', proteger, autorizar('COORDENADOR'), criarOferta);

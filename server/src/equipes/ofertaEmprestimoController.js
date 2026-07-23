@@ -8,6 +8,9 @@ import Usuario from '../models/Usuario.js';
 import Notificacao from '../models/Notificacao.js';
 import { getEquipeGincanaDoCoordenador } from './coordenadorEquipe.js';
 
+// Escopo da gincana ativa (injetado por resolverGincana; fallback p/ gincana legada).
+const escopoGincana = (req) => req.gincanaId || 'GINCANA_PRINCIPAL';
+
 const basePopulate = [
   { path: 'coordenador_ofertante_id', select: 'nome email tipo' },
   {
@@ -47,8 +50,10 @@ export const criarOferta = async (req, res) => {
       return res.status(403).json({ message: 'Apenas coordenadores podem criar ofertas.' });
     }
 
+    const gincanaId = escopoGincana(req);
+
     // Buscar a equipe que o coordenador gerencia
-    const minhaEquipe = await getEquipeGincanaDoCoordenador(me.id);
+    const minhaEquipe = await getEquipeGincanaDoCoordenador(me.id, { gincanaId });
     if (!minhaEquipe) {
       return res.status(404).json({ message: 'Você não é coordenador de nenhuma equipe.' });
     }
@@ -101,6 +106,7 @@ export const criarOferta = async (req, res) => {
     // Criar oferta
     const oferta = await OfertaEmprestimo.create({
       solicitacao_id,
+      gincana_id: solicitacao.gincana_id || gincanaId,
       coordenador_ofertante_id: me.id,
       equipe_ofertante_id: minhaEquipe._id,
       membros_oferecidos: membros_oferecidos_ids.map(id => ({ usuario_id: id })),
@@ -117,6 +123,7 @@ export const criarOferta = async (req, res) => {
     // Notificar coordenador solicitante
     await Notificacao.create({
       usuario_id: solicitacao.coordenador_solicitante_id,
+      gincana_id: solicitacao.gincana_id || gincanaId,
       tipo: 'COMUNICADO',
       titulo: 'Nova Oferta de Empréstimo',
       mensagem: `Uma equipe ofereceu ${membros_oferecidos_ids.length} pessoa(s) para sua solicitação.`,
@@ -141,7 +148,8 @@ export const listarOfertas = async (req, res) => {
     const me = req.usuario;
     const { solicitacao_id, status } = req.query;
 
-    const filtro = {};
+    const gincanaId = escopoGincana(req);
+    const filtro = { gincana_id: gincanaId };
     if (solicitacao_id) filtro.solicitacao_id = solicitacao_id;
     if (status) filtro.status = status;
 
@@ -149,7 +157,7 @@ export const listarOfertas = async (req, res) => {
       // Coordenador vê:
       // 1. Ofertas que ele fez
       // 2. Ofertas para suas solicitações
-      const minhaEquipe = await getEquipeGincanaDoCoordenador(me.id);
+      const minhaEquipe = await getEquipeGincanaDoCoordenador(me.id, { gincanaId });
       if (!minhaEquipe) {
         return res.status(200).json([]);
       }
@@ -214,6 +222,7 @@ export const aceitarOferta = async (req, res) => {
       try {
         const emprestimo = await EmprestimoEquipe.create({
           usuario_id: membro.usuario_id,
+          gincana_id: oferta.gincana_id,
           equipe_origem_id: oferta.equipe_ofertante_id,
           equipe_destino_id: solicitacao.equipe_solicitante_id,
           prova_id: solicitacao.prova_id,
@@ -243,6 +252,7 @@ export const aceitarOferta = async (req, res) => {
     // Notificar coordenador ofertante
     await Notificacao.create({
       usuario_id: oferta.coordenador_ofertante_id,
+      gincana_id: oferta.gincana_id,
       tipo: 'COMUNICADO',
       titulo: 'Oferta de Empréstimo Aceita',
       mensagem: `Sua oferta de ${oferta.membros_oferecidos.length} pessoa(s) foi aceita.`,
@@ -253,6 +263,7 @@ export const aceitarOferta = async (req, res) => {
     for (const membro of oferta.membros_oferecidos) {
       await Notificacao.create({
         usuario_id: membro.usuario_id,
+        gincana_id: oferta.gincana_id,
         tipo: 'COMUNICADO',
         titulo: 'Você foi Emprestado para Outra Equipe',
         mensagem: `Você foi temporariamente emprestado para ajudar outra equipe em uma prova.`,
@@ -309,6 +320,7 @@ export const recusarOferta = async (req, res) => {
     // Notificar coordenador ofertante
     await Notificacao.create({
       usuario_id: oferta.coordenador_ofertante_id,
+      gincana_id: oferta.gincana_id,
       tipo: 'COMUNICADO',
       titulo: 'Oferta de Empréstimo Recusada',
       mensagem: `Sua oferta de empréstimo foi recusada. ${justificativa_decisao || ''}`,

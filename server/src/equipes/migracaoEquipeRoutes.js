@@ -1,6 +1,6 @@
 // src/equipes/migracaoEquipeRoutes.js
 import express from 'express';
-import { proteger, autorizar } from '../auth/authPermissions.js';
+import { proteger, autorizar, resolverGincana } from '../auth/authPermissions.js';
 import {
   listarMinhasMigracoes,
   listarMigracoesPendentes,
@@ -9,6 +9,9 @@ import {
 } from './migracaoEquipeController.js';
 
 const router = express.Router();
+
+// Resolve o escopo da gincana ativa (X-Gincana-Id) para todas as rotas de migração.
+router.use(proteger, resolverGincana);
 
 /**
  * Minhas solicitações (ALUNO/PROFESSOR/PAI-MÃE/COORDENADOR/ADMIN)

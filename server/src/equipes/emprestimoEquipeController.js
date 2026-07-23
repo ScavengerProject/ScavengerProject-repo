@@ -6,6 +6,9 @@ import Prova from '../models/Prova.js';
 import Usuario from '../models/Usuario.js';
 import { getEquipesGincanaDoCoordenador } from './coordenadorEquipe.js';
 
+// Escopo da gincana ativa (injetado por resolverGincana; fallback p/ gincana legada).
+const escopoGincana = (req) => req.gincanaId || 'GINCANA_PRINCIPAL';
+
 // Campos de populate para devolver nomes úteis no front
 const basePopulate = [
   { path: 'usuario_id', select: 'nome email tipo' },
@@ -65,6 +68,7 @@ export const criarEmprestimo = async (req, res) => {
     // cria
     const doc = await EmprestimoEquipe.create({
       usuario_id,
+      gincana_id: egDestino.gincana_id || escopoGincana(req),
       equipe_origem_id: egOrigem._id,
       equipe_destino_id,
       prova_id,
@@ -89,13 +93,14 @@ export const listarEmprestimos = async (req, res) => {
     const me = req.usuario;
     const { status, provaId, usuarioId } = req.query;
 
-    const filtro = {};
+    const gincanaId = escopoGincana(req);
+    const filtro = { gincana_id: gincanaId };
     if (status) filtro.status = status;
     if (provaId) filtro.prova_id = provaId;
     if (usuarioId) filtro.usuario_id = usuarioId;
 
     if (me.tipo === 'COORDENADOR') {
-      const equipesCoord = await getEquipesGincanaDoCoordenador(me.id);
+      const equipesCoord = await getEquipesGincanaDoCoordenador(me.id, { gincanaId });
       const ids = equipesCoord.map(e => e._id);
       filtro.$or = [{ equipe_origem_id: { $in: ids } }, { equipe_destino_id: { $in: ids } }];
     }
