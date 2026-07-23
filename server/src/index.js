@@ -15,6 +15,7 @@ import notificacaoRoutes from './notificacoes/notificacaoRoutes.js';
 import penalidadesRoutes from "./penalidades/penalidadesRoutes.js";
 import resultadoRoutes from './resultados/resultadoRoutes.js';
 import configuracaoRoutes from './configuracoes/configuracaoRoutes.js';
+import gincanaRoutes from './gincanas/gincanaRoutes.js';
 import { iniciarEmailWorker } from './notificacoes/emailWorker.js';
 
 dotenv.config();
@@ -53,6 +54,7 @@ app.use('/api/notificacoes', notificacaoRoutes);
 app.use("/api/penalidades", penalidadesRoutes);
 app.use('/api/resultados', resultadoRoutes);
 app.use('/api/configuracoes', configuracaoRoutes);
+app.use('/api/gincanas', gincanaRoutes);
 
 app.listen(PORT, () => {
   console.log(`Servidor Express rodando na porta ${PORT}`);
