@@ -9,6 +9,7 @@ import MinhasInscricoes from './pages/MinhasInscricoes';
 import AdminProvas from './pages/AdminProvas';
 import AdminProvasAssociacoes from './pages/AdminProvasAssociacoes.jsx';
 import AdminEquipes from './pages/AdminEquipes.jsx';
+import GerenciarGincanas from './pages/GerenciarGincanas.jsx';
 import GerenciarEquipe from './pages/GerenciarEquipes.jsx';
 import InscricaoEquipes from './pages/InscricaoEquipes.jsx';
 import SolicitarMigracao from './pages/solicitarMigracao.jsx';
@@ -87,6 +88,16 @@ function App() {
         <Route
           path="/minhas-inscricoes"
           element={isAuthenticated ? <MinhasInscricoes /> : <Navigate to="/login" replace />}
+        />
+
+        {/* Gerenciamento de Gincanas (Admin) */}
+        <Route
+          path="/admin/gincanas"
+          element={
+            isAuthenticated
+              ? (usuario.tipo === 'ADMIN' ? <GerenciarGincanas /> : <Navigate to="/" replace />)
+              : <Navigate to="/login" replace />
+          }
         />
 
         {/* Rota para o Gerenciamento de Equipes (Admin) */}

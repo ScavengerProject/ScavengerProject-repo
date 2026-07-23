@@ -31,6 +31,13 @@ const request = async (endpoint, options = {}) => {
     headers.Authorization = `Bearer ${token}`;
   }
 
+  // Escopo de gincana ativa: enviado em todas as requisições. O backend
+  // (middleware resolverGincana) usa este header para isolar os dados por edição.
+  const gincanaAtivaId = localStorage.getItem('gincanaAtivaId');
+  if (gincanaAtivaId) {
+    headers['X-Gincana-Id'] = gincanaAtivaId;
+  }
+
   try {
     const response = await fetch(url, {
       ...options,
@@ -675,6 +682,28 @@ export const configuracoesService = {
   }),
 };
 
+/**
+ * Serviço de Gincanas (edições/instâncias isoladas)
+ */
+export const gincanasService = {
+  // Gincanas visíveis para o usuário logado (ADMIN vê todas; demais, as que participam).
+  minhas: () => request('/gincanas/minhas', { method: 'GET' }),
+  // Listagem completa (apenas ADMIN).
+  listar: () => request('/gincanas', { method: 'GET' }),
+  criar: (dados) => request('/gincanas', {
+    method: 'POST',
+    body: JSON.stringify(dados),
+  }),
+  atualizar: (id, dados) => request(`/gincanas/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(dados),
+  }),
+  alterarStatus: (id, status) => request(`/gincanas/${id}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status }),
+  }),
+};
+
 export default {
   authService,
   provasService,
@@ -683,5 +712,6 @@ export default {
   feedbacksService,
   notificacoesService,
   resultadosService,
-  configuracoesService
+  configuracoesService,
+  gincanasService
 };

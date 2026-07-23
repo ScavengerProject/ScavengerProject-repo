@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { 
-  BookOpen, Users, UserCheck, Handshake, MessageSquare, 
-  History, Gavel, AlertCircle, User,
+import {
+  BookOpen, Users, UserCheck, Handshake, MessageSquare,
+  History, Gavel, AlertCircle, User, Trophy,
   ChevronRight, Menu, X, ChevronDown
 } from 'lucide-react';
 import { Button } from './ui/button';
@@ -54,6 +54,15 @@ export default function Sidebar({ usuario, isOpen, onToggle, isMobile }) {
       path: '/migracoes/solicitar',
       color: 'amber',
       show: ['ALUNO', 'PROFESSOR', 'PAI/MÃE'].includes(usuario?.tipo)
+    },
+    {
+      id: 'gerenciar-gincanas',
+      icon: Trophy,
+      title: 'Gerenciar Gincanas',
+      description: 'Edições da gincana',
+      path: '/admin/gincanas',
+      color: 'amber',
+      show: isAdmin
     },
     {
       id: 'gerenciar-provas',

@@ -5,6 +5,7 @@ import { Button } from './ui/button';
 import Sidebar from './Sidebar';
 import NotificacoesDropdown from './NotificacoesDropdown';
 import FeedbackFAB from './EnviarFeedbackModal';
+import GincanaSelector from './GincanaSelector';
 
 export default function MainLayout({ usuario, onLogout, children }) {
   const navigate = useNavigate();
@@ -83,6 +84,9 @@ export default function MainLayout({ usuario, onLogout, children }) {
             </div>
 
             <div className="flex items-center gap-2 sm:gap-3 md:gap-4 shrink-0">
+              {/* Seletor de Gincana ativa (workspace) */}
+              <GincanaSelector />
+
               {/* Dropdown de Notificações */}
               <NotificacoesDropdown />
 
