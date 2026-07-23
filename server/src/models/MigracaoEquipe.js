@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 
 const MigracaoEquipeSchema = new mongoose.Schema({
   usuario_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Usuario', required: true },
+  gincana_id: { type: String, required: true, default: 'GINCANA_PRINCIPAL', index: true },
   equipe_origem_id: { type: mongoose.Schema.Types.ObjectId, ref: 'EquipeGincana', required: true },
   equipe_destino_id: { type: mongoose.Schema.Types.ObjectId, ref: 'EquipeGincana', required: true },
 

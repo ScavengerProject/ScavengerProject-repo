@@ -3,11 +3,13 @@ import mongoose from 'mongoose';
 
 const SolicitacaoEmprestimoSchema = new mongoose.Schema(
   {
+    gincana_id: { type: String, required: true, default: 'GINCANA_PRINCIPAL', index: true },
+
     // Coordenador que está solicitando
-    coordenador_solicitante_id: { 
-      type: mongoose.Schema.Types.ObjectId, 
-      ref: 'Usuario', 
-      required: true 
+    coordenador_solicitante_id: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Usuario',
+      required: true
     },
     
     // Equipe que precisa de reforço
