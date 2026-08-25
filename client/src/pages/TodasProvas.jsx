@@ -9,6 +9,7 @@ import { provasService, equipesService, resultadosService, configuracoesService 
 import { toast } from "../components/ui/toast";
 import ProvaDetalhesModal from "../components/ProvaDetalhesModal";
 import MainLayout from "../components/MainLayout";
+import { ehAdmin } from '../lib/perfis';
 
 const TodasProvas = () => {
   const navigate = useNavigate();
@@ -66,7 +67,7 @@ const TodasProvas = () => {
   // Filtrar provas disponíveis para o usuário
   const provasDisponiveis = provas.filter(prova => {
     // Se for admin, mostrar todas
-    if (usuario?.tipo === 'ADMIN') return true;
+    if (ehAdmin(usuario)) return true;
 
     // Verificar se há cotas disponíveis (requisito_usuario)
     const requisitos = prova.requisito_usuario || {};
@@ -133,7 +134,7 @@ const TodasProvas = () => {
       return null; // Não mostra nada se não estiver configurado
     }
 
-    const isAdmin = usuario?.tipo === 'ADMIN';
+    const isAdmin = ehAdmin(usuario);
     const podeMostrarPontos = isAdmin || mostrarNotasRanking;
 
     // Tipo Proporcional
@@ -182,7 +183,7 @@ const TodasProvas = () => {
         <div className="mb-8">
           <h2 className="text-3xl font-bold text-gray-900 mb-2">Todas as Provas</h2>
           <p className="text-gray-600">
-            {usuario?.tipo === 'ADMIN' 
+            {ehAdmin(usuario) 
               ? `Visualizando todas as ${provas.length} provas cadastradas`
               : `${provasDisponiveis.length} provas disponíveis para você`
             }
@@ -328,7 +329,7 @@ const TodasProvas = () => {
             </div>
 
             {/* Mensagem informativa para não-admins */}
-            {usuario?.tipo !== 'ADMIN' && provasDisponiveis.length < provas.length && (
+            {!ehAdmin(usuario) && provasDisponiveis.length < provas.length && (
               <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <div className="flex items-start gap-2">
                   <AlertCircle className="h-5 w-5 text-blue-600 mt-0.5 shrink-0" />

@@ -12,12 +12,21 @@ import { useGincana } from '../hooks/useGincana';
 /**
  * Seletor da gincana ativa ("workspace") exibido na navbar.
  * Troca o escopo de todas as requisições (via header X-Gincana-Id).
+ *
+ * Edições encerradas aparecem na lista, desabilitadas: elas existem como
+ * histórico, mas não podem virar o escopo ativo (a API recusa).
  */
 export default function GincanaSelector() {
-  const { minhasGincanas, gincanaAtivaId, setGincanaAtiva, loading } = useGincana();
+  const {
+    gincanasAcessiveis,
+    gincanasEncerradas,
+    gincanaAtivaId,
+    setGincanaAtiva,
+    loading,
+  } = useGincana();
 
   // Sem gincanas disponíveis: nada a exibir.
-  if (!loading && (!minhasGincanas || minhasGincanas.length === 0)) {
+  if (!loading && gincanasAcessiveis.length === 0 && gincanasEncerradas.length === 0) {
     return null;
   }
 
@@ -33,9 +42,14 @@ export default function GincanaSelector() {
           <SelectValue placeholder={loading ? 'Carregando...' : 'Selecionar gincana'} />
         </SelectTrigger>
         <SelectContent>
-          {minhasGincanas.map((g) => (
+          {gincanasAcessiveis.map((g) => (
             <SelectItem key={g._id} value={g._id}>
               {g.nome}{g.ano ? ` (${g.ano})` : ''}
+            </SelectItem>
+          ))}
+          {gincanasEncerradas.map((g) => (
+            <SelectItem key={g._id} value={g._id} disabled>
+              {g.nome}{g.ano ? ` (${g.ano})` : ''} — encerrada
             </SelectItem>
           ))}
         </SelectContent>

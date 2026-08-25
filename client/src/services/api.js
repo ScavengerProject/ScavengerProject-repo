@@ -1,5 +1,12 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
 
+// Evita uma enxurrada de redirecionamentos quando várias requisições da mesma
+// tela falham juntas pelo mesmo motivo de escopo.
+const redirecionarPara = (rota) => {
+  if (window.location.pathname === rota) return;
+  window.location.assign(rota);
+};
+
 /**
  * Função helper para fazer requisições
  */
@@ -31,6 +38,14 @@ const request = async (endpoint, options = {}) => {
     headers.Authorization = `Bearer ${token}`;
   }
 
+  // Escopo de escola ativa (tenant raiz): enviado em todas as requisições. O
+  // backend (middleware resolverEscola) usa este header para isolar os dados
+  // por escola. Vai antes do de gincana porque a gincana vive dentro da escola.
+  const escolaAtivaId = localStorage.getItem('escolaAtivaId');
+  if (escolaAtivaId) {
+    headers['X-Escola-Id'] = escolaAtivaId;
+  }
+
   // Escopo de gincana ativa: enviado em todas as requisições. O backend
   // (middleware resolverGincana) usa este header para isolar os dados por edição.
   const gincanaAtivaId = localStorage.getItem('gincanaAtivaId');
@@ -59,9 +74,11 @@ const request = async (endpoint, options = {}) => {
     if (!response.ok) {
       // tenta parsear JSON; se vier HTML (erro do Express padrão), evita quebrar com "<!DOCTYPE"
       let errorMessage = 'Erro na requisição';
+      let codigo = null;
       try {
         const errorData = await response.json();
         errorMessage = errorData.message || errorMessage;
+        codigo = errorData.codigo || null;
       } catch (_) {
         // Se não conseguir fazer parse de JSON, tentar ler como texto
         // Mas só tenta se houver body ainda disponível
@@ -76,7 +93,22 @@ const request = async (endpoint, options = {}) => {
           errorMessage = `${response.status} - ${response.statusText}`;
         }
       }
-      throw new Error(errorMessage);
+      // Escopo perdido: a escola/gincana guardada não vale mais para este
+      // usuário (trocou de escola, edição encerrada, vínculo removido...).
+      // Limpa o escopo inválido e manda escolher de novo, em vez de deixar a
+      // tela inteira quebrada com um erro genérico.
+      if (codigo === 'GINCANA_NAO_SELECIONADA' || codigo === 'GINCANA_ENCERRADA') {
+        localStorage.removeItem('gincanaAtivaId');
+        redirecionarPara('/selecionar-gincana');
+      } else if (codigo === 'SEM_VINCULO_ESCOLA' || codigo === 'VINCULO_INATIVO') {
+        localStorage.removeItem('escolaAtivaId');
+        localStorage.removeItem('gincanaAtivaId');
+        redirecionarPara('/selecionar-escola');
+      }
+
+      const erro = new Error(errorMessage);
+      erro.codigo = codigo;
+      throw erro;
     }
 
     // pode haver 204
@@ -704,6 +736,52 @@ export const gincanasService = {
   }),
 };
 
+/**
+ * Serviço de Escolas (tenants)
+ */
+export const escolasService = {
+  // Escolas visíveis para o usuário logado (SUPER_ADMIN vê todas as ativas;
+  // demais, aquelas às quais estão vinculados). Alimenta o EscolaSelector.
+  minhas: () => request('/escolas/minhas', { method: 'GET' }),
+
+  // Lista pública (sem login) usada no auto-cadastro.
+  publicas: () => request('/escolas/publicas', { method: 'GET' }),
+
+  // Administração — apenas SUPER_ADMIN.
+  listar: () => request('/escolas', { method: 'GET' }),
+  criar: (dados) => request('/escolas', {
+    method: 'POST',
+    body: JSON.stringify(dados),
+  }),
+  atualizar: (id, dados) => request(`/escolas/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(dados),
+  }),
+  alterarStatus: (id, status) => request(`/escolas/${id}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status }),
+  }),
+  obterResumo: (id) => request(`/escolas/${id}/resumo`, { method: 'GET' }),
+
+  // Vínculos usuário <-> escola (é o que permite um professor atuar em várias).
+  listarUsuarios: (id) => request(`/escolas/${id}/usuarios`, { method: 'GET' }),
+  // Identifica o usuário por _id ou por e-mail: { usuario_id } ou { email }.
+  // Aceita também { tipo, turma }: o papel que a pessoa terá NESTA escola.
+  // Sem `tipo`, ela herda o papel base (um ADMIN entra como ADMIN).
+  vincularUsuario: (id, identificador) => request(`/escolas/${id}/usuarios`, {
+    method: 'POST',
+    body: JSON.stringify(identificador),
+  }),
+  // Altera o papel do usuário DENTRO desta escola, sem mexer nas outras.
+  alterarPapelUsuario: (id, usuarioId, dados) =>
+    request(`/escolas/${id}/usuarios/${usuarioId}/papel`, {
+      method: 'PATCH',
+      body: JSON.stringify(dados),
+    }),
+  desvincularUsuario: (id, usuarioId) =>
+    request(`/escolas/${id}/usuarios/${usuarioId}`, { method: 'DELETE' }),
+};
+
 export default {
   authService,
   provasService,
@@ -713,5 +791,6 @@ export default {
   notificacoesService,
   resultadosService,
   configuracoesService,
-  gincanasService
+  gincanasService,
+  escolasService
 };

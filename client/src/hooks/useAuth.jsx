@@ -170,6 +170,25 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  /**
+   * Aplica o papel do usuário NA ESCOLA ATIVA.
+   *
+   * O token é emitido no login, antes de o usuário escolher a escola, então o
+   * `tipo` que vem dele é só o papel base. Quem sabe o papel real é o
+   * EscolaProvider, depois de resolver a escola ativa — é ele que chama isto.
+   * Persistimos em localStorage para o papel sobreviver ao reload que a troca
+   * de escola dispara.
+   */
+  const aplicarPerfilDaEscola = React.useCallback((tipoNaEscola) => {
+    if (!tipoNaEscola) return;
+    setUsuario((atual) => {
+      if (!atual || atual.tipo === tipoNaEscola) return atual;
+      const atualizado = { ...atual, tipo: tipoNaEscola };
+      localStorage.setItem('usuario', JSON.stringify(atualizado));
+      return atualizado;
+    });
+  }, []);
+
   const getToken = () => {
     // Verificar se a sessão expirou antes de retornar o token
     if (isSessionExpired()) {
@@ -187,6 +206,7 @@ export const AuthProvider = ({ children }) => {
     logout,
     getToken,
     isSessionExpired,
+    aplicarPerfilDaEscola,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

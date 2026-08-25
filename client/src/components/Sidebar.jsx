@@ -2,15 +2,18 @@ import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   BookOpen, Users, UserCheck, Handshake, MessageSquare,
-  History, Gavel, AlertCircle, User, Trophy,
+  History, Gavel, AlertCircle, User, Trophy, School,
   ChevronRight, Menu, X, ChevronDown
 } from 'lucide-react';
 import { Button } from './ui/button';
+import { ehAdmin, ehSuperAdmin } from '../lib/perfis';
 
 export default function Sidebar({ usuario, isOpen, onToggle, isMobile }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const isAdmin = usuario?.tipo === 'ADMIN';
+  // SUPER_ADMIN enxerga tudo do ADMIN (restrito à escola ativa pelo backend).
+  const isAdmin = ehAdmin(usuario);
+  const isSuperAdmin = ehSuperAdmin(usuario);
   const isCoordenador = usuario?.tipo === 'COORDENADOR';
   
   // Estado para controlar seções expansíveis
@@ -54,6 +57,15 @@ export default function Sidebar({ usuario, isOpen, onToggle, isMobile }) {
       path: '/migracoes/solicitar',
       color: 'amber',
       show: ['ALUNO', 'PROFESSOR', 'PAI/MÃE'].includes(usuario?.tipo)
+    },
+    {
+      id: 'gerenciar-escolas',
+      icon: School,
+      title: 'Gerenciar Escolas',
+      description: 'Escolas do sistema',
+      path: '/admin/escolas',
+      color: 'emerald',
+      show: isSuperAdmin
     },
     {
       id: 'gerenciar-gincanas',
@@ -226,6 +238,7 @@ export default function Sidebar({ usuario, isOpen, onToggle, isMobile }) {
     green: 'bg-green-100 text-green-700 hover:bg-green-200 border-green-200',
     amber: 'bg-amber-100 text-amber-700 hover:bg-amber-200 border-amber-200',
     teal: 'bg-teal-100 text-teal-700 hover:bg-teal-200 border-teal-200',
+    emerald: 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border-emerald-200',
     red: 'bg-red-100 text-red-700 hover:bg-red-200 border-red-200',
     pink: 'bg-pink-100 text-pink-700 hover:bg-pink-200 border-pink-200'
   };

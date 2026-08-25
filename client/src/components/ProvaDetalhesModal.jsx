@@ -14,6 +14,7 @@ import { Calendar, Clock, Users, Target, AlertCircle, List, CheckCircle2, AlertT
 import { provasService, equipesService, resultadosService, configuracoesService } from "../services/api";
 import { toast } from "./ui/toast";
 import { useAuth } from "../hooks/useAuth";
+import { ehAdmin } from '../lib/perfis';
 
 const ProvaDetalhesModal = ({ prova, isOpen, onClose, onInscricaoSucesso }) => {
   const { usuario } = useAuth();
@@ -48,7 +49,7 @@ const ProvaDetalhesModal = ({ prova, isOpen, onClose, onInscricaoSucesso }) => {
 
   // Função do Admin para Ocultar/Mostrar pontos
   const handleAlterarVisibilidade = async (checked) => {
-    if (usuario?.tipo !== 'ADMIN') return;
+    if (!ehAdmin(usuario)) return;
 
     setOcultarPontos(checked); 
     setSalvandoConfig(true);
@@ -79,7 +80,7 @@ const ProvaDetalhesModal = ({ prova, isOpen, onClose, onInscricaoSucesso }) => {
   const carregarEquipeUsuario = async () => {
     if (!usuario) return;
     try {
-      if (usuario.tipo !== 'ADMIN') {
+      if (!ehAdmin(usuario)) {
         try {
           if (typeof equipesService.buscarMinhaEquipeId === 'function') {
             const minhaEquipeId = await equipesService.buscarMinhaEquipeId();
@@ -189,7 +190,7 @@ const ProvaDetalhesModal = ({ prova, isOpen, onClose, onInscricaoSucesso }) => {
     }
   };
 
-  const isAdmin = usuario?.tipo === 'ADMIN';
+  const isAdmin = ehAdmin(usuario);
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>

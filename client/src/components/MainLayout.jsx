@@ -5,6 +5,7 @@ import { Button } from './ui/button';
 import Sidebar from './Sidebar';
 import NotificacoesDropdown from './NotificacoesDropdown';
 import FeedbackFAB from './EnviarFeedbackModal';
+import EscolaSelector from './EscolaSelector';
 import GincanaSelector from './GincanaSelector';
 
 export default function MainLayout({ usuario, onLogout, children }) {
@@ -84,7 +85,10 @@ export default function MainLayout({ usuario, onLogout, children }) {
             </div>
 
             <div className="flex items-center gap-2 sm:gap-3 md:gap-4 shrink-0">
-              {/* Seletor de Gincana ativa (workspace) */}
+              {/* Seletor de Escola ativa (tenant) — oculto para quem só tem uma */}
+              <EscolaSelector />
+
+              {/* Seletor de Gincana ativa (workspace), dentro da escola ativa */}
               <GincanaSelector />
 
               {/* Dropdown de Notificações */}

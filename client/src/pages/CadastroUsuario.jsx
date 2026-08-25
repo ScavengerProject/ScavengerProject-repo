@@ -1,11 +1,11 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { toast } from "../components/ui/toast";
-import { usuariosService } from "../services/api";
+import { usuariosService, escolasService } from "../services/api";
 
 const CadastroUsuario = () => {
     const navigate = useNavigate();
@@ -15,6 +15,33 @@ const CadastroUsuario = () => {
     const [senha, setSenha] = useState("");
     const [confirmacao, setConfirmacao] = useState("");
     const [loading, setLoading] = useState(false);
+
+    // Multi-escola: o candidato precisa dizer em qual escola quer se cadastrar.
+    // A lista vem do endpoint público (ele ainda não tem login).
+    const [escolas, setEscolas] = useState([]);
+    const [escolaId, setEscolaId] = useState("");
+
+    useEffect(() => {
+      let cancelado = false;
+
+      escolasService
+        .publicas()
+        .then((lista) => {
+          if (cancelado) return;
+          const disponiveis = lista || [];
+          setEscolas(disponiveis);
+          // Com uma escola só, seleciona sozinho e o campo nem aparece.
+          if (disponiveis.length === 1) {
+            setEscolaId(disponiveis[0]._id);
+          }
+        })
+        .catch((error) => {
+          console.error("Erro ao carregar escolas:", error);
+          if (!cancelado) setEscolas([]);
+        });
+
+      return () => { cancelado = true; };
+    }, []);
 
     const handleSubmit = async (event) => {
     event.preventDefault();
@@ -61,6 +88,11 @@ const CadastroUsuario = () => {
       return;
     }
 
+    if (!escolaId) {
+      toast.error("Selecione a escola em que deseja se cadastrar");
+      return;
+    }
+
     setLoading(true);
     try {
       // O backend espera um objeto com a estrutura do Usuario,
@@ -72,7 +104,8 @@ const CadastroUsuario = () => {
         tipo: "ALUNO",
         turma: null,
         senha: senha,
-        status: "ATIVO"
+        status: "ATIVO",
+        escola_id: escolaId
       };
 
       await usuariosService.registrar(dadosParaEnviar);
@@ -132,6 +165,27 @@ const CadastroUsuario = () => {
                 disabled={loading}
               />
             </div>
+            {escolas.length > 1 && (
+              <div className="space-y-2">
+                <Label htmlFor="escola" className="text-gray-900 font-medium">
+                  Escola
+                </Label>
+                <select
+                  id="escola"
+                  value={escolaId}
+                  onChange={(event) => setEscolaId(event.target.value)}
+                  className="flex h-9 w-full rounded-md border border-gray-300 bg-white px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50"
+                  disabled={loading}
+                >
+                  <option value="">Selecione sua escola</option>
+                  {escolas.map((escola) => (
+                    <option key={escola._id} value={escola._id}>
+                      {escola.nome}{escola.cidade ? ` — ${escola.cidade}` : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="telefone" className="text-gray-900 font-medium">
                 Telefone
