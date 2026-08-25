@@ -16,10 +16,14 @@ import penalidadesRoutes from "./penalidades/penalidadesRoutes.js";
 import resultadoRoutes from './resultados/resultadoRoutes.js';
 import configuracaoRoutes from './configuracoes/configuracaoRoutes.js';
 import gincanaRoutes from './gincanas/gincanaRoutes.js';
+import escolaRoutes from './escolas/escolaRoutes.js';
 import { iniciarEmailWorker } from './notificacoes/emailWorker.js';
 
 dotenv.config();
-connectDB(); // BD
+// Aguarda também as migrações idempotentes de índices antes de aceitar
+// requisições. Isso evita uma criação de gincana disputar com a remoção do
+// índice global legado durante a inicialização da API.
+await connectDB(); // BD
 
 // No plano free do Render não há Background Worker, então o worker de email roda
 // no MESMO processo da API. Mantém a fila viva enquanto o Web Service estiver
@@ -55,6 +59,7 @@ app.use("/api/penalidades", penalidadesRoutes);
 app.use('/api/resultados', resultadoRoutes);
 app.use('/api/configuracoes', configuracaoRoutes);
 app.use('/api/gincanas', gincanaRoutes);
+app.use('/api/escolas', escolaRoutes);
 
 app.listen(PORT, () => {
   console.log(`Servidor Express rodando na porta ${PORT}`);

@@ -23,12 +23,12 @@ import {
   visualizarRankingEquipes,
   buscarMinhaEquipeId
 } from './equipeController.js';
-import { proteger, autorizar, resolverGincana } from '../auth/authPermissions.js';
+import { proteger, autorizar, resolverEscola, resolverGincana } from '../auth/authPermissions.js';
 
 const router = express.Router();
 
 // Resolve o escopo da gincana ativa (X-Gincana-Id) para todas as rotas de equipes.
-router.use(proteger, resolverGincana);
+router.use(proteger, resolverEscola, resolverGincana);
 
 // ✅ rota "pública" para QUALQUER usuário autenticado (inclui aluno)
 router.get('/publicas', proteger, listarEquipesPublicas);

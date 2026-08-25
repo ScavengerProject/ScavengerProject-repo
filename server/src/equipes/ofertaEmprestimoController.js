@@ -209,7 +209,10 @@ export const aceitarOferta = async (req, res) => {
     const solicitacao = oferta.solicitacao_id;
 
     // Verificar se é o coordenador solicitante
-    if (String(solicitacao.coordenador_solicitante_id) !== String(me.id) && me.tipo !== 'ADMIN') {
+    if (
+      String(solicitacao.coordenador_solicitante_id) !== String(me.id)
+      && !['ADMIN', 'SUPER_ADMIN'].includes(me.tipo)
+    ) {
       return res.status(403).json({
         message: 'Apenas o coordenador solicitante ou admin pode aceitar ofertas.'
       });
@@ -302,7 +305,10 @@ export const recusarOferta = async (req, res) => {
     const solicitacao = oferta.solicitacao_id;
 
     // Verificar se é o coordenador solicitante
-    if (String(solicitacao.coordenador_solicitante_id) !== String(me.id) && me.tipo !== 'ADMIN') {
+    if (
+      String(solicitacao.coordenador_solicitante_id) !== String(me.id)
+      && !['ADMIN', 'SUPER_ADMIN'].includes(me.tipo)
+    ) {
       return res.status(403).json({
         message: 'Apenas o coordenador solicitante ou admin pode recusar ofertas.'
       });

@@ -10,6 +10,16 @@ const GincanaSchema = new mongoose.Schema({
         default: () => new mongoose.Types.ObjectId().toString(),
     },
 
+    // Escola dona desta edição (tenant raiz). Toda a cadeia de dados
+    // (equipes, provas, resultados...) herda o isolamento por esta via.
+    escola_id: {
+        type: String,
+        ref: 'Escola',
+        required: [true, 'A escola da gincana é obrigatória.'],
+        default: 'ESCOLA_PRINCIPAL',
+        index: true,
+    },
+
     nome: {
         type: String,
         required: [true, 'O nome da gincana é obrigatório.'],
@@ -54,8 +64,9 @@ const GincanaSchema = new mongoose.Schema({
     },
 }, { _id: false }); // _id é gerenciado manualmente (String)
 
-// Evita duplicar a mesma edição (ex.: "Gincana" 2025 duas vezes).
-GincanaSchema.index({ nome: 1, ano: 1 }, { unique: true });
+// Evita duplicar a mesma edição DENTRO de uma escola (ex.: "Gincana" 2025 duas
+// vezes na mesma escola). Escolas diferentes podem repetir nome e ano.
+GincanaSchema.index({ escola_id: 1, nome: 1, ano: 1 }, { unique: true });
 
 const Gincana = mongoose.model('Gincana', GincanaSchema, 'Gincanas');
 

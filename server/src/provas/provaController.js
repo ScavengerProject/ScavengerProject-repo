@@ -119,7 +119,7 @@ export const listarProvas = async (req, res) => {
     // #18: ADMIN enxerga todas as provas (inclusive as agendadas). Os demais
     // perfis só veem as já publicadas (sem data de publicação ou com data já
     // alcançada).
-    const isAdmin = req.usuario?.tipo === 'ADMIN';
+    const isAdmin = ['ADMIN', 'SUPER_ADMIN'].includes(req.usuario?.tipo);
     const gincanaId = escopoGincana(req);
     const matchVisibilidade = isAdmin
       ? { gincana_id: gincanaId }
@@ -222,7 +222,7 @@ export const obterProva = async (req, res) => {
         }
 
         // #18: prova ainda não publicada fica indisponível para não-ADMIN.
-        const isAdmin = req.usuario?.tipo === 'ADMIN';
+        const isAdmin = ['ADMIN', 'SUPER_ADMIN'].includes(req.usuario?.tipo);
         if (!isAdmin && !estaPublicada(prova)) {
             return res.status(404).json({ message: 'Prova não encontrada.' });
         }

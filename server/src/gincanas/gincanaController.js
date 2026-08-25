@@ -1,12 +1,14 @@
 import Gincana from '../models/Gincana.js';
-import { getGincanaIdsDoUsuario } from './gincanaHelpers.js';
+import { getGincanaIdsDoUsuario, gincanaEncerrada } from './gincanaHelpers.js';
 
 /**
- * [GET] Lista todas as gincanas (apenas ADMIN).
+ * [GET] Lista as gincanas da escola ativa (ADMIN da escola ou SUPER_ADMIN).
  */
 export const listarGincanas = async (req, res) => {
     try {
-        const gincanas = await Gincana.find().sort({ ano: -1, criado_em: -1 });
+        const gincanas = await Gincana
+            .find({ escola_id: req.escolaId })
+            .sort({ ano: -1, criado_em: -1 });
         res.status(200).json(gincanas);
     } catch (error) {
         console.error('Erro ao listar gincanas:', error);
@@ -15,25 +17,39 @@ export const listarGincanas = async (req, res) => {
 };
 
 /**
- * [GET] Lista as gincanas visíveis para o usuário logado.
- * - ADMIN: todas as não-arquivadas.
+ * [GET] Lista as gincanas visíveis para o usuário logado NA ESCOLA ATIVA.
+ * - ADMIN/SUPER_ADMIN: todas as não-arquivadas da escola.
  * - Demais perfis: apenas aquelas em que participa (via EquipeMembros).
+ *
+ * O filtro por `escola_id` vale para todos os perfis: é ele que faz o seletor
+ * de gincana da navbar mostrar só as edições da escola selecionada.
+ *
+ * Cada item traz `encerrada`: edições de anos passados (ou marcadas como
+ * ENCERRADA) aparecem na lista como histórico, mas não podem ser acessadas —
+ * a mesma regra que o middleware resolverGincana aplica na API.
  */
 export const minhasGincanas = async (req, res) => {
     try {
-        if (req.usuario.tipo === 'ADMIN') {
+        const filtroEscola = { escola_id: req.escolaId, status: { $ne: 'ARQUIVADA' } };
+
+        const comFlag = (lista) => lista.map((g) => ({
+            ...g.toObject(),
+            encerrada: gincanaEncerrada(g),
+        }));
+
+        if (req.usuario.tipo === 'ADMIN' || req.usuario.tipo === 'SUPER_ADMIN') {
             const gincanas = await Gincana
-                .find({ status: { $ne: 'ARQUIVADA' } })
+                .find(filtroEscola)
                 .sort({ ano: -1, criado_em: -1 });
-            return res.status(200).json(gincanas);
+            return res.status(200).json(comFlag(gincanas));
         }
 
         const gincanaIds = await getGincanaIdsDoUsuario(req.usuario.id);
         const gincanas = await Gincana
-            .find({ _id: { $in: gincanaIds }, status: { $ne: 'ARQUIVADA' } })
+            .find({ ...filtroEscola, _id: { $in: gincanaIds } })
             .sort({ ano: -1, criado_em: -1 });
 
-        res.status(200).json(gincanas);
+        res.status(200).json(comFlag(gincanas));
     } catch (error) {
         console.error('Erro ao listar minhas gincanas:', error);
         res.status(500).json({ message: 'Erro interno ao listar gincanas do usuário.' });
@@ -41,22 +57,33 @@ export const minhasGincanas = async (req, res) => {
 };
 
 /**
- * [POST] Cria uma nova gincana (apenas ADMIN).
+ * [POST] Cria uma nova gincana na escola ativa (ADMIN da escola ou SUPER_ADMIN).
  */
 export const criarGincana = async (req, res) => {
     try {
-        const { nome, ano, descricao, data_inicio, data_fim, status } = req.body;
+        const { nome, ano, descricao, data_inicio, data_fim, status, escola_id } = req.body;
+
+        // A escola da gincana vem exclusivamente do escopo validado pelo
+        // resolverEscola. Mesmo que alguém altere a requisição manualmente, um
+        // ADMIN não consegue criar em outro tenant indicando escola_id no body.
+        if (escola_id && String(escola_id) !== String(req.escolaId)) {
+            return res.status(403).json({
+                message: 'A gincana só pode ser criada na escola ativa.',
+                codigo: 'ESCOLA_DIFERENTE_DO_ESCOPO',
+            });
+        }
 
         if (!nome || ano === undefined || ano === null || ano === '') {
             return res.status(400).json({ message: 'Nome e ano são obrigatórios.' });
         }
 
-        const jaExiste = await Gincana.findOne({ nome: nome.trim(), ano });
+        const jaExiste = await Gincana.findOne({ escola_id: req.escolaId, nome: nome.trim(), ano });
         if (jaExiste) {
-            return res.status(409).json({ message: 'Já existe uma gincana com esse nome e ano.' });
+            return res.status(409).json({ message: 'Já existe uma gincana com esse nome e ano nesta escola.' });
         }
 
         const gincana = new Gincana({
+            escola_id: req.escolaId,
             nome: nome.trim(),
             ano,
             descricao: descricao || '',
@@ -71,7 +98,16 @@ export const criarGincana = async (req, res) => {
     } catch (error) {
         console.error('Erro ao criar gincana:', error);
         if (error.code === 11000) {
-            return res.status(409).json({ message: 'Já existe uma gincana com esse nome e ano.' });
+            // O índice correto contém escola_id. Se o erro veio do índice
+            // legado {nome, ano}, sinaliza claramente que o servidor ainda não
+            // reiniciou após a migração automática de índices.
+            if (!error.keyPattern?.escola_id) {
+                return res.status(503).json({
+                    message: 'Os índices de multi-escola ainda estão sendo atualizados. Reinicie a API e tente novamente.',
+                    codigo: 'INDICE_MULTI_ESCOLA_DESATUALIZADO',
+                });
+            }
+            return res.status(409).json({ message: 'Já existe uma gincana com esse nome e ano nesta escola.' });
         }
         res.status(500).json({ message: 'Erro interno ao criar gincana.' });
     }
@@ -85,7 +121,8 @@ export const atualizarGincana = async (req, res) => {
         const { id } = req.params;
         const { nome, ano, descricao, data_inicio, data_fim, status } = req.body;
 
-        const gincana = await Gincana.findById(id);
+        // Busca escopada: um ADMIN não alcança gincanas de outra escola.
+        const gincana = await Gincana.findOne({ _id: id, escola_id: req.escolaId });
         if (!gincana) {
             return res.status(404).json({ message: 'Gincana não encontrada.' });
         }
@@ -102,7 +139,7 @@ export const atualizarGincana = async (req, res) => {
     } catch (error) {
         console.error('Erro ao atualizar gincana:', error);
         if (error.code === 11000) {
-            return res.status(409).json({ message: 'Já existe uma gincana com esse nome e ano.' });
+            return res.status(409).json({ message: 'Já existe uma gincana com esse nome e ano nesta escola.' });
         }
         res.status(500).json({ message: 'Erro interno ao atualizar gincana.' });
     }
@@ -121,8 +158,8 @@ export const alterarStatusGincana = async (req, res) => {
             return res.status(400).json({ message: 'Status inválido.' });
         }
 
-        const gincana = await Gincana.findByIdAndUpdate(
-            id,
+        const gincana = await Gincana.findOneAndUpdate(
+            { _id: id, escola_id: req.escolaId },
             { status },
             { new: true }
         );

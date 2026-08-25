@@ -6,6 +6,7 @@ import Prova from '../models/Prova.js';
 import Usuario from '../models/Usuario.js';
 import Notificacao from '../models/Notificacao.js';
 import { getEquipeGincanaDoCoordenador } from './coordenadorEquipe.js';
+import { filtroEscolaComPerfil } from '../escolas/escolaHelpers.js';
 
 // Escopo da gincana ativa (injetado por resolverGincana; fallback p/ gincana legada).
 const escopoGincana = (req) => req.gincanaId || 'GINCANA_PRINCIPAL';
@@ -65,8 +66,8 @@ export const criarSolicitacao = async (req, res) => {
       status: 'PENDENTE_APROVACAO',
     });
 
-    // Notificar administradores
-    const admins = await Usuario.find({ tipo: 'ADMIN' }).select('_id');
+    // Notificar os administradores DESTA escola — não os das demais.
+    const admins = await Usuario.find(filtroEscolaComPerfil(req.escolaId, 'ADMIN')).select('_id');
     const notificacoes = admins.map(admin => ({
       usuario_id: admin._id,
       gincana_id: gincanaId,

@@ -42,10 +42,10 @@ export const enviarFeedback = async (req, res) => {
 
         // US17: Enviar notificações para ADMINs quando um feedback é criado
         try {
-            // Buscar todos os usuários ADMIN que estão ativos
+            // Buscar os ADMINs ativos DESTA escola (o feedback é de um usuário
+            // dela; admins de outras escolas não devem ser notificados).
             const admins = await Usuario.find({
-                tipo: 'ADMIN',
-                status: 'ATIVO'
+                vinculos: { $elemMatch: { escola_id: String(req.escolaId), tipo: 'ADMIN', status: 'ATIVO' } },
             }).select('_id nome email tipo');
 
             if (admins.length > 0) {

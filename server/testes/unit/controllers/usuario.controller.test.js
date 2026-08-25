@@ -3,6 +3,7 @@ import { MongoMemoryServer } from 'mongodb-memory-server';
 import bcrypt from 'bcryptjs';
 
 import Usuario from '../../../src/models/Usuario.js';
+import Escola from '../../../src/models/Escola.js';
 import {
   criarUsuario,
   registrarUsuario,
@@ -24,6 +25,31 @@ const mockRes = () => {
 // ID do admin que executa as ações (usado em deletar/alternarStatus).
 const adminId = new mongoose.Types.ObjectId().toString();
 
+// Multi-escola: o controller é escopado por `req.escolaId`, injetado em produção
+// pelo middleware resolverEscola. ESCOLA_B existe para provar o isolamento.
+const escolaId = 'ESCOLA_TESTE';
+const outraEscolaId = 'ESCOLA_B';
+
+// Requisição autenticada padrão, já dentro do escopo da escola de teste.
+const reqBase = (extra = {}) => ({
+  escolaId,
+  usuario: { id: adminId, tipo: 'ADMIN' },
+  ...extra,
+});
+
+// Cria usuário já vinculado a uma escola (o vínculo é obrigatório na prática).
+const criarNoBanco = (dados, escolas = [escolaId]) =>
+  Usuario.create({
+    ...dados,
+    // O papel vive no vínculo com a escola (multi-escola: papel por tenant).
+    vinculos: escolas.map((escola_id) => ({
+      escola_id,
+      tipo: dados.tipo === 'SUPER_ADMIN' ? 'ADMIN' : dados.tipo,
+      turma: dados.turma ?? null,
+      status: dados.status || 'ATIVO',
+    })),
+  });
+
 let mongoServer;
 
 beforeAll(async () => {
@@ -37,13 +63,21 @@ afterAll(async () => {
   await mongoServer.stop();
 });
 
+beforeEach(async () => {
+  await Escola.create([
+    { _id: escolaId, nome: 'Escola Teste', status: 'ATIVA', criado_por: adminId },
+    { _id: outraEscolaId, nome: 'Escola B', status: 'ATIVA', criado_por: adminId },
+  ]);
+});
+
 afterEach(async () => {
   await Usuario.deleteMany({});
+  await Escola.deleteMany({});
 });
 
 describe('usuarioController - criarUsuario', () => {
   it('cria usuário, oculta a senha na resposta e faz hash no banco', async () => {
-    const req = { body: { nome: 'João', email: 'Joao@X.com', senha: 'segredo123', tipo: 'PROFESSOR' } };
+    const req = reqBase({ body: { nome: 'João', email: 'Joao@X.com', senha: 'segredo123', tipo: 'PROFESSOR' } });
     const res = mockRes();
 
     await criarUsuario(req, res);
@@ -58,8 +92,18 @@ describe('usuarioController - criarUsuario', () => {
     expect(await bcrypt.compare('segredo123', noBanco.senha)).toBe(true);
   });
 
+  it('vincula o novo usuário à escola ativa', async () => {
+    const req = reqBase({ body: { nome: 'Vinculado', email: 'v@x.com', senha: '123', tipo: 'PROFESSOR' } });
+    const res = mockRes();
+
+    await criarUsuario(req, res);
+
+    const noBanco = await Usuario.findOne({ email: 'v@x.com' });
+    expect(noBanco.vinculos.map((v) => String(v.escola_id))).toEqual([escolaId]);
+  });
+
   it('retorna 400 quando faltam campos obrigatórios', async () => {
-    const req = { body: { nome: 'Sem email' } };
+    const req = reqBase({ body: { nome: 'Sem email' } });
     const res = mockRes();
 
     await criarUsuario(req, res);
@@ -67,18 +111,43 @@ describe('usuarioController - criarUsuario', () => {
     expect(res.status).toHaveBeenCalledWith(400);
   });
 
-  it('retorna 409 quando o email já existe', async () => {
-    await Usuario.create({ nome: 'Existente', email: 'dup@x.com', senha: '123', tipo: 'ALUNO', turma: 'EF - 6º Ano' });
-    const req = { body: { nome: 'Outro', email: 'DUP@x.com', senha: '123', tipo: 'PROFESSOR' } };
+  it('retorna 409 quando o email já existe NESTA escola', async () => {
+    await criarNoBanco({ nome: 'Existente', email: 'dup@x.com', senha: '123', tipo: 'ALUNO', turma: 'EF - 6º Ano' });
+    const req = reqBase({ body: { nome: 'Outro', email: 'DUP@x.com', senha: '123', tipo: 'PROFESSOR' } });
     const res = mockRes();
 
     await criarUsuario(req, res);
 
     expect(res.status).toHaveBeenCalledWith(409);
+    expect(res.json.mock.calls[0][0].codigo).toBeUndefined();
+  });
+
+  it('retorna 409 com código próprio quando o email pertence a outra escola', async () => {
+    // Uma pessoa = um login. Aqui o caminho correto é vincular, não recriar.
+    await criarNoBanco(
+      { nome: 'Professor da B', email: 'prof@x.com', senha: '123', tipo: 'PROFESSOR' },
+      [outraEscolaId]
+    );
+    const req = reqBase({ body: { nome: 'Professor', email: 'prof@x.com', senha: '123', tipo: 'PROFESSOR' } });
+    const res = mockRes();
+
+    await criarUsuario(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect(res.json.mock.calls[0][0].codigo).toBe('USUARIO_EM_OUTRA_ESCOLA');
+  });
+
+  it('impede um ADMIN de criar um SUPER_ADMIN', async () => {
+    const req = reqBase({ body: { nome: 'Escalada', email: 'esc@x.com', senha: '123', tipo: 'SUPER_ADMIN' } });
+    const res = mockRes();
+
+    await criarUsuario(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(403);
   });
 
   it('retorna 400 quando ALUNO/COORDENADOR não informam turma', async () => {
-    const req = { body: { nome: 'Aluno', email: 'aluno@x.com', senha: '123', tipo: 'ALUNO' } };
+    const req = reqBase({ body: { nome: 'Aluno', email: 'aluno@x.com', senha: '123', tipo: 'ALUNO' } });
     const res = mockRes();
 
     await criarUsuario(req, res);
@@ -89,8 +158,9 @@ describe('usuarioController - criarUsuario', () => {
 });
 
 describe('usuarioController - registrarUsuario (auto-cadastro)', () => {
-  it('cria como ALUNO e responde com mensagem de aprovação', async () => {
-    const req = { body: { nome: 'Novo', email: 'novo@x.com', senha: '123456' } };
+  it('cria como ALUNO na escola escolhida e responde com mensagem de aprovação', async () => {
+    // Rota pública: a escola vem no corpo, não no header.
+    const req = { body: { nome: 'Novo', email: 'novo@x.com', senha: '123456', escola_id: escolaId } };
     const res = mockRes();
 
     await registrarUsuario(req, res);
@@ -101,11 +171,30 @@ describe('usuarioController - registrarUsuario (auto-cadastro)', () => {
     );
     const criado = await Usuario.findOne({ email: 'novo@x.com' });
     expect(criado.tipo).toBe('ALUNO');
+    expect(criado.vinculos.map((v) => String(v.escola_id))).toEqual([escolaId]);
+  });
+
+  it('retorna 400 quando a escola não é informada', async () => {
+    const req = { body: { nome: 'Sem escola', email: 'sem@x.com', senha: '123456' } };
+    const res = mockRes();
+
+    await registrarUsuario(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+  });
+
+  it('retorna 404 quando a escola informada não existe', async () => {
+    const req = { body: { nome: 'X', email: 'x@x.com', senha: '123456', escola_id: 'NAO_EXISTE' } };
+    const res = mockRes();
+
+    await registrarUsuario(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(404);
   });
 
   it('retorna 409 para email duplicado', async () => {
-    await Usuario.create({ nome: 'A', email: 'reg@x.com', senha: '123', tipo: 'ALUNO', turma: 'EF - 6º Ano' });
-    const req = { body: { nome: 'B', email: 'reg@x.com', senha: '123' } };
+    await criarNoBanco({ nome: 'A', email: 'reg@x.com', senha: '123', tipo: 'ALUNO', turma: 'EF - 6º Ano' });
+    const req = { body: { nome: 'B', email: 'reg@x.com', senha: '123', escola_id: escolaId } };
     const res = mockRes();
 
     await registrarUsuario(req, res);
@@ -116,8 +205,8 @@ describe('usuarioController - registrarUsuario (auto-cadastro)', () => {
 
 describe('usuarioController - atualizarUsuario', () => {
   it('atualiza campos e re-hasheia a senha quando informada', async () => {
-    const u = await Usuario.create({ nome: 'Antigo', email: 'a@x.com', senha: 'velha123', tipo: 'PROFESSOR' });
-    const req = { params: { id: u._id.toString() }, body: { nome: 'Atualizado', senha: 'nova12345' } };
+    const u = await criarNoBanco({ nome: 'Antigo', email: 'a@x.com', senha: 'velha123', tipo: 'PROFESSOR' });
+    const req = reqBase({ params: { id: u._id.toString() }, body: { nome: 'Atualizado', senha: 'nova12345' } });
     const res = mockRes();
 
     await atualizarUsuario(req, res);
@@ -129,7 +218,7 @@ describe('usuarioController - atualizarUsuario', () => {
   });
 
   it('retorna 404 quando o usuário não existe', async () => {
-    const req = { params: { id: new mongoose.Types.ObjectId().toString() }, body: { nome: 'X' } };
+    const req = reqBase({ params: { id: new mongoose.Types.ObjectId().toString() }, body: { nome: 'X' } });
     const res = mockRes();
 
     await atualizarUsuario(req, res);
@@ -137,10 +226,24 @@ describe('usuarioController - atualizarUsuario', () => {
     expect(res.status).toHaveBeenCalledWith(404);
   });
 
+  it('retorna 404 para usuário de outra escola (isolamento)', async () => {
+    const alheio = await criarNoBanco(
+      { nome: 'Alheio', email: 'alheio@x.com', senha: '123', tipo: 'PROFESSOR' },
+      [outraEscolaId]
+    );
+    const req = reqBase({ params: { id: alheio._id.toString() }, body: { nome: 'Invadido' } });
+    const res = mockRes();
+
+    await atualizarUsuario(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect((await Usuario.findById(alheio._id)).nome).toBe('Alheio');
+  });
+
   it('retorna 409 quando o novo email já pertence a outro usuário', async () => {
-    await Usuario.create({ nome: 'Dono', email: 'dono@x.com', senha: '123', tipo: 'PROFESSOR' });
-    const u = await Usuario.create({ nome: 'Eu', email: 'eu@x.com', senha: '123', tipo: 'PROFESSOR' });
-    const req = { params: { id: u._id.toString() }, body: { email: 'dono@x.com' } };
+    await criarNoBanco({ nome: 'Dono', email: 'dono@x.com', senha: '123', tipo: 'PROFESSOR' });
+    const u = await criarNoBanco({ nome: 'Eu', email: 'eu@x.com', senha: '123', tipo: 'PROFESSOR' });
+    const req = reqBase({ params: { id: u._id.toString() }, body: { email: 'dono@x.com' } });
     const res = mockRes();
 
     await atualizarUsuario(req, res);
@@ -150,9 +253,9 @@ describe('usuarioController - atualizarUsuario', () => {
 });
 
 describe('usuarioController - deletarUsuario', () => {
-  it('deleta um usuário existente', async () => {
-    const u = await Usuario.create({ nome: 'Del', email: 'del@x.com', senha: '123', tipo: 'PROFESSOR' });
-    const req = { params: { id: u._id.toString() }, usuario: { id: adminId } };
+  it('deleta um usuário que só existe nesta escola', async () => {
+    const u = await criarNoBanco({ nome: 'Del', email: 'del@x.com', senha: '123', tipo: 'PROFESSOR' });
+    const req = reqBase({ params: { id: u._id.toString() } });
     const res = mockRes();
 
     await deletarUsuario(req, res);
@@ -161,8 +264,24 @@ describe('usuarioController - deletarUsuario', () => {
     expect(await Usuario.findById(u._id)).toBeNull();
   });
 
+  it('apenas remove o vínculo quando o usuário atua em outra escola', async () => {
+    const u = await criarNoBanco(
+      { nome: 'Multi', email: 'multi@x.com', senha: '123', tipo: 'PROFESSOR' },
+      [escolaId, outraEscolaId]
+    );
+    const req = reqBase({ params: { id: u._id.toString() } });
+    const res = mockRes();
+
+    await deletarUsuario(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    const aindaExiste = await Usuario.findById(u._id);
+    expect(aindaExiste).not.toBeNull();
+    expect(aindaExiste.vinculos.map((v) => String(v.escola_id))).toEqual([outraEscolaId]);
+  });
+
   it('retorna 403 ao tentar deletar a própria conta', async () => {
-    const req = { params: { id: adminId }, usuario: { id: adminId } };
+    const req = reqBase({ params: { id: adminId } });
     const res = mockRes();
 
     await deletarUsuario(req, res);
@@ -171,7 +290,7 @@ describe('usuarioController - deletarUsuario', () => {
   });
 
   it('retorna 404 quando o usuário não existe', async () => {
-    const req = { params: { id: new mongoose.Types.ObjectId().toString() }, usuario: { id: adminId } };
+    const req = reqBase({ params: { id: new mongoose.Types.ObjectId().toString() } });
     const res = mockRes();
 
     await deletarUsuario(req, res);
@@ -180,31 +299,38 @@ describe('usuarioController - deletarUsuario', () => {
   });
 });
 
+// O status é do VÍNCULO com a escola ativa (multi-escola), não do cadastro
+// global: banir alguém aqui não pode banir a mesma pessoa na outra escola.
+const statusNaEscola = async (id) => {
+  const doc = await Usuario.findById(id);
+  return doc.vinculos.find((v) => String(v.escola_id) === escolaId)?.status;
+};
+
 describe('usuarioController - alternarStatusUsuario', () => {
   it('define o status diretamente (ex.: BANIDO)', async () => {
-    const u = await Usuario.create({ nome: 'S', email: 's@x.com', senha: '123', tipo: 'ALUNO', turma: 'EF - 6º Ano' });
-    const req = { params: { id: u._id.toString() }, body: { status: 'BANIDO' }, usuario: { id: adminId } };
+    const u = await criarNoBanco({ nome: 'S', email: 's@x.com', senha: '123', tipo: 'ALUNO', turma: 'EF - 6º Ano' });
+    const req = reqBase({ params: { id: u._id.toString() }, body: { status: 'BANIDO' } });
     const res = mockRes();
 
     await alternarStatusUsuario(req, res);
 
     expect(res.status).toHaveBeenCalledWith(200);
-    expect((await Usuario.findById(u._id)).status).toBe('BANIDO');
+    expect(await statusNaEscola(u._id)).toBe('BANIDO');
   });
 
   it('alterna ATIVO↔INATIVO quando nenhum status é informado', async () => {
-    const u = await Usuario.create({ nome: 'T', email: 't@x.com', senha: '123', tipo: 'PROFESSOR', status: 'ATIVO' });
-    const req = { params: { id: u._id.toString() }, body: {}, usuario: { id: adminId } };
+    const u = await criarNoBanco({ nome: 'T', email: 't@x.com', senha: '123', tipo: 'PROFESSOR', status: 'ATIVO' });
+    const req = reqBase({ params: { id: u._id.toString() }, body: {} });
     const res = mockRes();
 
     await alternarStatusUsuario(req, res);
 
-    expect((await Usuario.findById(u._id)).status).toBe('INATIVO');
+    expect(await statusNaEscola(u._id)).toBe('INATIVO');
   });
 
   it('retorna 400 para status inválido', async () => {
-    const u = await Usuario.create({ nome: 'U', email: 'u@x.com', senha: '123', tipo: 'PROFESSOR' });
-    const req = { params: { id: u._id.toString() }, body: { status: 'FANTASIA' }, usuario: { id: adminId } };
+    const u = await criarNoBanco({ nome: 'U', email: 'u@x.com', senha: '123', tipo: 'PROFESSOR' });
+    const req = reqBase({ params: { id: u._id.toString() }, body: { status: 'FANTASIA' } });
     const res = mockRes();
 
     await alternarStatusUsuario(req, res);
@@ -213,7 +339,7 @@ describe('usuarioController - alternarStatusUsuario', () => {
   });
 
   it('retorna 403 ao alterar o status da própria conta', async () => {
-    const req = { params: { id: adminId }, body: { status: 'INATIVO' }, usuario: { id: adminId } };
+    const req = reqBase({ params: { id: adminId }, body: { status: 'INATIVO' } });
     const res = mockRes();
 
     await alternarStatusUsuario(req, res);
@@ -224,9 +350,9 @@ describe('usuarioController - alternarStatusUsuario', () => {
 
 describe('usuarioController - leitura (listar/obter/estatísticas)', () => {
   it('lista filtrando por tipo e sem expor senha', async () => {
-    await Usuario.create({ nome: 'A', email: 'a@x.com', senha: '123', tipo: 'ALUNO', turma: 'EF - 6º Ano' });
-    await Usuario.create({ nome: 'P', email: 'p@x.com', senha: '123', tipo: 'PROFESSOR' });
-    const req = { query: { tipo: 'ALUNO' } };
+    await criarNoBanco({ nome: 'A', email: 'a@x.com', senha: '123', tipo: 'ALUNO', turma: 'EF - 6º Ano' });
+    await criarNoBanco({ nome: 'P', email: 'p@x.com', senha: '123', tipo: 'PROFESSOR' });
+    const req = reqBase({ query: { tipo: 'ALUNO' } });
     const res = mockRes();
 
     await listarUsuarios(req, res);
@@ -238,10 +364,26 @@ describe('usuarioController - leitura (listar/obter/estatísticas)', () => {
     expect(lista[0].senha).toBeUndefined();
   });
 
+  it('não lista usuários de outra escola (isolamento)', async () => {
+    await criarNoBanco({ nome: 'Daqui', email: 'daqui@x.com', senha: '123', tipo: 'PROFESSOR' });
+    await criarNoBanco(
+      { nome: 'Dali', email: 'dali@x.com', senha: '123', tipo: 'PROFESSOR' },
+      [outraEscolaId]
+    );
+    const req = reqBase({ query: {} });
+    const res = mockRes();
+
+    await listarUsuarios(req, res);
+
+    const lista = res.json.mock.calls[0][0];
+    expect(lista).toHaveLength(1);
+    expect(lista[0].nome).toBe('Daqui');
+  });
+
   it('busca por nome via parâmetro search', async () => {
-    await Usuario.create({ nome: 'Mariana Silva', email: 'm@x.com', senha: '123', tipo: 'PROFESSOR' });
-    await Usuario.create({ nome: 'Carlos', email: 'c@x.com', senha: '123', tipo: 'PROFESSOR' });
-    const req = { query: { search: 'mariana' } };
+    await criarNoBanco({ nome: 'Mariana Silva', email: 'm@x.com', senha: '123', tipo: 'PROFESSOR' });
+    await criarNoBanco({ nome: 'Carlos', email: 'c@x.com', senha: '123', tipo: 'PROFESSOR' });
+    const req = reqBase({ query: { search: 'mariana' } });
     const res = mockRes();
 
     await listarUsuarios(req, res);
@@ -252,7 +394,7 @@ describe('usuarioController - leitura (listar/obter/estatísticas)', () => {
   });
 
   it('obterUsuario retorna 404 para id inexistente', async () => {
-    const req = { params: { id: new mongoose.Types.ObjectId().toString() } };
+    const req = reqBase({ params: { id: new mongoose.Types.ObjectId().toString() } });
     const res = mockRes();
 
     await obterUsuario(req, res);
@@ -260,11 +402,29 @@ describe('usuarioController - leitura (listar/obter/estatísticas)', () => {
     expect(res.status).toHaveBeenCalledWith(404);
   });
 
-  it('obterEstatisticas agrega totais por status e tipo', async () => {
-    await Usuario.create({ nome: 'A', email: 'a@x.com', senha: '123', tipo: 'ALUNO', turma: 'EF - 6º Ano', status: 'ATIVO' });
-    await Usuario.create({ nome: 'B', email: 'b@x.com', senha: '123', tipo: 'ALUNO', turma: 'EM - 1º Ano', status: 'INATIVO' });
-    await Usuario.create({ nome: 'C', email: 'c@x.com', senha: '123', tipo: 'PROFESSOR', status: 'ATIVO' });
-    const req = {};
+  it('obterUsuario retorna 404 para usuário de outra escola', async () => {
+    const alheio = await criarNoBanco(
+      { nome: 'Alheio', email: 'alheio@x.com', senha: '123', tipo: 'PROFESSOR' },
+      [outraEscolaId]
+    );
+    const req = reqBase({ params: { id: alheio._id.toString() } });
+    const res = mockRes();
+
+    await obterUsuario(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(404);
+  });
+
+  it('obterEstatisticas agrega totais por status e tipo dentro da escola', async () => {
+    await criarNoBanco({ nome: 'A', email: 'a@x.com', senha: '123', tipo: 'ALUNO', turma: 'EF - 6º Ano', status: 'ATIVO' });
+    await criarNoBanco({ nome: 'B', email: 'b@x.com', senha: '123', tipo: 'ALUNO', turma: 'EM - 1º Ano', status: 'INATIVO' });
+    await criarNoBanco({ nome: 'C', email: 'c@x.com', senha: '123', tipo: 'PROFESSOR', status: 'ATIVO' });
+    // Não deve entrar na conta: pertence a outra escola.
+    await criarNoBanco(
+      { nome: 'D', email: 'd@x.com', senha: '123', tipo: 'PROFESSOR', status: 'ATIVO' },
+      [outraEscolaId]
+    );
+    const req = reqBase({});
     const res = mockRes();
 
     await obterEstatisticas(req, res);

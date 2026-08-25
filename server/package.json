@@ -6,6 +6,8 @@
   "scripts": {
     "start": "node src/index.js",
     "worker": "node src/notificacoes/emailWorker.js",
+    "seed:escola": "node src/scripts/seedEscolaPrincipal.js",
+    "migrar:papeis": "node src/scripts/migrarPapeisPorEscola.js",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:ci": "cross-env CI=true jest --runInBand --ci --coverage --forceExit"

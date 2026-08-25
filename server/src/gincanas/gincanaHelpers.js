@@ -41,3 +41,20 @@ export async function usuarioParticipaDaGincana(usuarioId, gincanaId) {
     const ids = await getGincanaIdsDoUsuario(usuarioId);
     return ids.includes(String(gincanaId));
 }
+
+/**
+ * Uma gincana está encerrada quando o status diz isso OU quando o ano dela já
+ * passou. Edições de anos anteriores viram histórico automaticamente, mesmo que
+ * ninguém tenha lembrado de mudar o status na mão.
+ *
+ * Encerrada = aparece nas listas marcada como tal, mas não pode virar o escopo
+ * ativo (ver resolverGincana em ../auth/authPermissions.js).
+ *
+ * @param {{status?: string, ano?: number}} gincana
+ * @returns {boolean}
+ */
+export function gincanaEncerrada(gincana) {
+    if (!gincana) return true;
+    if (gincana.status === 'ENCERRADA' || gincana.status === 'ARQUIVADA') return true;
+    return Number(gincana.ano) < new Date().getFullYear();
+}

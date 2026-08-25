@@ -4,6 +4,12 @@ import EquipeMembros from '../models/EquipeMembros.js';
 import Usuario from '../models/Usuario.js';
 import ConfiguracaoGincana from '../models/ConfiguracaoGincana.js';
 import { getEquipeGincanaDoCoordenador } from './coordenadorEquipe.js';
+import {
+    filtroEscola,
+    filtroEscolaComPerfil,
+    projecaoUsuarioNaEscola,
+    comVinculoDaEscola,
+} from '../escolas/escolaHelpers.js';
 
 // Resolve o escopo da gincana ativa a partir da requisição (injetado pelo
 // middleware resolverGincana). Mantém fallback para a gincana legada caso a
@@ -180,7 +186,8 @@ export const listarCoordenadoresDisponiveis = async (req, res) => {
     try {
         // A agregação é a forma mais robusta de encontrar usuários livres.
         const coordenadoresDisponiveis = await Usuario.aggregate([
-            { $match: { tipo: 'COORDENADOR' } }, // Filtra por tipo COORDENADOR
+            // Escopo de escola: só coordenadores vinculados à escola ativa.
+            { $match: filtroEscolaComPerfil(req.escolaId, 'COORDENADOR') },
             {
                 // Verifica se o usuário já é membro de alguma equipe
                 $lookup: {
@@ -207,10 +214,9 @@ export const listarCoordenadoresDisponiveis = async (req, res) => {
                 }
             },
             {
-                // Seleciona os campos para retornar para o frontend.
-                $project: {
-                    _id: 1, nome: 1, email: 1, tipo: 1, turma: 1
-                }
+                // Seleciona os campos para retornar para o frontend, com o papel
+                // e a turma DESTA escola (e não os do cadastro base).
+                $project: projecaoUsuarioNaEscola(req.escolaId)
             }
         ]);
 
@@ -290,15 +296,19 @@ export const listarTodosMembros = async (req, res) => {
 export const listarUsuariosSemEquipe = async (req, res) => {
     try {
 
-        /* const usuarios = await Usuario.find({ 
+        /* const usuarios = await Usuario.find({
              equipe_id: null,
              tipo: { $nin: ['ADMIN', 'COORDENADOR'] }
          })
-         .select('nome email tipo turma'); 
-         
+         .select('nome email tipo turma');
+
          res.status(200).json(usuarios);*/
         // A agregação é a forma mais robusta de encontrar usuários que não estão na tabela de membros.
         const usuariosDisponiveis = await Usuario.aggregate([
+            {
+                // Escopo de escola: a busca parte só de quem pertence à escola ativa.
+                $match: filtroEscola(req.escolaId)
+            },
             {
                 // Para cada usuário, ele tenta encontrar um registro correspondente em Equipes_Membros.
                 $lookup: {
@@ -315,20 +325,20 @@ export const listarUsuariosSemEquipe = async (req, res) => {
                 }
             },
             {
-                //para excluir os tipos de usuário indesejados.
+                // Exclui os tipos indesejados olhando o papel NESTA escola: quem
+                // é ADMIN em outra escola pode ser aluno disponível aqui.
                 $match: {
-                    tipo: { $nin: ['ADMIN', 'COORDENADOR'] }
+                    vinculos: {
+                        $elemMatch: {
+                            escola_id: String(req.escolaId),
+                            tipo: { $nin: ['ADMIN', 'COORDENADOR'] },
+                        },
+                    },
                 }
             },
             {
                 // Seleciona apenas os campos que deve retornar para o frontend.
-                $project: {
-                    _id: 1,
-                    nome: 1,
-                    email: 1,
-                    tipo: 1,
-                    turma: 1
-                }
+                $project: projecaoUsuarioNaEscola(req.escolaId)
             }
         ]);
 
@@ -350,7 +360,7 @@ export const listarMembrosPorEquipe = async (req, res) => {
 
         // 1. Busca os registros de membros (Corrigido o populate)
         const registrosMembros = await EquipeMembros.find({ equipe_id: equipeId })
-            // CORRIGIDO: Retirado o .select('is_coordenador usuario_id') daqui, 
+            // CORRIGIDO: Retirado o .select('is_coordenador usuario_id') daqui,
             // pois o find() já retorna o objeto inteiro, e o select dentro do populate é suficiente.
             .populate('usuario_id', 'nome email tipo turma');
 
@@ -854,10 +864,9 @@ export const listarUsuariosElegiveisCoordenador = async (req, res) => {
 
         const usuariosLivres = await Usuario.aggregate([
             {
-                // Passo 1: Filtrar pelos tipos de usuário desejados (ALUNO ou COORDENADOR)
-                $match: {
-                    tipo: { $in: ['ALUNO', 'COORDENADOR'] }
-                }
+                // Passo 1: Filtrar pelos tipos desejados (ALUNO ou COORDENADOR),
+                // sempre dentro da escola ativa.
+                $match: filtroEscolaComPerfil(req.escolaId, ['ALUNO', 'COORDENADOR'])
             },
             {
                 // Passo 2: Tentar encontrar um vínculo para cada usuário na tabela de membros
@@ -876,14 +885,8 @@ export const listarUsuariosElegiveisCoordenador = async (req, res) => {
                 }
             },
             {
-                // Passo 4: Formatar a saída
-                $project: {
-                    _id: 1,
-                    nome: 1,
-                    email: 1,
-                    tipo: 1,
-                    turma: 1
-                }
+                // Passo 4: Formatar a saída com o papel/turma desta escola
+                $project: projecaoUsuarioNaEscola(req.escolaId)
             }
         ]);
 
@@ -891,10 +894,15 @@ export const listarUsuariosElegiveisCoordenador = async (req, res) => {
         const idsMembrosDaEquipe = await EquipeMembros.find({ equipe_id: equipeId }).distinct('usuario_id');
 
         // Buscar os Usuários que são ALUNOS e estão nessa lista
-        const alunosDaEquipe = await Usuario.find({
+        const alunosDaEquipe = (await Usuario.find({
             _id: { $in: idsMembrosDaEquipe },
-            tipo: 'ALUNO'
-        }).select('nome email tipo turma _id');
+            ...filtroEscolaComPerfil(req.escolaId, 'ALUNO'),
+        }).select('nome email tipo turma vinculos _id'))
+            // Mesmo formato da agregação acima: papel e turma desta escola.
+            .map((u) => {
+                const { vinculos, ...resto } = comVinculoDaEscola(u, req.escolaId);
+                return resto;
+            });
 
         const usuariosMap = new Map();
 
@@ -927,7 +935,7 @@ export const visualizarRankingEquipes = async (req, res) => {
         const mostrarNotas = config?.mostrar_notas_ranking || false;
 
         // Admin sempre vê as notas, independente da configuração
-        const isAdmin = req.usuario?.tipo === 'ADMIN';
+        const isAdmin = ['ADMIN', 'SUPER_ADMIN'].includes(req.usuario?.tipo);
         const deveMostrarNotas = mostrarNotas || isAdmin;
 
         const rankingRecords = await EquipeGincana.find({ gincana_id: escopoGincana(req) })

@@ -1,21 +1,42 @@
 import Usuario from '../models/Usuario.js';
 import EquipeMembros from '../models/EquipeMembros.js';
 import EquipeGincana from '../models/EquipeGincana.js';
+import Escola from '../models/Escola.js';
+import { PERFIS_ESCOLA, podeMultiEscola } from '../models/Usuario.js';
+import {
+  filtroEscola,
+  getVinculo,
+  comVinculoDaEscola,
+  aplicarVinculo,
+  conflitoMultiEscola,
+} from '../escolas/escolaHelpers.js';
 import bcrypt from 'bcryptjs';
 
 /**
- * Listar todos os usuários (com filtros opcionais)
+ * Listar os usuários da escola ativa (com filtros opcionais).
+ *
+ * Todas as leituras/escritas deste controller são escopadas por `req.escolaId`
+ * (injetado pelo middleware resolverEscola): um ADMIN da escola A não enxerga
+ * nem altera usuários da escola B.
  */
 export const listarUsuarios = async (req, res) => {
   try {
     const { tipo, status, turma, search } = req.query;
-    
-    const filtro = {};
-    
-    if (tipo) filtro.tipo = tipo;
-    if (status) filtro.status = status;
-    if (turma) filtro.turma = turma;
-    
+
+    // Escopo de tenant: só usuários vinculados à escola ativa. Os filtros de
+    // perfil/turma/status batem no VÍNCULO desta escola (não no papel base),
+    // senão um COORDENADOR da escola A apareceria como coordenador da escola B.
+    const filtro = { ...filtroEscola(req.escolaId) };
+
+    const vinculoMatch = { escola_id: String(req.escolaId) };
+    if (tipo) vinculoMatch.tipo = tipo;
+    if (status) vinculoMatch.status = status;
+    if (turma) vinculoMatch.turma = turma;
+    if (tipo || status || turma) {
+      delete filtro['vinculos.escola_id'];
+      filtro.vinculos = { $elemMatch: vinculoMatch };
+    }
+
     // Busca por nome ou email
     if (search) {
       filtro.$or = [
@@ -23,12 +44,13 @@ export const listarUsuarios = async (req, res) => {
         { email: { $regex: search, $options: 'i' } }
       ];
     }
-    
+
     const usuarios = await Usuario.find(filtro)
       .select('-senha') // Não retorna a senha
       .sort({ criado_em: -1 });
-    
-    res.status(200).json(usuarios);
+
+    // As telas leem `usuario.tipo`/`turma`: entrega já o papel DESTA escola.
+    res.status(200).json(usuarios.map((u) => comVinculoDaEscola(u, req.escolaId)));
   } catch (error) {
     console.error('Erro ao listar usuários:', error);
     res.status(500).json({ message: 'Erro ao listar usuários.', error: error.message });
@@ -41,14 +63,14 @@ export const listarUsuarios = async (req, res) => {
 export const obterUsuario = async (req, res) => {
   try {
     const { id } = req.params;
-    
-    const usuario = await Usuario.findById(id).select('-senha');
-    
+
+    const usuario = await Usuario.findOne({ _id: id, ...filtroEscola(req.escolaId) }).select('-senha');
+
     if (!usuario) {
       return res.status(404).json({ message: 'Usuário não encontrado.' });
     }
-    
-    res.status(200).json(usuario);
+
+    res.status(200).json(comVinculoDaEscola(usuario, req.escolaId));
   } catch (error) {
     console.error('Erro ao obter usuário:', error);
     res.status(500).json({ message: 'Erro ao obter usuário.', error: error.message });
@@ -69,17 +91,41 @@ export const criarUsuario = async (req, res) => {
       });
     }
 
-    // Verifica se o email já existe
+    // O email é único globalmente (uma pessoa = um login). Se a pessoa já existe
+    // em OUTRA escola, o correto é vinculá-la a esta — não criar um segundo
+    // cadastro. É assim que um professor passa a atuar em mais de uma escola.
     const usuarioExistente = await Usuario.findOne({ email: email.toLowerCase() });
     if (usuarioExistente) {
-      return res.status(409).json({ message: 'Este email já está cadastrado.' });
+      const jaNestaEscola = Boolean(getVinculo(usuarioExistente, req.escolaId));
+      if (jaNestaEscola) {
+        return res.status(409).json({ message: 'Este email já está cadastrado nesta escola.' });
+      }
+      // Só faz sentido oferecer o vínculo quando o perfil pode acumular escolas.
+      // Um ALUNO já cadastrado em outra escola não pode ser vinculado aqui: ele
+      // precisa ser transferido (remover o vínculo antigo) pelo SUPER_ADMIN.
+      const podeVincular = podeMultiEscola(tipo)
+        && !conflitoMultiEscola(usuarioExistente, req.escolaId, tipo);
+
+      return res.status(409).json({
+        message: podeVincular
+          ? 'Este email já pertence a um usuário de outra escola. Use "Vincular usuário existente" para dar acesso a esta escola.'
+          : `Este email já pertence a um usuário de outra escola, e o perfil ${tipo} pertence a uma única escola. `
+            + 'Peça ao SUPER_ADMIN para transferir o vínculo dessa pessoa para esta escola.',
+        codigo: podeVincular ? 'USUARIO_EM_OUTRA_ESCOLA' : 'PERFIL_ESCOLA_UNICA',
+        usuario_id: podeVincular ? usuarioExistente._id : undefined,
+      });
     }
 
     // Valida turma para alunos e coordenadores
     if ((tipo === 'ALUNO' || tipo === 'COORDENADOR') && !turma) {
       return res.status(400).json({ message: 'Turma é obrigatória para alunos e coordenadores.' });
     }
-    
+
+    // Só o SUPER_ADMIN pode criar outro SUPER_ADMIN.
+    if (tipo === 'SUPER_ADMIN' && req.usuario.tipo !== 'SUPER_ADMIN') {
+      return res.status(403).json({ message: 'Apenas um SUPER_ADMIN pode criar outro SUPER_ADMIN.' });
+    }
+
     const novoUsuario = new Usuario({
       nome,
       email: email.toLowerCase(),
@@ -87,18 +133,20 @@ export const criarUsuario = async (req, res) => {
       telefone: telefone || null,
       tipo,
       turma: turma || null,
-      status: status || 'ATIVO'
+      status: status || 'ATIVO',
     });
-    
+
+    // O papel vale para ESTA escola. Se amanhã a pessoa for vinculada a outra,
+    // o papel de lá é independente deste.
+    if (tipo !== 'SUPER_ADMIN') {
+      aplicarVinculo(novoUsuario, req.escolaId, { tipo, turma: turma || null, status: status || 'ATIVO' });
+    }
+
     await novoUsuario.save();
-    
-    // Retorna o usuário sem a senha
-    const usuarioResposta = novoUsuario.toObject();
-    delete usuarioResposta.senha;
-    
+
     res.status(201).json({
       message: 'Usuário criado com sucesso!',
-      usuario: usuarioResposta
+      usuario: comVinculoDaEscola(novoUsuario, req.escolaId)
     });
   } catch (error) {
     console.error('Erro ao criar usuário:', error);
@@ -111,12 +159,23 @@ export const criarUsuario = async (req, res) => {
  */
 export const registrarUsuario = async (req, res) => {
   try {
-    const { nome, email, senha, telefone } = req.body;
+    const { nome, email, senha, telefone, escola_id } = req.body;
 
     if (!nome || !email || !senha) {
       return res.status(400).json({
         message: 'Campos nome, email e senha são obrigatórios.'
       });
+    }
+
+    // Rota pública (o candidato ainda não tem login), então a escola vem no
+    // corpo e é validada aqui — não há header X-Escola-Id confiável.
+    if (!escola_id) {
+      return res.status(400).json({ message: 'Selecione a escola em que deseja se cadastrar.' });
+    }
+
+    const escola = await Escola.findOne({ _id: escola_id, status: 'ATIVA' });
+    if (!escola) {
+      return res.status(404).json({ message: 'Escola não encontrada ou inativa.' });
     }
 
     const usuarioExistente = await Usuario.findOne({ email: email.toLowerCase() });
@@ -131,8 +190,9 @@ export const registrarUsuario = async (req, res) => {
       telefone: telefone || null,
       tipo: 'ALUNO',
       turma: null,
-      status: 'ATIVO'
+      status: 'ATIVO',
     });
+    aplicarVinculo(novoUsuario, escola._id, { tipo: 'ALUNO', turma: null });
 
     await novoUsuario.save();
 
@@ -156,16 +216,25 @@ export const atualizarUsuario = async (req, res) => {
   try {
     const { id } = req.params;
     const { nome, email, telefone, tipo, turma, status, senha } = req.body;
-    
-    const usuario = await Usuario.findById(id);
-    
+
+    const usuario = await Usuario.findOne({ _id: id, ...filtroEscola(req.escolaId) });
+
     if (!usuario) {
       return res.status(404).json({ message: 'Usuário não encontrado.' });
     }
-    
+
+    // Só o SUPER_ADMIN pode promover alguém a SUPER_ADMIN.
+    if (tipo === 'SUPER_ADMIN' && req.usuario.tipo !== 'SUPER_ADMIN') {
+      return res.status(403).json({ message: 'Apenas um SUPER_ADMIN pode conceder esse perfil.' });
+    }
+
+    if (tipo && tipo !== 'SUPER_ADMIN' && !PERFIS_ESCOLA.includes(tipo)) {
+      return res.status(400).json({ message: `Perfil inválido. Use um destes: ${PERFIS_ESCOLA.join(', ')}.` });
+    }
+
     // Verifica se o email já está em uso por outro usuário
     if (email && email.toLowerCase() !== usuario.email) {
-      const emailExistente = await Usuario.findOne({ 
+      const emailExistente = await Usuario.findOne({
         email: email.toLowerCase(),
         _id: { $ne: id }
       });
@@ -173,32 +242,43 @@ export const atualizarUsuario = async (req, res) => {
         return res.status(409).json({ message: 'Este email já está em uso por outro usuário.' });
       }
     }
-    
-    // Atualiza os campos
+
+    // Dados da PESSOA (valem em qualquer escola).
     if (nome) usuario.nome = nome;
     if (email) usuario.email = email.toLowerCase();
     if (telefone !== undefined) usuario.telefone = telefone;
-    if (tipo) usuario.tipo = tipo;
-    if (turma !== undefined) usuario.turma = turma;
-    if (status) usuario.status = status;
-    
+
+    // Papel, turma e status pertencem ao VÍNCULO com a escola ativa. Escrever
+    // em `usuario.tipo` aqui era o bug: mudar o perfil de alguém nesta escola
+    // mudava também o perfil nas outras em que a pessoa atua.
+    if (tipo === 'SUPER_ADMIN') {
+      usuario.tipo = 'SUPER_ADMIN';
+    } else if (tipo || turma !== undefined || status) {
+      // Escola única: um ADMIN que atua em várias escolas não pode ser rebaixado
+      // aqui para ALUNO/COORDENADOR, senão ficaria preso a duas escolas.
+      const conflito = conflitoMultiEscola(usuario, req.escolaId, tipo || usuario.tipo);
+      if (conflito) {
+        return res.status(409).json({ message: conflito, codigo: 'PERFIL_ESCOLA_UNICA' });
+      }
+      aplicarVinculo(usuario, req.escolaId, { tipo, turma, status });
+    }
+
     // Atualiza a senha apenas se fornecida
     if (senha && senha.trim() !== '') {
       usuario.senha = senha;
     }
-    
+
     await usuario.save();
-    
-    // Retorna o usuário sem a senha
-    const usuarioResposta = usuario.toObject();
-    delete usuarioResposta.senha;
-    
+
     res.status(200).json({
       message: 'Usuário atualizado com sucesso!',
-      usuario: usuarioResposta
+      usuario: comVinculoDaEscola(usuario, req.escolaId)
     });
   } catch (error) {
     console.error('Erro ao atualizar usuário:', error);
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({ message: error.message, codigo: 'PERFIL_ESCOLA_UNICA' });
+    }
     res.status(500).json({ message: 'Erro ao atualizar usuário.', error: error.message });
   }
 };
@@ -209,16 +289,28 @@ export const atualizarUsuario = async (req, res) => {
 export const deletarUsuario = async (req, res) => {
   try {
     const { id } = req.params;
-    
+
     // Impede que o admin delete a si mesmo
     if (id === req.usuario.id) {
       return res.status(403).json({ message: 'Você não pode deletar sua própria conta.' });
     }
-    
-    const usuario = await Usuario.findById(id);
-    
+
+    const usuario = await Usuario.findOne({ _id: id, ...filtroEscola(req.escolaId) });
+
     if (!usuario) {
       return res.status(404).json({ message: 'Usuário não encontrado.' });
+    }
+
+    // Se a pessoa atua em mais de uma escola, "deletar" aqui remove apenas o
+    // vínculo com a escola ativa — o cadastro segue vivo nas outras.
+    const outrasEscolas = (usuario.vinculos || [])
+      .map((v) => String(v.escola_id))
+      .filter((e) => e !== String(req.escolaId));
+    if (outrasEscolas.length > 0) {
+      await Usuario.updateOne({ _id: id }, { $pull: { vinculos: { escola_id: String(req.escolaId) } } });
+      return res.status(200).json({
+        message: 'Usuário removido desta escola. O cadastro permanece ativo nas demais escolas dele.',
+      });
     }
 
     // Remove os vínculos de membro/coordenador para não deixar registros órfãos
@@ -259,28 +351,26 @@ export const alternarStatusUsuario = async (req, res) => {
       return res.status(403).json({ message: 'Você não pode alterar o status da sua própria conta.' });
     }
 
-    const usuario = await Usuario.findById(id);
+    const usuario = await Usuario.findOne({ _id: id, ...filtroEscola(req.escolaId) });
 
     if (!usuario) {
       return res.status(404).json({ message: 'Usuário não encontrado.' });
     }
 
-    if (novoStatus) {
-      usuario.status = novoStatus;
-    } else {
-      usuario.status = usuario.status === 'ATIVO' ? 'INATIVO' : 'ATIVO';
-    }
+    // O status também é por escola: suspender alguém aqui não o suspende na
+    // outra escola em que ele atua.
+    const vinculo = getVinculo(usuario, req.escolaId);
+    const statusAtual = vinculo?.status || usuario.status;
+    const statusFinal = novoStatus || (statusAtual === 'ATIVO' ? 'INATIVO' : 'ATIVO');
 
+    aplicarVinculo(usuario, req.escolaId, { status: statusFinal });
     await usuario.save();
-
-    const usuarioResposta = usuario.toObject();
-    delete usuarioResposta.senha;
 
     const labels = { ATIVO: 'ativado', INATIVO: 'desativado', BANIDO: 'banido', SUSPENSO: 'suspenso' };
 
     res.status(200).json({
-      message: `Usuário ${labels[usuario.status] || 'atualizado'} com sucesso!`,
-      usuario: usuarioResposta
+      message: `Usuário ${labels[statusFinal] || 'atualizado'} com sucesso!`,
+      usuario: comVinculoDaEscola(usuario, req.escolaId)
     });
   } catch (error) {
     console.error('Erro ao alterar status:', error);
@@ -293,20 +383,38 @@ export const alternarStatusUsuario = async (req, res) => {
  */
 export const obterEstatisticas = async (req, res) => {
   try {
-    const totalUsuarios = await Usuario.countDocuments();
-    const totalAtivos = await Usuario.countDocuments({ status: 'ATIVO' });
-    const totalInativos = await Usuario.countDocuments({ status: 'INATIVO' });
-    
+    // Estatísticas restritas à escola ativa. Como papel/turma/status vivem no
+    // vínculo, os agrupamentos partem do vínculo DESTA escola ($unwind +
+    // $match), e não dos campos base do usuário.
+    const escolaId = String(req.escolaId);
+    const escopo = filtroEscola(escolaId);
+
+    const porVinculoDaEscola = [
+      { $match: escopo },
+      { $unwind: '$vinculos' },
+      { $match: { 'vinculos.escola_id': escolaId } },
+    ];
+
+    const porStatus = (statusDoVinculo) => ({
+      vinculos: { $elemMatch: { escola_id: escolaId, status: statusDoVinculo } },
+    });
+
+    const totalUsuarios = await Usuario.countDocuments(escopo);
+    const totalAtivos = await Usuario.countDocuments(porStatus('ATIVO'));
+    const totalInativos = await Usuario.countDocuments(porStatus('INATIVO'));
+
     const porTipo = await Usuario.aggregate([
-      { $group: { _id: '$tipo', total: { $sum: 1 } } }
+      ...porVinculoDaEscola,
+      { $group: { _id: '$vinculos.tipo', total: { $sum: 1 } } }
     ]);
-    
+
     const porTurma = await Usuario.aggregate([
-      { $match: { tipo: 'ALUNO' } },
-      { $group: { _id: '$turma', total: { $sum: 1 } } },
+      ...porVinculoDaEscola,
+      { $match: { 'vinculos.tipo': 'ALUNO' } },
+      { $group: { _id: '$vinculos.turma', total: { $sum: 1 } } },
       { $sort: { _id: 1 } }
     ]);
-    
+
     res.status(200).json({
       total: totalUsuarios,
       ativos: totalAtivos,

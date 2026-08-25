@@ -25,6 +25,28 @@ describe('authPermissions - proteger', () => {
     expect(res.status).not.toHaveBeenCalled();
   });
 
+  it('não sobrescreve o papel local quando o router chama proteger uma segunda vez', () => {
+    const token = jwt.sign({ id: 'doffy', tipo: 'ALUNO' }, SECRET, { expiresIn: '1h' });
+    const req = { headers: { authorization: `Bearer ${token}` } };
+    const res = mockRes();
+
+    proteger(req, res, jest.fn());
+    expect(req.usuario.tipo).toBe('ALUNO');
+
+    // Simula resolverEscola: Doffy é ALUNO na escola antiga, mas ADMIN na ativa.
+    req.usuario = { ...req.usuario, tipo: 'ADMIN' };
+
+    const segundaPassagem = jest.fn();
+    proteger(req, res, segundaPassagem);
+
+    expect(segundaPassagem).toHaveBeenCalledTimes(1);
+    expect(req.usuario.tipo).toBe('ADMIN');
+
+    const autorizado = jest.fn();
+    autorizar('ADMIN')(req, res, autorizado);
+    expect(autorizado).toHaveBeenCalledTimes(1);
+  });
+
   it('retorna 401 quando nenhum token é fornecido', () => {
     const req = { headers: {} };
     const res = mockRes();
