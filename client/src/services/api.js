@@ -100,10 +100,21 @@ const request = async (endpoint, options = {}) => {
       if (codigo === 'GINCANA_NAO_SELECIONADA' || codigo === 'GINCANA_ENCERRADA') {
         localStorage.removeItem('gincanaAtivaId');
         redirecionarPara('/selecionar-gincana');
-      } else if (codigo === 'SEM_VINCULO_ESCOLA' || codigo === 'VINCULO_INATIVO') {
+      } else if (
+        codigo === 'SEM_VINCULO_ESCOLA'
+        || codigo === 'VINCULO_INATIVO'
+        || codigo === 'ESCOLA_NAO_SELECIONADA'
+      ) {
         localStorage.removeItem('escolaAtivaId');
         localStorage.removeItem('gincanaAtivaId');
         redirecionarPara('/selecionar-escola');
+      } else if (codigo === 'VINCULO_PENDENTE') {
+        // Vínculo em análise (cadastro sem código de turma, ou transferência
+        // aguardando o ADMIN de destino): diferente de VINCULO_INATIVO, NÃO é
+        // uma perda de acesso — limpar o escopo salvo aqui reabriria a mesma
+        // escola pendente na tela de seleção e causaria um loop. Só manda para
+        // a tela de espera.
+        redirecionarPara('/aguardando-aprovacao');
       }
 
       const erro = new Error(errorMessage);
@@ -744,9 +755,6 @@ export const escolasService = {
   // demais, aquelas às quais estão vinculados). Alimenta o EscolaSelector.
   minhas: () => request('/escolas/minhas', { method: 'GET' }),
 
-  // Lista pública (sem login) usada no auto-cadastro.
-  publicas: () => request('/escolas/publicas', { method: 'GET' }),
-
   // Administração — apenas SUPER_ADMIN.
   listar: () => request('/escolas', { method: 'GET' }),
   criar: (dados) => request('/escolas', {
@@ -782,6 +790,56 @@ export const escolasService = {
     request(`/escolas/${id}/usuarios/${usuarioId}`, { method: 'DELETE' }),
 };
 
+/**
+ * Serviço de Convites (auto-cadastro por código de escola/turma).
+ *
+ * `criar`/`listar`/`revogar`/`listarUsuarios`/`listarPendentes`/`decidirPendente`
+ * exigem escola ativa + ADMIN (o backend não passa por resolverGincana: o
+ * convite é da escola, não de uma edição). `prevalidar` é público, e
+ * `resgatar` é autenticado mas sem escola ativa — a escola alvo vem do código.
+ */
+export const convitesService = {
+  // Gera um código novo para a escola ativa. Com `turma`, o vínculo nasce
+  // ATIVO direto; sem `turma`, nasce PENDENTE (fila de aprovação manual).
+  criar: (dados) => request('/convites', {
+    method: 'POST',
+    body: JSON.stringify(dados),
+  }),
+
+  // Lista os convites da escola ativa, já com a contagem de usos.
+  listar: () => request('/convites', { method: 'GET' }),
+
+  // Invalida um código imediatamente (idempotente).
+  revogar: (id) => request(`/convites/${id}/revogar`, { method: 'PATCH' }),
+
+  // Quem entrou por este código — é o que torna a revogação útil.
+  listarUsuarios: (id) => request(`/convites/${id}/usuarios`, { method: 'GET' }),
+
+  // Pré-validação pública (sem login): só devolve { escola_nome, turma }, para
+  // a tela de cadastro confirmar "Você está entrando na Escola X — 6º Ano"
+  // antes de enviar o formulário.
+  prevalidar: (codigo) => request(`/convites/${encodeURIComponent(codigo)}`, { method: 'GET' }),
+
+  // Resgate autenticado: para quem já tem conta (professor ganhando uma
+  // segunda escola, ou aluno solicitando transferência).
+  resgatar: (codigo) => request('/convites/resgatar', {
+    method: 'POST',
+    body: JSON.stringify({ codigo }),
+  }),
+
+  // Fila de vínculos PENDENTE da escola ativa (cadastro sem código de turma +
+  // transferências aguardando decisão).
+  listarPendentes: () => request('/convites/pendentes', { method: 'GET' }),
+
+  // decisao: 'APROVAR' | 'REJEITAR'. turma é opcional e só faz sentido ao
+  // aprovar: obrigatória quando o pendente ainda não tem uma (código público
+  // da escola, sem turma) — ver decidirPendencia no backend.
+  decidirPendente: (usuarioId, decisao, turma) => request(`/convites/pendentes/${usuarioId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(turma !== undefined ? { decisao, turma } : { decisao }),
+  }),
+};
+
 export default {
   authService,
   provasService,
@@ -792,5 +850,6 @@ export default {
   resultadosService,
   configuracoesService,
   gincanasService,
-  escolasService
+  escolasService,
+  convitesService
 };
