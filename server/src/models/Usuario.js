@@ -62,10 +62,24 @@ const VinculoEscolaSchema = new mongoose.Schema({
     default: null,
   },
 
+  // PENDENTE é a solicitação de vínculo (código de convite sem aprovação
+  // automática, ou transferência de escola) — não conta como acesso: quem
+  // decide se ela vira ATIVO ou some é o ADMIN da escola de destino (ver
+  // conviteController.decidirPendencia). Convive com um vínculo ATIVO em
+  // outra escola até ser decidida (é assim que a transferência funciona).
   status: {
     type: String,
-    enum: ['ATIVO', 'INATIVO', 'BANIDO', 'SUSPENSO'],
+    enum: ['ATIVO', 'INATIVO', 'BANIDO', 'SUSPENSO', 'PENDENTE'],
     default: 'ATIVO',
+  },
+
+  // Rastreia por qual código de convite este vínculo nasceu. Sem isso,
+  // revogar um código vazado não permite achar quem já entrou por ele
+  // (ver GET /api/convites/:id/usuarios).
+  codigo_convite_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'CodigoConvite',
+    default: null,
   },
 
   criado_em: { type: Date, default: Date.now },
@@ -115,7 +129,11 @@ UsuarioSchema.index({ 'vinculos.escola_id': 1, 'vinculos.tipo': 1 });
 // checam antes para devolver uma mensagem melhor (409/400); aqui a violação
 // vira um ValidationError, e não um documento inconsistente no banco.
 UsuarioSchema.pre('validate', function (next) {
-  const vinculos = this.vinculos || [];
+  // Vínculo PENDENTE é uma solicitação, não um acesso: não conta para a regra
+  // de escola única. É isso que permite o vínculo PENDENTE de destino conviver
+  // com o vínculo ATIVO de origem durante uma transferência (ver plano,
+  // "Insight central do desenho").
+  const vinculos = (this.vinculos || []).filter((v) => v.status !== 'PENDENTE');
 
   if (vinculos.length > 1) {
     const preso = vinculos.find((v) => !podeMultiEscola(v.tipo));

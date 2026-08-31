@@ -139,8 +139,11 @@ export function conflitoMultiEscola(usuario, escolaId, tipoAlvo) {
     // SUPER_ADMIN é global: não tem papel por escola e não entra na regra.
     if (!usuario || usuario.tipo === 'SUPER_ADMIN') return null;
 
+    // PENDENTE é uma solicitação, não um acesso: ignorá-lo aqui é o que
+    // permite o vínculo de destino de uma transferência (código de convite)
+    // conviver com o vínculo ATIVO de origem até a aprovação.
     const outros = (usuario.vinculos || [])
-        .filter((v) => String(v.escola_id) !== String(escolaId));
+        .filter((v) => String(v.escola_id) !== String(escolaId) && v.status !== 'PENDENTE');
 
     if (outros.length === 0) return null;
 
@@ -166,7 +169,7 @@ export function conflitoMultiEscola(usuario, escolaId, tipoAlvo) {
  *
  * @param {object} usuario documento Mongoose de Usuario (não é salvo aqui)
  * @param {string} escolaId
- * @param {{tipo?: string, turma?: string|null, status?: string}} [dados]
+ * @param {{tipo?: string, turma?: string|null, status?: string, codigo_convite_id?: string|null}} [dados]
  * @returns {object} o vínculo resultante
  */
 export function aplicarVinculo(usuario, escolaId, dados = {}) {
@@ -181,6 +184,7 @@ export function aplicarVinculo(usuario, escolaId, dados = {}) {
         if (dados.tipo) existente.tipo = dados.tipo;
         if (dados.turma !== undefined) existente.turma = dados.turma;
         if (dados.status) existente.status = dados.status;
+        if (dados.codigo_convite_id !== undefined) existente.codigo_convite_id = dados.codigo_convite_id;
         return existente;
     }
 
@@ -189,6 +193,7 @@ export function aplicarVinculo(usuario, escolaId, dados = {}) {
         tipo: dados.tipo || tipoBase,
         turma: dados.turma !== undefined ? dados.turma : (usuario.turma ?? null),
         status: dados.status || usuario.status || 'ATIVO',
+        codigo_convite_id: dados.codigo_convite_id ?? null,
     };
 
     usuario.vinculos.push(novo);

@@ -67,10 +67,44 @@ export const autorizar = (...tipos) => {
 };
 
 /**
+ * Middleware que revalida o papel BASE do usuário contra o banco.
+ *
+ * O JWT carrega `tipo` congelado no momento do login e vale 2h. Quem for
+ * rebaixado (SUPER_ADMIN -> ADMIN, ADMIN -> ALUNO) continuaria com os poderes
+ * antigos até o token expirar, porque `autorizar()` lê `req.usuario.tipo`.
+ * Por isso todo caminho que decide permissão relê o `tipo` do banco antes.
+ *
+ * Encadeie DEPOIS de `proteger` e ANTES de `autorizar(...)` em rotas que NÃO
+ * usam `resolverEscola` (que já faz essa releitura por conta própria) — hoje,
+ * as rotas globais de administração de escolas.
+ *
+ * Injeta `req.usuarioDoc` para que `resolverEscola`, se vier depois, não
+ * precise consultar o banco de novo.
+ */
+export const resolverPapelBase = async (req, res, next) => {
+  try {
+    if (req.usuarioDoc) return next();
+
+    const usuario = await Usuario.findById(req.usuario.id).select('tipo turma status vinculos');
+    if (!usuario) {
+      return res.status(401).json({ message: 'Usuário do token não existe mais.' });
+    }
+
+    req.usuario = { ...req.usuario, tipo: usuario.tipo };
+    req.usuarioDoc = usuario;
+    next();
+  } catch (error) {
+    console.error('Erro ao revalidar o papel do usuário:', error);
+    res.status(500).json({ message: 'Erro interno ao validar as permissões.' });
+  }
+};
+
+/**
  * Middleware de escopo de ESCOLA (tenant raiz). Encadeie DEPOIS de `proteger` e
  * ANTES de `resolverGincana`.
  *
  * Resolve a escola ativa a partir do header `X-Escola-Id`:
+ *  - relê o usuário no banco (o papel nunca vem do JWT, ver `resolverPapelBase`);
  *  - valida que a escola existe;
  *  - resolve o PAPEL do usuário naquela escola (Usuario.vinculos) e o injeta em
  *    `req.usuario.tipo`, substituindo o papel que veio no token;
@@ -90,37 +124,62 @@ export const resolverEscola = async (req, res, next) => {
     if (!headerEscolaId) {
       console.warn(
         `[resolverEscola] Requisição sem X-Escola-Id em ${req.method} ${req.originalUrl}; ` +
-        `usando fallback '${ESCOLA_FALLBACK_ID}'.`
+        `tentando fallback '${ESCOLA_FALLBACK_ID}'.`
       );
     }
 
     const escolaId = headerEscolaId || ESCOLA_FALLBACK_ID;
 
     const escola = await Escola.findById(escolaId);
-    if (!escola) {
-      // Sem header E sem a escola legada no banco: instalação anterior ao
-      // multi-escola, que ainda não rodou o seed. Segue com o escopo legado
-      // para não derrubar a aplicação inteira.
-      if (!headerEscolaId) {
-        req.escolaId = ESCOLA_FALLBACK_ID;
-        req.escola = null;
-        req.vinculoEscola = null;
-        return next();
-      }
+
+    // Escola inexistente pedida explicitamente: recusa sem nem olhar o usuário.
+    if (!escola && headerEscolaId) {
       return res.status(404).json({ message: 'Escola não encontrada.' });
     }
 
-    // SUPER_ADMIN opera em qualquer escola; demais perfis só nas que estão vinculados.
-    if (req.usuario.tipo === 'SUPER_ADMIN') {
-      req.escolaId = String(escola._id);
-      req.escola = escola;
+    // O usuário é carregado ANTES de qualquer decisão de permissão: o `tipo` do
+    // token pode estar defasado (ver resolverPapelBase).
+    const usuario = req.usuarioDoc
+      || await Usuario.findById(req.usuario.id).select('tipo turma status vinculos');
+    if (!usuario) {
+      return res.status(401).json({ message: 'Usuário do token não existe mais.' });
+    }
+    req.usuarioDoc = usuario;
+
+    if (!escola) {
+      // Sem header E sem a escola legada no banco. Isso só pode ser uma
+      // instalação anterior ao multi-escola (que ainda não rodou o seed), e aí
+      // o escopo legado segue valendo para não derrubar a aplicação inteira.
+      //
+      // Fora desse caso o ramo é um bypass de autorização: ele não checa
+      // vínculo e deixa `req.usuario.tipo` com o papel base. Quem é ALUNO na
+      // escola A mas tem `tipo` base ADMIN passaria em autorizar('ADMIN') só
+      // omitindo o header. Por isso a porta é fechada assim que existir
+      // qualquer escola cadastrada ou o usuário tiver qualquer vínculo.
+      const temVinculos = (usuario.vinculos || []).length > 0;
+      const instalacaoMigrada = temVinculos || Boolean(await Escola.exists({}));
+
+      if (instalacaoMigrada) {
+        return res.status(400).json({
+          message: 'Selecione a escola que deseja acessar.',
+          codigo: 'ESCOLA_NAO_SELECIONADA',
+        });
+      }
+
+      req.usuario = { ...req.usuario, tipo: usuario.tipo };
+      req.escolaId = ESCOLA_FALLBACK_ID;
+      req.escola = null;
       req.vinculoEscola = null;
       return next();
     }
 
-    const usuario = await Usuario.findById(req.usuario.id).select('tipo turma status vinculos');
-    if (!usuario) {
-      return res.status(401).json({ message: 'Usuário do token não existe mais.' });
+    // SUPER_ADMIN opera em qualquer escola; demais perfis só nas que estão vinculados.
+    if (usuario.tipo === 'SUPER_ADMIN') {
+      req.usuario = { ...req.usuario, tipo: 'SUPER_ADMIN' };
+      req.escolaId = String(escola._id);
+      req.escola = escola;
+      req.vinculoEscola = null;
+      return next();
     }
 
     const papel = papelNaEscola(usuario, escola._id);
@@ -133,6 +192,16 @@ export const resolverEscola = async (req, res, next) => {
 
     const vinculo = getVinculo(usuario, escola._id);
     if (vinculo && vinculo.status !== 'ATIVO') {
+      // PENDENTE é uma solicitação em análise (código sem aprovação automática,
+      // ou transferência aguardando o ADMIN de destino) — código próprio para
+      // o front não tratar como "perdi acesso" (VINCULO_INATIVO) e mandar para
+      // /selecionar-escola em loop; ele deve ir para uma tela de espera.
+      if (vinculo.status === 'PENDENTE') {
+        return res.status(403).json({
+          message: 'Seu vínculo com esta escola ainda está aguardando aprovação.',
+          codigo: 'VINCULO_PENDENTE',
+        });
+      }
       return res.status(403).json({
         message: 'Seu acesso a esta escola está inativo.',
         codigo: 'VINCULO_INATIVO',
