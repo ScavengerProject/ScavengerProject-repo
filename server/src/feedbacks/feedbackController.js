@@ -6,7 +6,8 @@ import Notificacao from '../models/Notificacao.js';
 import { criarNotificacao } from '../notificacoes/notificacaoController.js';
 import { enviarEmailNovoFeedback, enviarEmailFeedbackRespondido } from '../utils/emailService.js';
 
-const GINCANA_ATUAL_ID = 'GINCANA_PRINCIPAL';
+// Escopo da gincana ativa (injetado por resolverGincana; fallback p/ gincana legada).
+const escopoGincana = (req) => req.gincanaId || 'GINCANA_PRINCIPAL';
 
 /**
  * [POST] Permite que qualquer usuário logado envie um feedback ou relate um problema.
@@ -28,7 +29,7 @@ export const enviarFeedback = async (req, res) => {
 
         const novoFeedback = new Feedback({
             criado_por_usuario_id,
-            gincana_id: GINCANA_ATUAL_ID,
+            gincana_id: escopoGincana(req),
             descricao,
             status: 'PENDENTE', // Novo feedback sempre começa como pendente
             // avaliado_por_usuario_id é deixado como null/default
@@ -41,10 +42,10 @@ export const enviarFeedback = async (req, res) => {
 
         // US17: Enviar notificações para ADMINs quando um feedback é criado
         try {
-            // Buscar todos os usuários ADMIN que estão ativos
+            // Buscar os ADMINs ativos DESTA escola (o feedback é de um usuário
+            // dela; admins de outras escolas não devem ser notificados).
             const admins = await Usuario.find({
-                tipo: 'ADMIN',
-                status: 'ATIVO'
+                vinculos: { $elemMatch: { escola_id: String(req.escolaId), tipo: 'ADMIN', status: 'ATIVO' } },
             }).select('_id nome email tipo');
 
             if (admins.length > 0) {
@@ -62,7 +63,8 @@ export const enviarFeedback = async (req, res) => {
                             titulo,
                             mensagem,
                             null, // Não há prova relacionada
-                            feedbackSalvo._id // Referência ao feedback
+                            feedbackSalvo._id, // Referência ao feedback
+                            feedbackSalvo.gincana_id
                         );
 
                         // Enviar email (não bloqueia se falhar)
@@ -110,7 +112,7 @@ export const enviarFeedback = async (req, res) => {
  */
 export const listarFeedbacks = async (req, res) => {
      try {
-        const feedbacks = await Feedback.find({})
+        const feedbacks = await Feedback.find({ gincana_id: escopoGincana(req) })
             .sort({ criado_em: -1 }) // Ordena do mais novo para o mais antigo
             .populate('criado_por_usuario_id', 'nome email tipo') // Popula quem enviou
             .populate('avaliado_por_usuario_id', 'nome email'); // Popula quem analisou
@@ -177,7 +179,8 @@ export const responderFeedback = async (req, res) => {
                     titulo,
                     mensagem,
                     null, // Não há prova relacionada
-                    feedbackAtualizado._id // Referência ao feedback
+                    feedbackAtualizado._id, // Referência ao feedback
+                    feedbackAtualizado.gincana_id
                 );
 
                 // Enviar email (não bloqueia se falhar)
@@ -219,7 +222,7 @@ export const listarMeusFeedbacks = async (req, res) => {
         const usuarioId = req.usuario.id; 
 
         // Busca feedbacks onde o ID do usuário logado é o criador
-        const feedbacks = await Feedback.find({ criado_por_usuario_id: usuarioId })
+        const feedbacks = await Feedback.find({ criado_por_usuario_id: usuarioId, gincana_id: escopoGincana(req) })
             .sort({ criado_em: -1 }) // Ordena do mais novo para o mais antigo
             .populate('avaliado_por_usuario_id', 'nome'); // Popula quem respondeu
 

@@ -50,6 +50,7 @@ const ConfiguracaoQuesitosSchema = new mongoose.Schema({
 }, { _id: false });
 
 const ProvaSchema = new mongoose.Schema({
+  gincana_id: { type: String, required: true, default: 'GINCANA_PRINCIPAL', index: true },
   titulo: { type: String, required: [true, 'O título é obrigatório.'] },
   descricao: { type: String, required: [true, 'A descrição é obrigatória.'] },
   data_inicio: { type: Date, required: [true, 'A data de início é obrigatória.'] },

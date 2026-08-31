@@ -1,18 +1,19 @@
 import ConfiguracaoGincana from '../models/ConfiguracaoGincana.js';
 
-const GINCANA_ATUAL_ID = 'GINCANA_PRINCIPAL';
+// Escopo da gincana ativa (injetado por resolverGincana; fallback p/ gincana legada).
+const escopoGincana = (req) => req.gincanaId || 'GINCANA_PRINCIPAL';
 
 /**
  * [GET] Obtém a configuração da gincana atual
  */
 export const obterConfiguracao = async (req, res) => {
     try {
-        let config = await ConfiguracaoGincana.findOne({ gincana_id: GINCANA_ATUAL_ID });
+        let config = await ConfiguracaoGincana.findOne({ gincana_id: escopoGincana(req) });
         
         // Se não existe, cria com valores padrão
         if (!config) {
             config = new ConfiguracaoGincana({
-                gincana_id: GINCANA_ATUAL_ID,
+                gincana_id: escopoGincana(req),
                 mostrar_notas_ranking: false
             });
             await config.save();
@@ -33,11 +34,11 @@ export const atualizarConfiguracao = async (req, res) => {
     try {
         const { mostrar_notas_ranking } = req.body;
         
-        let config = await ConfiguracaoGincana.findOne({ gincana_id: GINCANA_ATUAL_ID });
+        let config = await ConfiguracaoGincana.findOne({ gincana_id: escopoGincana(req) });
         
         if (!config) {
             config = new ConfiguracaoGincana({
-                gincana_id: GINCANA_ATUAL_ID,
+                gincana_id: escopoGincana(req),
                 mostrar_notas_ranking: mostrar_notas_ranking || false
             });
         } else {

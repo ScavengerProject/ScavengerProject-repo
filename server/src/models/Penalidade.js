@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 const PenalidadeSchema = new mongoose.Schema({
   penalidade_id: { type: String, unique: true, default: null },
   nome: { type: String, required: true },
+  gincana_id: { type: String, required: true, default: "GINCANA_PRINCIPAL", index: true },
   equipe_gincana_id: { type: mongoose.Schema.Types.ObjectId, ref: "EquipeGincana", required: true },
   participante_id: { type: mongoose.Schema.Types.ObjectId, ref: "Usuario", default: null },
   pontos_removidos: { type: Number, required: true, default: 1 },

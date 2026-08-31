@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 
 const ProvaEquipeParticipacaoSchema = new mongoose.Schema(
   {
+    gincana_id: { type: String, required: true, default: 'GINCANA_PRINCIPAL', index: true },
     prova_id: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Prova',

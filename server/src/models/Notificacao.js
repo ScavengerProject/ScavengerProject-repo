@@ -2,7 +2,8 @@ import mongoose from 'mongoose';
 
 const NotificacaoSchema = new mongoose.Schema({
   usuario_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Usuario', required: true },
-  
+  gincana_id: { type: String, required: true, default: 'GINCANA_PRINCIPAL', index: true },
+
   tipo: {
     type: String,
     enum: ['NOVA_PROVA', 'RESULTADO', 'COMUNICADO', 'PENALIDADE', 'MIGRACAO'],

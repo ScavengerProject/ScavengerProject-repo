@@ -1,5 +1,12 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
 
+// Evita uma enxurrada de redirecionamentos quando várias requisições da mesma
+// tela falham juntas pelo mesmo motivo de escopo.
+const redirecionarPara = (rota) => {
+  if (window.location.pathname === rota) return;
+  window.location.assign(rota);
+};
+
 /**
  * Função helper para fazer requisições
  */
@@ -31,6 +38,21 @@ const request = async (endpoint, options = {}) => {
     headers.Authorization = `Bearer ${token}`;
   }
 
+  // Escopo de escola ativa (tenant raiz): enviado em todas as requisições. O
+  // backend (middleware resolverEscola) usa este header para isolar os dados
+  // por escola. Vai antes do de gincana porque a gincana vive dentro da escola.
+  const escolaAtivaId = localStorage.getItem('escolaAtivaId');
+  if (escolaAtivaId) {
+    headers['X-Escola-Id'] = escolaAtivaId;
+  }
+
+  // Escopo de gincana ativa: enviado em todas as requisições. O backend
+  // (middleware resolverGincana) usa este header para isolar os dados por edição.
+  const gincanaAtivaId = localStorage.getItem('gincanaAtivaId');
+  if (gincanaAtivaId) {
+    headers['X-Gincana-Id'] = gincanaAtivaId;
+  }
+
   try {
     const response = await fetch(url, {
       ...options,
@@ -52,9 +74,11 @@ const request = async (endpoint, options = {}) => {
     if (!response.ok) {
       // tenta parsear JSON; se vier HTML (erro do Express padrão), evita quebrar com "<!DOCTYPE"
       let errorMessage = 'Erro na requisição';
+      let codigo = null;
       try {
         const errorData = await response.json();
         errorMessage = errorData.message || errorMessage;
+        codigo = errorData.codigo || null;
       } catch (_) {
         // Se não conseguir fazer parse de JSON, tentar ler como texto
         // Mas só tenta se houver body ainda disponível
@@ -69,7 +93,33 @@ const request = async (endpoint, options = {}) => {
           errorMessage = `${response.status} - ${response.statusText}`;
         }
       }
-      throw new Error(errorMessage);
+      // Escopo perdido: a escola/gincana guardada não vale mais para este
+      // usuário (trocou de escola, edição encerrada, vínculo removido...).
+      // Limpa o escopo inválido e manda escolher de novo, em vez de deixar a
+      // tela inteira quebrada com um erro genérico.
+      if (codigo === 'GINCANA_NAO_SELECIONADA' || codigo === 'GINCANA_ENCERRADA') {
+        localStorage.removeItem('gincanaAtivaId');
+        redirecionarPara('/selecionar-gincana');
+      } else if (
+        codigo === 'SEM_VINCULO_ESCOLA'
+        || codigo === 'VINCULO_INATIVO'
+        || codigo === 'ESCOLA_NAO_SELECIONADA'
+      ) {
+        localStorage.removeItem('escolaAtivaId');
+        localStorage.removeItem('gincanaAtivaId');
+        redirecionarPara('/selecionar-escola');
+      } else if (codigo === 'VINCULO_PENDENTE') {
+        // Vínculo em análise (cadastro sem código de turma, ou transferência
+        // aguardando o ADMIN de destino): diferente de VINCULO_INATIVO, NÃO é
+        // uma perda de acesso — limpar o escopo salvo aqui reabriria a mesma
+        // escola pendente na tela de seleção e causaria um loop. Só manda para
+        // a tela de espera.
+        redirecionarPara('/aguardando-aprovacao');
+      }
+
+      const erro = new Error(errorMessage);
+      erro.codigo = codigo;
+      throw erro;
     }
 
     // pode haver 204
@@ -675,6 +725,121 @@ export const configuracoesService = {
   }),
 };
 
+/**
+ * Serviço de Gincanas (edições/instâncias isoladas)
+ */
+export const gincanasService = {
+  // Gincanas visíveis para o usuário logado (ADMIN vê todas; demais, as que participam).
+  minhas: () => request('/gincanas/minhas', { method: 'GET' }),
+  // Listagem completa (apenas ADMIN).
+  listar: () => request('/gincanas', { method: 'GET' }),
+  criar: (dados) => request('/gincanas', {
+    method: 'POST',
+    body: JSON.stringify(dados),
+  }),
+  atualizar: (id, dados) => request(`/gincanas/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(dados),
+  }),
+  alterarStatus: (id, status) => request(`/gincanas/${id}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status }),
+  }),
+};
+
+/**
+ * Serviço de Escolas (tenants)
+ */
+export const escolasService = {
+  // Escolas visíveis para o usuário logado (SUPER_ADMIN vê todas as ativas;
+  // demais, aquelas às quais estão vinculados). Alimenta o EscolaSelector.
+  minhas: () => request('/escolas/minhas', { method: 'GET' }),
+
+  // Administração — apenas SUPER_ADMIN.
+  listar: () => request('/escolas', { method: 'GET' }),
+  criar: (dados) => request('/escolas', {
+    method: 'POST',
+    body: JSON.stringify(dados),
+  }),
+  atualizar: (id, dados) => request(`/escolas/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(dados),
+  }),
+  alterarStatus: (id, status) => request(`/escolas/${id}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status }),
+  }),
+  obterResumo: (id) => request(`/escolas/${id}/resumo`, { method: 'GET' }),
+
+  // Vínculos usuário <-> escola (é o que permite um professor atuar em várias).
+  listarUsuarios: (id) => request(`/escolas/${id}/usuarios`, { method: 'GET' }),
+  // Identifica o usuário por _id ou por e-mail: { usuario_id } ou { email }.
+  // Aceita também { tipo, turma }: o papel que a pessoa terá NESTA escola.
+  // Sem `tipo`, ela herda o papel base (um ADMIN entra como ADMIN).
+  vincularUsuario: (id, identificador) => request(`/escolas/${id}/usuarios`, {
+    method: 'POST',
+    body: JSON.stringify(identificador),
+  }),
+  // Altera o papel do usuário DENTRO desta escola, sem mexer nas outras.
+  alterarPapelUsuario: (id, usuarioId, dados) =>
+    request(`/escolas/${id}/usuarios/${usuarioId}/papel`, {
+      method: 'PATCH',
+      body: JSON.stringify(dados),
+    }),
+  desvincularUsuario: (id, usuarioId) =>
+    request(`/escolas/${id}/usuarios/${usuarioId}`, { method: 'DELETE' }),
+};
+
+/**
+ * Serviço de Convites (auto-cadastro por código de escola/turma).
+ *
+ * `criar`/`listar`/`revogar`/`listarUsuarios`/`listarPendentes`/`decidirPendente`
+ * exigem escola ativa + ADMIN (o backend não passa por resolverGincana: o
+ * convite é da escola, não de uma edição). `prevalidar` é público, e
+ * `resgatar` é autenticado mas sem escola ativa — a escola alvo vem do código.
+ */
+export const convitesService = {
+  // Gera um código novo para a escola ativa. Com `turma`, o vínculo nasce
+  // ATIVO direto; sem `turma`, nasce PENDENTE (fila de aprovação manual).
+  criar: (dados) => request('/convites', {
+    method: 'POST',
+    body: JSON.stringify(dados),
+  }),
+
+  // Lista os convites da escola ativa, já com a contagem de usos.
+  listar: () => request('/convites', { method: 'GET' }),
+
+  // Invalida um código imediatamente (idempotente).
+  revogar: (id) => request(`/convites/${id}/revogar`, { method: 'PATCH' }),
+
+  // Quem entrou por este código — é o que torna a revogação útil.
+  listarUsuarios: (id) => request(`/convites/${id}/usuarios`, { method: 'GET' }),
+
+  // Pré-validação pública (sem login): só devolve { escola_nome, turma }, para
+  // a tela de cadastro confirmar "Você está entrando na Escola X — 6º Ano"
+  // antes de enviar o formulário.
+  prevalidar: (codigo) => request(`/convites/${encodeURIComponent(codigo)}`, { method: 'GET' }),
+
+  // Resgate autenticado: para quem já tem conta (professor ganhando uma
+  // segunda escola, ou aluno solicitando transferência).
+  resgatar: (codigo) => request('/convites/resgatar', {
+    method: 'POST',
+    body: JSON.stringify({ codigo }),
+  }),
+
+  // Fila de vínculos PENDENTE da escola ativa (cadastro sem código de turma +
+  // transferências aguardando decisão).
+  listarPendentes: () => request('/convites/pendentes', { method: 'GET' }),
+
+  // decisao: 'APROVAR' | 'REJEITAR'. turma é opcional e só faz sentido ao
+  // aprovar: obrigatória quando o pendente ainda não tem uma (código público
+  // da escola, sem turma) — ver decidirPendencia no backend.
+  decidirPendente: (usuarioId, decisao, turma) => request(`/convites/pendentes/${usuarioId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(turma !== undefined ? { decisao, turma } : { decisao }),
+  }),
+};
+
 export default {
   authService,
   provasService,
@@ -683,5 +848,8 @@ export default {
   feedbacksService,
   notificacoesService,
   resultadosService,
-  configuracoesService
+  configuracoesService,
+  gincanasService,
+  escolasService,
+  convitesService
 };

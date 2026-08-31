@@ -139,7 +139,7 @@ export const lancarResultados = async (req, res) => {
   }
 
   const avaliadorId = req.usuario.id;
-  const gincanaId = 'GINCANA_PRINCIPAL';
+  const gincanaId = req.gincanaId || 'GINCANA_PRINCIPAL';
 
   const session = await mongoose.startSession();
   session.startTransaction();

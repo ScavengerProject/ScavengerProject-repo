@@ -32,6 +32,7 @@ import { useAuth } from "../hooks/useAuth";
 import MainLayout from "../components/MainLayout";
 import { usuariosService } from "../services/api";
 import { toast } from "../components/ui/toast";
+import { ehAdmin } from "../lib/perfis";
 
 const AdminUsuarios = () => {
   const navigate = useNavigate();
@@ -95,7 +96,7 @@ const AdminUsuarios = () => {
   }, [dropdownStatusAberto]);
 
   useEffect(() => {
-    if (usuarioLogado?.tipo !== 'ADMIN') {
+    if (!ehAdmin(usuarioLogado)) {
       toast.error('Acesso negado. Apenas administradores podem acessar esta página.');
       navigate('/');
       return;

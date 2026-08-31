@@ -6,9 +6,12 @@ import {
   listarMembrosDaEquipe,
   buscarParticipante,
 } from "../penalidades/penalidadesController.js";
-import { proteger, autorizar } from "../auth/authPermissions.js";
+import { proteger, autorizar, resolverEscola, resolverGincana } from "../auth/authPermissions.js";
 
 const router = express.Router();
+
+// Resolve o escopo da gincana ativa (X-Gincana-Id) para todas as rotas de penalidades.
+router.use(proteger, resolverEscola, resolverGincana);
 
 // Todas as rotas de penalidades requerem autenticação e permissão de ADMIN ou COORDENADOR
 router.post("/", proteger, autorizar('ADMIN', 'COORDENADOR', 'ALUNO'), criarPenalidade);

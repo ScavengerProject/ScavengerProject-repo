@@ -7,6 +7,9 @@ import EmprestimoEquipe from '../models/EmprestimoEquipe.js';
 import Usuario from '../models/Usuario.js';
 import { getEquipeGincanaDoCoordenador } from '../equipes/coordenadorEquipe.js';
 
+// Escopo da gincana ativa (injetado por resolverGincana; fallback p/ gincana legada).
+const escopoGincana = (req) => req.gincanaId || 'GINCANA_PRINCIPAL';
+
 // Uma prova está "encerrada" (e portanto não recebe mais empréstimos) quando já passou da data_fim.
 const provaJaEncerrou = (prova) => {
   if (!prova?.data_fim) return false;
@@ -285,6 +288,7 @@ export const salvarEquipeParticipanteDaProva = async (req, res) => {
       {
         prova_id: provaId,
         equipe_id: equipeId,
+        gincana_id: prova.gincana_id,
         titulares_usuario_ids: titularesIds,
         suplentes_usuario_ids: suplentesIds,
         definido_por_usuario_id: coordenadorId,
@@ -320,14 +324,15 @@ export const salvarEquipeParticipanteDaProva = async (req, res) => {
 // Lista, por prova, as equipes e seus titulares/suplentes, marcando alunos emprestados.
 export const listarAssociacoesProvas = async (req, res) => {
   try {
+    const gincanaId = escopoGincana(req);
     const [provas, participacoes, equipesGincana, emprestimos] = await Promise.all([
-      Prova.find().select('titulo data_inicio data_fim status').sort({ data_inicio: -1 }),
-      ProvaEquipeParticipacao.find()
+      Prova.find({ gincana_id: gincanaId }).select('titulo data_inicio data_fim status').sort({ data_inicio: -1 }),
+      ProvaEquipeParticipacao.find({ gincana_id: gincanaId })
         .populate('equipe_id', 'nome cor')
         .populate('titulares_usuario_ids', 'nome email tipo turma status')
         .populate('suplentes_usuario_ids', 'nome email tipo turma status'),
-      EquipeGincana.find().select('_id equipe_id'),
-      EmprestimoEquipe.find({ status: 'ATIVO' })
+      EquipeGincana.find({ gincana_id: gincanaId }).select('_id equipe_id'),
+      EmprestimoEquipe.find({ status: 'ATIVO', gincana_id: gincanaId })
         .select('usuario_id prova_id equipe_destino_id')
         .populate({ path: 'equipe_origem_id', populate: { path: 'equipe_id', model: 'Equipe', select: 'nome' } }),
     ]);

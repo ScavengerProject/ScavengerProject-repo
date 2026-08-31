@@ -4,8 +4,17 @@ import EquipeMembros from '../models/EquipeMembros.js';
 import Usuario from '../models/Usuario.js';
 import ConfiguracaoGincana from '../models/ConfiguracaoGincana.js';
 import { getEquipeGincanaDoCoordenador } from './coordenadorEquipe.js';
+import {
+    filtroEscola,
+    filtroEscolaComPerfil,
+    projecaoUsuarioNaEscola,
+    comVinculoDaEscola,
+} from '../escolas/escolaHelpers.js';
 
-const GINCANA_ATUAL_ID = 'GINCANA_PRINCIPAL';
+// Resolve o escopo da gincana ativa a partir da requisição (injetado pelo
+// middleware resolverGincana). Mantém fallback para a gincana legada caso a
+// rota ainda não aplique o middleware.
+const escopoGincana = (req) => req.gincanaId || 'GINCANA_PRINCIPAL';
 
 /**
  * Conta apenas os vínculos cujo usuário ainda existe, ignorando registros
@@ -31,10 +40,11 @@ export const criarEquipe = async (req, res) => {
             return res.status(400).json({ message: 'Nome e cor são obrigatórios.' });
         }
 
-        // 3. Cria a Equipe Principal (Master Data)
+        // 3. Cria a Equipe Principal (Master Data), já escopada na gincana ativa
         const novaEquipe = new Equipe({
             nome,
             cor,
+            gincana_id: escopoGincana(req),
             membros: [], // Inicia sem membros
         });
         const equipeSalva = await novaEquipe.save();
@@ -43,7 +53,7 @@ export const criarEquipe = async (req, res) => {
         const equipeGincanaSalva = await EquipeGincana.create({
             equipe_id: equipeSalva._id,
             coordenador_usuario_id: null,
-            gincana_id: GINCANA_ATUAL_ID,
+            gincana_id: escopoGincana(req),
         });
 
         // 5. Busca e Popula o objeto final para retorno
@@ -82,7 +92,7 @@ export const criarEquipe = async (req, res) => {
 export const listarEquipes = async (req, res) => {
     try {
 
-        const gincanaRecords = await EquipeGincana.find({ gincana_id: GINCANA_ATUAL_ID })
+        const gincanaRecords = await EquipeGincana.find({ gincana_id: escopoGincana(req) })
             .populate('equipe_id', 'nome cor') // Popula apenas nome e cor
             .populate('coordenador_usuario_id', 'nome email');
 
@@ -132,12 +142,17 @@ export const adicionarMembro = async (req, res) => {
 
         if (!usuario_id) return res.status(400).json({ message: 'O ID do usuário é obrigatório.' });
 
+        const gincanaId = escopoGincana(req);
+        // Equipes (mestre) que participam da gincana ativa — usado para escopar a
+        // checagem de "já pertence a uma equipe" apenas a ESTA edição.
+        const equipeIdsDaGincana = await EquipeGincana.find({ gincana_id: gincanaId }).distinct('equipe_id');
+
         const [equipe, usuario, membroExistente, equipeGincana] = await Promise.all([
             Equipe.findById(equipeId),
             Usuario.findById(usuario_id),
-            EquipeMembros.findOne({ usuario_id: usuario_id }),
+            EquipeMembros.findOne({ usuario_id: usuario_id, equipe_id: { $in: equipeIdsDaGincana } }),
             // Busca o registro da equipe na gincana atual para obter o ID correto
-            EquipeGincana.findOne({ equipe_id: equipeId, gincana_id: GINCANA_ATUAL_ID })
+            EquipeGincana.findOne({ equipe_id: equipeId, gincana_id: gincanaId })
         ]);
 
         if (!equipe) return res.status(404).json({ message: 'Equipe não encontrada.' });
@@ -171,7 +186,8 @@ export const listarCoordenadoresDisponiveis = async (req, res) => {
     try {
         // A agregação é a forma mais robusta de encontrar usuários livres.
         const coordenadoresDisponiveis = await Usuario.aggregate([
-            { $match: { tipo: 'COORDENADOR' } }, // Filtra por tipo COORDENADOR
+            // Escopo de escola: só coordenadores vinculados à escola ativa.
+            { $match: filtroEscolaComPerfil(req.escolaId, 'COORDENADOR') },
             {
                 // Verifica se o usuário já é membro de alguma equipe
                 $lookup: {
@@ -198,10 +214,9 @@ export const listarCoordenadoresDisponiveis = async (req, res) => {
                 }
             },
             {
-                // Seleciona os campos para retornar para o frontend.
-                $project: {
-                    _id: 1, nome: 1, email: 1, tipo: 1, turma: 1
-                }
+                // Seleciona os campos para retornar para o frontend, com o papel
+                // e a turma DESTA escola (e não os do cadastro base).
+                $project: projecaoUsuarioNaEscola(req.escolaId)
             }
         ]);
 
@@ -281,15 +296,19 @@ export const listarTodosMembros = async (req, res) => {
 export const listarUsuariosSemEquipe = async (req, res) => {
     try {
 
-        /* const usuarios = await Usuario.find({ 
+        /* const usuarios = await Usuario.find({
              equipe_id: null,
              tipo: { $nin: ['ADMIN', 'COORDENADOR'] }
          })
-         .select('nome email tipo turma'); 
-         
+         .select('nome email tipo turma');
+
          res.status(200).json(usuarios);*/
         // A agregação é a forma mais robusta de encontrar usuários que não estão na tabela de membros.
         const usuariosDisponiveis = await Usuario.aggregate([
+            {
+                // Escopo de escola: a busca parte só de quem pertence à escola ativa.
+                $match: filtroEscola(req.escolaId)
+            },
             {
                 // Para cada usuário, ele tenta encontrar um registro correspondente em Equipes_Membros.
                 $lookup: {
@@ -306,20 +325,20 @@ export const listarUsuariosSemEquipe = async (req, res) => {
                 }
             },
             {
-                //para excluir os tipos de usuário indesejados.
+                // Exclui os tipos indesejados olhando o papel NESTA escola: quem
+                // é ADMIN em outra escola pode ser aluno disponível aqui.
                 $match: {
-                    tipo: { $nin: ['ADMIN', 'COORDENADOR'] }
+                    vinculos: {
+                        $elemMatch: {
+                            escola_id: String(req.escolaId),
+                            tipo: { $nin: ['ADMIN', 'COORDENADOR'] },
+                        },
+                    },
                 }
             },
             {
                 // Seleciona apenas os campos que deve retornar para o frontend.
-                $project: {
-                    _id: 1,
-                    nome: 1,
-                    email: 1,
-                    tipo: 1,
-                    turma: 1
-                }
+                $project: projecaoUsuarioNaEscola(req.escolaId)
             }
         ]);
 
@@ -341,7 +360,7 @@ export const listarMembrosPorEquipe = async (req, res) => {
 
         // 1. Busca os registros de membros (Corrigido o populate)
         const registrosMembros = await EquipeMembros.find({ equipe_id: equipeId })
-            // CORRIGIDO: Retirado o .select('is_coordenador usuario_id') daqui, 
+            // CORRIGIDO: Retirado o .select('is_coordenador usuario_id') daqui,
             // pois o find() já retorna o objeto inteiro, e o select dentro do populate é suficiente.
             .populate('usuario_id', 'nome email tipo turma');
 
@@ -416,7 +435,7 @@ export const visualizarEquipe = async (req, res) => {
         const coordenadorId = req.usuario.id;
 
         // 1. Valida se o usuário é coordenador (qualquer co-coordenador) e obtém a equipe
-        const registroGincana = await getEquipeGincanaDoCoordenador(coordenadorId);
+        const registroGincana = await getEquipeGincanaDoCoordenador(coordenadorId, { gincanaId: escopoGincana(req) });
         if (!registroGincana) return res.status(403).json({ message: 'Você não é o coordenador de uma equipe.' });
 
         const equipeId = registroGincana.equipe_id?._id || registroGincana.equipe_id;
@@ -472,7 +491,7 @@ export const removerMembroEquipe = async (req, res) => {
         }
 
         // valida se o requisitante é coordenador (qualquer co-coordenador) da equipe
-        const registroGincana = await getEquipeGincanaDoCoordenador(coordenadorId);
+        const registroGincana = await getEquipeGincanaDoCoordenador(coordenadorId, { gincanaId: escopoGincana(req) });
         if (!registroGincana) {
             return res.status(403).json({ message: 'Você não coordena uma equipe.' });
         }
@@ -521,12 +540,16 @@ export const inscreverAlunoEmEquipe = async (req, res) => {
             return res.status(400).json({ message: 'O ID da equipe é obrigatório.' });
         }
 
+        const gincanaId = escopoGincana(req);
+        // Equipes (mestre) da gincana ativa — escopa a checagem de vínculo à edição.
+        const equipeIdsDaGincana = await EquipeGincana.find({ gincana_id: gincanaId }).distinct('equipe_id');
+
         // Validações em paralelo
         const [aluno, equipe, membroExistente, equipeGincana] = await Promise.all([
             Usuario.findById(alunoId),
             Equipe.findById(equipeId),
-            EquipeMembros.findOne({ usuario_id: alunoId }),
-            EquipeGincana.findOne({ equipe_id: equipeId, gincana_id: GINCANA_ATUAL_ID })
+            EquipeMembros.findOne({ usuario_id: alunoId, equipe_id: { $in: equipeIdsDaGincana } }),
+            EquipeGincana.findOne({ equipe_id: equipeId, gincana_id: gincanaId })
         ]);
 
         // Validações
@@ -583,7 +606,7 @@ export const atualizarEquipe = async (req, res) => {
         // 2. Busca a Equipe Mestra e o Contexto da Gincana
         const [equipe, equipeContexto] = await Promise.all([
             Equipe.findById(equipeId),
-            EquipeGincana.findOne({ equipe_id: equipeId, gincana_id: GINCANA_ATUAL_ID }),
+            EquipeGincana.findOne({ equipe_id: equipeId, gincana_id: escopoGincana(req) }),
         ]);
 
         if (!equipe) return res.status(404).json({ message: 'Equipe não encontrada.' });
@@ -699,7 +722,7 @@ export const atribuirCoordenador = async (req, res) => {
         const novoCoordenadorId = req.body.usuario_id ?? req.body.novoCoordenadorId ?? req.body.coordId ?? null;
 
         // Busca o contexto da gincana (onde está o coordenador registrado)
-        const equipeContexto = await EquipeGincana.findOne({ equipe_id: equipeId, gincana_id: GINCANA_ATUAL_ID });
+        const equipeContexto = await EquipeGincana.findOne({ equipe_id: equipeId, gincana_id: escopoGincana(req) });
         if (!equipeContexto) {
             return res.status(404).json({ message: 'Contexto da equipe na gincana não encontrado.' });
         }
@@ -799,7 +822,7 @@ export const listarEquipesParaInscricao = async (req, res) => {
             equipeAtualId = membroAtual.equipe_id.toString();
         }
         // Busca todas as equipes com seus dados
-        const gincanaRecords = await EquipeGincana.find({ gincana_id: GINCANA_ATUAL_ID })
+        const gincanaRecords = await EquipeGincana.find({ gincana_id: escopoGincana(req) })
             .populate('equipe_id', 'nome cor')
             .populate('coordenador_usuario_id', 'nome email');
 
@@ -841,10 +864,9 @@ export const listarUsuariosElegiveisCoordenador = async (req, res) => {
 
         const usuariosLivres = await Usuario.aggregate([
             {
-                // Passo 1: Filtrar pelos tipos de usuário desejados (ALUNO ou COORDENADOR)
-                $match: {
-                    tipo: { $in: ['ALUNO', 'COORDENADOR'] }
-                }
+                // Passo 1: Filtrar pelos tipos desejados (ALUNO ou COORDENADOR),
+                // sempre dentro da escola ativa.
+                $match: filtroEscolaComPerfil(req.escolaId, ['ALUNO', 'COORDENADOR'])
             },
             {
                 // Passo 2: Tentar encontrar um vínculo para cada usuário na tabela de membros
@@ -863,14 +885,8 @@ export const listarUsuariosElegiveisCoordenador = async (req, res) => {
                 }
             },
             {
-                // Passo 4: Formatar a saída
-                $project: {
-                    _id: 1,
-                    nome: 1,
-                    email: 1,
-                    tipo: 1,
-                    turma: 1
-                }
+                // Passo 4: Formatar a saída com o papel/turma desta escola
+                $project: projecaoUsuarioNaEscola(req.escolaId)
             }
         ]);
 
@@ -878,10 +894,15 @@ export const listarUsuariosElegiveisCoordenador = async (req, res) => {
         const idsMembrosDaEquipe = await EquipeMembros.find({ equipe_id: equipeId }).distinct('usuario_id');
 
         // Buscar os Usuários que são ALUNOS e estão nessa lista
-        const alunosDaEquipe = await Usuario.find({
+        const alunosDaEquipe = (await Usuario.find({
             _id: { $in: idsMembrosDaEquipe },
-            tipo: 'ALUNO'
-        }).select('nome email tipo turma _id');
+            ...filtroEscolaComPerfil(req.escolaId, 'ALUNO'),
+        }).select('nome email tipo turma vinculos _id'))
+            // Mesmo formato da agregação acima: papel e turma desta escola.
+            .map((u) => {
+                const { vinculos, ...resto } = comVinculoDaEscola(u, req.escolaId);
+                return resto;
+            });
 
         const usuariosMap = new Map();
 
@@ -910,14 +931,14 @@ export const listarUsuariosElegiveisCoordenador = async (req, res) => {
 export const visualizarRankingEquipes = async (req, res) => {
     try {
         // Verificar configuração de mostrar notas
-        let config = await ConfiguracaoGincana.findOne({ gincana_id: GINCANA_ATUAL_ID });
+        let config = await ConfiguracaoGincana.findOne({ gincana_id: escopoGincana(req) });
         const mostrarNotas = config?.mostrar_notas_ranking || false;
 
         // Admin sempre vê as notas, independente da configuração
-        const isAdmin = req.usuario?.tipo === 'ADMIN';
+        const isAdmin = ['ADMIN', 'SUPER_ADMIN'].includes(req.usuario?.tipo);
         const deveMostrarNotas = mostrarNotas || isAdmin;
 
-        const rankingRecords = await EquipeGincana.find({ gincana_id: GINCANA_ATUAL_ID })
+        const rankingRecords = await EquipeGincana.find({ gincana_id: escopoGincana(req) })
             .sort({ pontos_acumulados: -1 })
             .select('equipe_id pontos_acumulados');
 
@@ -1008,8 +1029,8 @@ export const buscarMinhaEquipeId = async (req, res) => {
  * incluindo a lista de coordenadores e o limite máximo. Reutilizado pelos
  * endpoints de gestão de coordenadores.
  */
-const formatarEquipeComCoordenadores = async (equipeId) => {
-    const rec = await EquipeGincana.findOne({ equipe_id: equipeId, gincana_id: GINCANA_ATUAL_ID })
+const formatarEquipeComCoordenadores = async (equipeId, gincanaId) => {
+    const rec = await EquipeGincana.findOne({ equipe_id: equipeId, gincana_id: gincanaId })
         .populate('equipe_id', 'nome cor')
         .populate('coordenador_usuario_id', 'nome email');
 
@@ -1048,7 +1069,7 @@ export const adicionarCoordenador = async (req, res) => {
 
         if (!usuario_id) return res.status(400).json({ message: 'O ID do usuário é obrigatório.' });
 
-        const equipeContexto = await EquipeGincana.findOne({ equipe_id: equipeId, gincana_id: GINCANA_ATUAL_ID });
+        const equipeContexto = await EquipeGincana.findOne({ equipe_id: equipeId, gincana_id: escopoGincana(req) });
         if (!equipeContexto) return res.status(404).json({ message: 'Contexto da equipe na gincana não encontrado.' });
 
         const usuario = await Usuario.findById(usuario_id);
@@ -1086,7 +1107,7 @@ export const adicionarCoordenador = async (req, res) => {
             await equipeContexto.save();
         }
 
-        const equipeFormatada = await formatarEquipeComCoordenadores(equipeId);
+        const equipeFormatada = await formatarEquipeComCoordenadores(equipeId, escopoGincana(req));
         return res.status(200).json({ message: 'Coordenador adicionado com sucesso.', equipe: equipeFormatada });
 
     } catch (error) {
@@ -1104,7 +1125,7 @@ export const removerCoordenador = async (req, res) => {
     try {
         const { id: equipeId, usuarioId } = req.params;
 
-        const equipeContexto = await EquipeGincana.findOne({ equipe_id: equipeId, gincana_id: GINCANA_ATUAL_ID });
+        const equipeContexto = await EquipeGincana.findOne({ equipe_id: equipeId, gincana_id: escopoGincana(req) });
         if (!equipeContexto) return res.status(404).json({ message: 'Contexto da equipe na gincana não encontrado.' });
 
         const vinculo = await EquipeMembros.findOne({ equipe_id: equipeId, usuario_id: usuarioId, is_coordenador: true });
@@ -1123,7 +1144,7 @@ export const removerCoordenador = async (req, res) => {
             await equipeContexto.save();
         }
 
-        const equipeFormatada = await formatarEquipeComCoordenadores(equipeId);
+        const equipeFormatada = await formatarEquipeComCoordenadores(equipeId, escopoGincana(req));
         return res.status(200).json({ message: 'Coordenador removido com sucesso.', equipe: equipeFormatada });
 
     } catch (error) {
@@ -1146,7 +1167,7 @@ export const atualizarMaxCoordenadores = async (req, res) => {
             return res.status(400).json({ message: 'max_coordenadores deve ser um número inteiro maior ou igual a 1.' });
         }
 
-        const equipeContexto = await EquipeGincana.findOne({ equipe_id: equipeId, gincana_id: GINCANA_ATUAL_ID });
+        const equipeContexto = await EquipeGincana.findOne({ equipe_id: equipeId, gincana_id: escopoGincana(req) });
         if (!equipeContexto) return res.status(404).json({ message: 'Contexto da equipe na gincana não encontrado.' });
 
         // Não permite reduzir abaixo do número atual de coordenadores.
@@ -1160,7 +1181,7 @@ export const atualizarMaxCoordenadores = async (req, res) => {
         equipeContexto.max_coordenadores = max;
         await equipeContexto.save();
 
-        const equipeFormatada = await formatarEquipeComCoordenadores(equipeId);
+        const equipeFormatada = await formatarEquipeComCoordenadores(equipeId, escopoGincana(req));
         return res.status(200).json({ message: 'Limite de coordenadores atualizado.', equipe: equipeFormatada });
 
     } catch (error) {

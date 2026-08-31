@@ -21,6 +21,12 @@ const mockRes = () => {
 let mongoServer;
 let autor;
 let admin;
+let adminDeOutraEscola;
+
+// Multi-escola: as notificações de feedback vão só para os ADMINs da escola do
+// autor, então o controller depende de req.escolaId (injetado por resolverEscola).
+const escolaId = 'ESCOLA_TESTE';
+const outraEscolaId = 'ESCOLA_B';
 
 beforeAll(async () => {
   mongoServer = await MongoMemoryServer.create();
@@ -33,8 +39,9 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
-  autor = await Usuario.create({ nome: 'Autor', email: 'autor@x.com', senha: '123', tipo: 'ALUNO', turma: 'EF - 6º Ano' });
-  admin = await Usuario.create({ nome: 'Admin', email: 'admin@x.com', senha: '123', tipo: 'ADMIN', status: 'ATIVO' });
+  autor = await Usuario.create({ nome: 'Autor', email: 'autor@x.com', senha: '123', tipo: 'ALUNO', turma: 'EF - 6º Ano', vinculos: [{ escola_id: escolaId, tipo: 'ALUNO' }] });
+  admin = await Usuario.create({ nome: 'Admin', email: 'admin@x.com', senha: '123', tipo: 'ADMIN', status: 'ATIVO', vinculos: [{ escola_id: escolaId, tipo: 'ADMIN' }] });
+  adminDeOutraEscola = await Usuario.create({ nome: 'Admin B', email: 'adminb@x.com', senha: '123', tipo: 'ADMIN', status: 'ATIVO', vinculos: [{ escola_id: outraEscolaId, tipo: 'ADMIN' }] });
 });
 
 afterEach(async () => {
@@ -43,7 +50,7 @@ afterEach(async () => {
 
 describe('feedbackController - enviarFeedback', () => {
   it('cria feedback PENDENTE e notifica os admins', async () => {
-    const req = { usuario: { id: autor._id.toString() }, body: { descricao: 'Encontrei um bug no ranking.' } };
+    const req = { usuario: { id: autor._id.toString() }, escolaId, body: { descricao: 'Encontrei um bug no ranking.' } };
     const res = mockRes();
 
     await enviarFeedback(req, res);
@@ -56,6 +63,17 @@ describe('feedbackController - enviarFeedback', () => {
     await new Promise((r) => setTimeout(r, 50));
     const notifAdmin = await Notificacao.findOne({ usuario_id: admin._id });
     expect(notifAdmin).not.toBeNull();
+  });
+
+  it('não notifica ADMINs de outras escolas', async () => {
+    const req = { usuario: { id: autor._id.toString() }, escolaId, body: { descricao: 'Outro relato.' } };
+    const res = mockRes();
+
+    await enviarFeedback(req, res);
+
+    await new Promise((r) => setTimeout(r, 50));
+    const notifAlheia = await Notificacao.findOne({ usuario_id: adminDeOutraEscola._id });
+    expect(notifAlheia).toBeNull();
   });
 
   it('retorna 400 quando a descrição está ausente', async () => {

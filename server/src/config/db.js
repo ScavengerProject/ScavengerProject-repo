@@ -2,6 +2,7 @@
 
 import dotenv from 'dotenv';
 import mongoose from 'mongoose';
+import Gincana from '../models/Gincana.js';
 
 dotenv.config();
 
@@ -31,6 +32,16 @@ const connectDB = async () => {
 
   try {
     await mongoose.connect(uri);
+
+    // Migração idempotente do multi-escola. Antes, Gincana possuía o índice
+    // único global { nome, ano }; apenas alterar o schema não remove esse índice
+    // já criado no MongoDB. Sem esta sincronização, uma escola nova não consegue
+    // criar "Gincana 2026" se outra escola já usa o mesmo nome/ano.
+    //
+    // É feita na conexão para não depender de alguém lembrar de executar um seed
+    // manualmente em cada ambiente. syncIndexes mantém os índices declarados no
+    // schema atual e remove somente os índices obsoletos desta coleção.
+    await Gincana.syncIndexes();
     console.log(`✅ MongoDB conectado com sucesso (ambiente: ${ambiente}).`);
   } catch (err) {
     console.error(`❌ ERRO ao conectar com MongoDB: ${err.message}`);

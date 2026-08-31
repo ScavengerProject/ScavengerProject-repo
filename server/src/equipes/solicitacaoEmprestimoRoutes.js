@@ -1,6 +1,6 @@
 // src/equipes/solicitacaoEmprestimoRoutes.js
 import express from 'express';
-import { proteger, autorizar } from '../auth/authPermissions.js';
+import { proteger, autorizar, resolverEscola, resolverGincana } from '../auth/authPermissions.js';
 import {
   criarSolicitacao,
   listarSolicitacoes,
@@ -11,6 +11,9 @@ import {
 } from './solicitacaoEmprestimoController.js';
 
 const router = express.Router();
+
+// Resolve o escopo da gincana ativa (X-Gincana-Id) para todas as rotas de solicitações.
+router.use(proteger, resolverEscola, resolverGincana);
 
 // Coordenador cria solicitação
 router.post('/', proteger, autorizar('COORDENADOR'), criarSolicitacao);
