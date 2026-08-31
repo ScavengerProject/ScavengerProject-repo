@@ -13,6 +13,10 @@ import AdminProvasAssociacoes from './pages/AdminProvasAssociacoes.jsx';
 import AdminEquipes from './pages/AdminEquipes.jsx';
 import GerenciarGincanas from './pages/GerenciarGincanas.jsx';
 import GerenciarEscolas from './pages/GerenciarEscolas.jsx';
+import GerenciarConvites from './pages/GerenciarConvites.jsx';
+import AprovarVinculosEscola from './pages/AprovarVinculosEscola.jsx';
+import ResgatarConvite from './pages/ResgatarConvite.jsx';
+import AguardandoAprovacao from './pages/AguardandoAprovacao.jsx';
 import SelecionarEscola from './pages/SelecionarEscola.jsx';
 import SelecionarGincana from './pages/SelecionarGincana.jsx';
 import GerenciarEquipe from './pages/GerenciarEquipes.jsx';
@@ -47,6 +51,16 @@ const ROTAS_SEM_GINCANA = [
   '/selecionar-gincana',
   '/admin/escolas',
   '/admin/gincanas',
+  '/admin/convites',
+  '/admin/vinculos-pendentes',
+  // Vínculo PENDENTE: sem acesso à escola ainda, então não há gincana para
+  // escolher (ver codigo VINCULO_PENDENTE em services/api.js).
+  '/aguardando-aprovacao',
+  // Resgatar convite não depende da gincana ativa — e exigir uma trancaria
+  // justamente quem mais precisa da tela: o aluno que troca de escola na virada
+  // do ano, quando a única gincana da escola de origem já está ENCERRADA e não
+  // há nada selecionável em /selecionar-gincana.
+  '/convites/resgatar',
 ];
 
 // Tela de espera usada tanto na inicialização da sessão quanto enquanto o
@@ -167,6 +181,46 @@ function App() {
           element={
             isAuthenticated
               ? (isSuperAdmin ? <GerenciarEscolas /> : <Navigate to="/" replace />)
+              : <Navigate to="/login" replace />
+          }
+        />
+
+        {/* Gerenciamento de Convites (ADMIN da escola ativa) */}
+        <Route
+          path="/admin/convites"
+          element={
+            isAuthenticated
+              ? (isAdmin ? <GerenciarConvites /> : <Navigate to="/" replace />)
+              : <Navigate to="/login" replace />
+          }
+        />
+
+        {/* Vínculos pendentes: cadastro sem código de turma + transferências (ADMIN) */}
+        <Route
+          path="/admin/vinculos-pendentes"
+          element={
+            isAuthenticated
+              ? (isAdmin ? <AprovarVinculosEscola /> : <Navigate to="/" replace />)
+              : <Navigate to="/login" replace />
+          }
+        />
+
+        {/* Tela de espera do vínculo PENDENTE (ver codigo VINCULO_PENDENTE) */}
+        <Route
+          path="/aguardando-aprovacao"
+          element={isAuthenticated ? <AguardandoAprovacao /> : <Navigate to="/login" replace />}
+        />
+
+        {/* Resgate de código de convite por quem já tem conta (ex.: aluno
+            mudando de escola). NÃO entra em ROTAS_SEM_GINCANA: diferente das
+            telas de seleção/administração, quem chega aqui já tem escola e
+            gincana ativas — é uma ação extra dentro da sessão normal, não
+            uma etapa de resolução de escopo. */}
+        <Route
+          path="/convites/resgatar"
+          element={
+            isAuthenticated
+              ? (usuario.tipo === 'ALUNO' ? <ResgatarConvite /> : <Navigate to="/" replace />)
               : <Navigate to="/login" replace />
           }
         />

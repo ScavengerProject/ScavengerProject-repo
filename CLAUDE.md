@@ -91,6 +91,7 @@ a generic error banner):
 | `GINCANA_NAO_SELECIONADA` | switched escola, no gincana chosen yet | go to `/selecionar-gincana` |
 | `GINCANA_ENCERRADA` | active edition ended (or year rolled over) | go to `/selecionar-gincana` |
 | `SEM_VINCULO_ESCOLA` / `VINCULO_INATIVO` | lost access to active escola | go to `/selecionar-escola` |
+| `ESCOLA_NAO_SELECIONADA` | no `X-Escola-Id` sent on an already-migrated DB | go to `/selecionar-escola` |
 
 Post-login flow is **escola → gincana → app** (`client/src/App.jsx`): a user
 can't reach any page until `useEscola`/`useGincana` report loaded, because
@@ -158,6 +159,25 @@ screen.
 `X-Escola-Id`/`X-Gincana-Id` headers (old cached frontend, or a pre-multi-
 tenant install). Don't remove these without checking both middlewares' full
 fallback branches.
+
+The escola fallback is **narrow on purpose**: `resolverEscola` only takes it
+when the install is genuinely pre-multi-escola (no `Escola` document exists
+*and* the user has no `vinculos`). Otherwise a missing header is answered with
+400 `ESCOLA_NAO_SELECIONADA`. Widening that branch reopens an authorization
+bypass — it doesn't check any vinculo, so `req.usuario.tipo` would keep the
+token's **base** role and someone who is ALUNO in their escola but has a base
+`tipo` of ADMIN would pass `autorizar('ADMIN')` just by dropping the header.
+
+### The role never comes from the JWT
+`autorizar()` reads `req.usuario.tipo`, and the token's copy of it is frozen at
+login for 2h — so every path that decides permissions re-reads the role from
+the DB first. `resolverEscola` does it inline (and only trusts the DB's
+`SUPER_ADMIN`, never the token's). Routes that have no active escola, and so
+skip `resolverEscola` — today the global escola-admin routes — must chain
+`resolverPapelBase` between `proteger` and `autorizar(...)`. Without it,
+someone demoted from `SUPER_ADMIN` keeps creating escolas until the token
+expires. `resolverPapelBase` caches the document in `req.usuarioDoc`, which
+`resolverEscola` reuses, so chaining both costs one query.
 
 ## Environment
 Backend needs `server/.env` (see `server/.env.example`): `MONGO_URI`, `PORT`,

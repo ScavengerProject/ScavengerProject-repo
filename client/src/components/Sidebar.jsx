@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import {
   BookOpen, Users, UserCheck, Handshake, MessageSquare,
   History, Gavel, AlertCircle, User, Trophy, School,
-  ChevronRight, Menu, X, ChevronDown
+  ChevronRight, Menu, X, ChevronDown, Ticket, UserPlus, KeyRound
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { ehAdmin, ehSuperAdmin } from '../lib/perfis';
@@ -59,6 +59,17 @@ export default function Sidebar({ usuario, isOpen, onToggle, isMobile }) {
       show: ['ALUNO', 'PROFESSOR', 'PAI/MÃE'].includes(usuario?.tipo)
     },
     {
+      id: 'resgatar-convite',
+      icon: KeyRound,
+      title: 'Código de Convite',
+      description: 'Entrar em outra escola',
+      path: '/convites/resgatar',
+      color: 'indigo',
+      // Código de convite só emite ALUNO (D4 do plano de convites) — é para
+      // quem já tem conta e está mudando de escola.
+      show: usuario?.tipo === 'ALUNO'
+    },
+    {
       id: 'gerenciar-escolas',
       icon: School,
       title: 'Gerenciar Escolas',
@@ -101,6 +112,24 @@ export default function Sidebar({ usuario, isOpen, onToggle, isMobile }) {
       description: 'Configurar usuários',
       path: '/admin/usuarios',
       color: 'teal',
+      show: isAdmin
+    },
+    {
+      id: 'gerenciar-convites',
+      icon: Ticket,
+      title: 'Gerenciar Convites',
+      description: 'Códigos de turma e da escola',
+      path: '/admin/convites',
+      color: 'emerald',
+      show: isAdmin
+    },
+    {
+      id: 'vinculos-pendentes',
+      icon: UserPlus,
+      title: 'Vínculos Pendentes',
+      description: 'Cadastros e transferências',
+      path: '/admin/vinculos-pendentes',
+      color: 'amber',
       show: isAdmin
     },
     {
