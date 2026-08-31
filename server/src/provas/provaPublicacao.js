@@ -32,6 +32,13 @@ export const dispatchNotificacoesNovaProva = async (prova) => {
 
   // O papel do participante é o do vínculo com a escola DESTA gincana: quem é
   // aluno aqui pode ser professor em outra escola, e não deve entrar na lista.
+  //
+  // Escopo por ESCOLA, não pela gincana_id da prova (não filtra por
+  // participação real via EquipeMembros/EquipeGincana, como faz
+  // usuarioParticipaDaGincana em gincanaHelpers.js). Decisão deliberada: o
+  // sistema não suporta mais de uma gincana ativa por escola ao mesmo tempo,
+  // então escola == gincana ativa. Se isso mudar, revisar este filtro — ver
+  // ADR-0005 no repositório de docs.
   const filtro = gincana?.escola_id
     ? {
       vinculos: {
