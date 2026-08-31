@@ -124,8 +124,39 @@ describe('authPermissions - resolverEscola', () => {
     expect(next).not.toHaveBeenCalled();
   });
 
-  it('cai no fallback ESCOLA_PRINCIPAL quando o header não vem (dados legados)', async () => {
-    const req = { headers: {}, usuario: { id: 'x', tipo: 'ALUNO' }, method: 'GET', originalUrl: '/api/provas' };
+  it('sem header, numa base já migrada, pede a seleção da escola', async () => {
+    // O fallback legado NÃO vale aqui: existem escolas cadastradas, então
+    // omitir o header não pode virar um escopo "ESCOLA_PRINCIPAL" sem vínculo
+    // (era assim que o papel base do token passava por cima do papel da escola).
+    const usuario = await Usuario.create({
+      nome: 'Ex-admin', email: 'ex@x.com', senha: '123', tipo: 'ADMIN',
+      vinculos: [{ escola_id: ESCOLA_A, tipo: 'ALUNO', turma: 'EF - 6º Ano' }],
+    });
+    const req = {
+      headers: {}, usuario: { id: usuario._id.toString(), tipo: 'ADMIN' },
+      method: 'GET', originalUrl: '/api/provas',
+    };
+    const res = mockRes();
+    const next = jest.fn();
+
+    await resolverEscola(req, res, next);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json.mock.calls[0][0].codigo).toBe('ESCOLA_NAO_SELECIONADA');
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('cai no fallback ESCOLA_PRINCIPAL numa instalação realmente legada', async () => {
+    // Instalação anterior ao multi-escola: nenhuma escola cadastrada e usuário
+    // sem vínculos. Só nesse caso o papel base ainda é a fonte da verdade.
+    await Escola.deleteMany({});
+    const usuario = await Usuario.create({
+      nome: 'Legado', email: 'legado@x.com', senha: '123', tipo: 'ALUNO', vinculos: [],
+    });
+    const req = {
+      headers: {}, usuario: { id: usuario._id.toString(), tipo: 'ALUNO' },
+      method: 'GET', originalUrl: '/api/provas',
+    };
     const res = mockRes();
     const next = jest.fn();
 
@@ -261,6 +292,26 @@ describe('authPermissions - papel por escola', () => {
     await resolverEscola(req, res, next);
 
     expect(res.status).toHaveBeenCalledWith(403);
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  // Caso de teste #7 do plano de convites: um vínculo PENDENTE (código sem
+  // aprovação automática, ou transferência aguardando o ADMIN de destino) não
+  // pode passar como se fosse acesso — mas também não pode virar o mesmo
+  // VINCULO_INATIVO que manda o front para /selecionar-escola em loop.
+  it('403 com codigo VINCULO_PENDENTE quando o vínculo ainda não foi aprovado', async () => {
+    const usuario = await Usuario.create({
+      nome: 'Pendente', email: 'pendente@x.com', senha: '123', tipo: 'ALUNO',
+      vinculos: [{ escola_id: ESCOLA_A, tipo: 'ALUNO', turma: 'EF - 6º Ano', status: 'PENDENTE' }],
+    });
+    const req = { headers: { 'x-escola-id': ESCOLA_A }, usuario: { id: usuario._id.toString(), tipo: 'ALUNO' } };
+    const res = mockRes();
+    const next = jest.fn();
+
+    await resolverEscola(req, res, next);
+
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.json.mock.calls[0][0].codigo).toBe('VINCULO_PENDENTE');
     expect(next).not.toHaveBeenCalled();
   });
 });
