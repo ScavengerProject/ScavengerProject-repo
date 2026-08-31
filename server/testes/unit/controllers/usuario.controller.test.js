@@ -4,6 +4,7 @@ import bcrypt from 'bcryptjs';
 
 import Usuario from '../../../src/models/Usuario.js';
 import Escola from '../../../src/models/Escola.js';
+import CodigoConvite from '../../../src/models/CodigoConvite.js';
 import {
   criarUsuario,
   registrarUsuario,
@@ -73,7 +74,23 @@ beforeEach(async () => {
 afterEach(async () => {
   await Usuario.deleteMany({});
   await Escola.deleteMany({});
+  await CodigoConvite.deleteMany({});
 });
+
+// Helper: cria um código de convite válido para os testes de registrarUsuario.
+const criarConvite = (dados = {}) =>
+  CodigoConvite.create({
+    codigo: dados.codigo || 'TESTE1234',
+    escola_id: dados.escola_id || escolaId,
+    turma: dados.turma !== undefined ? dados.turma : 'EF - 6º Ano',
+    aprovacao_automatica: dados.aprovacao_automatica !== undefined ? dados.aprovacao_automatica : true,
+    ano_letivo: new Date().getFullYear(),
+    expira_em: dados.expira_em || new Date(Date.now() + 86400000),
+    limite_usos: dados.limite_usos ?? null,
+    usos: dados.usos || 0,
+    revogado_em: dados.revogado_em || null,
+    criado_por: adminId,
+  });
 
 describe('usuarioController - criarUsuario', () => {
   it('cria usuário, oculta a senha na resposta e faz hash no banco', async () => {
@@ -157,10 +174,50 @@ describe('usuarioController - criarUsuario', () => {
   });
 });
 
-describe('usuarioController - registrarUsuario (auto-cadastro)', () => {
-  it('cria como ALUNO na escola escolhida e responde com mensagem de aprovação', async () => {
-    // Rota pública: a escola vem no corpo, não no header.
-    const req = { body: { nome: 'Novo', email: 'novo@x.com', senha: '123456', escola_id: escolaId } };
+describe('usuarioController - registrarUsuario (auto-cadastro por código de convite)', () => {
+  it('cria como ALUNO na escola/turma do código e responde com mensagem de sucesso (código de turma = ATIVO)', async () => {
+    const convite = await criarConvite();
+    const req = { body: { nome: 'Novo', email: 'novo@x.com', senha: '123456', codigo: convite.codigo } };
+    const res = mockRes();
+
+    await registrarUsuario(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'Cadastro realizado com sucesso!' })
+    );
+    const criado = await Usuario.findOne({ email: 'novo@x.com' });
+    expect(criado.tipo).toBe('ALUNO');
+    expect(criado.vinculos[0].escola_id).toBe(escolaId);
+    expect(criado.vinculos[0].turma).toBe('EF - 6º Ano');
+    expect(criado.vinculos[0].status).toBe('ATIVO');
+    expect(criado.vinculos[0].codigo_convite_id.toString()).toBe(convite._id.toString());
+
+    expect((await CodigoConvite.findById(convite._id)).usos).toBe(1);
+  });
+
+  // Regressão da falha original: escola_id no corpo é ignorado — quem decide
+  // a escola é o código de convite.
+  it('ignora um escola_id enviado no corpo: a escola vem sempre do código', async () => {
+    const convite = await criarConvite({ escola_id: escolaId });
+    const req = {
+      body: {
+        nome: 'Hostil', email: 'hostil@x.com', senha: '123456',
+        codigo: convite.codigo, escola_id: outraEscolaId,
+      },
+    };
+    const res = mockRes();
+
+    await registrarUsuario(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(201);
+    const criado = await Usuario.findOne({ email: 'hostil@x.com' });
+    expect(criado.vinculos[0].escola_id).toBe(escolaId); // não outraEscolaId
+  });
+
+  it('código público da escola (sem turma) cria vínculo PENDENTE', async () => {
+    const convite = await criarConvite({ turma: null, aprovacao_automatica: false });
+    const req = { body: { nome: 'Fila', email: 'fila@x.com', senha: '123456', codigo: convite.codigo } };
     const res = mockRes();
 
     await registrarUsuario(req, res);
@@ -169,13 +226,12 @@ describe('usuarioController - registrarUsuario (auto-cadastro)', () => {
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({ message: 'Cadastro enviado para aprovação!' })
     );
-    const criado = await Usuario.findOne({ email: 'novo@x.com' });
-    expect(criado.tipo).toBe('ALUNO');
-    expect(criado.vinculos.map((v) => String(v.escola_id))).toEqual([escolaId]);
+    const criado = await Usuario.findOne({ email: 'fila@x.com' });
+    expect(criado.vinculos[0].status).toBe('PENDENTE');
   });
 
-  it('retorna 400 quando a escola não é informada', async () => {
-    const req = { body: { nome: 'Sem escola', email: 'sem@x.com', senha: '123456' } };
+  it('retorna 400 quando nenhum código é informado', async () => {
+    const req = { body: { nome: 'Sem código', email: 'sem@x.com', senha: '123456' } };
     const res = mockRes();
 
     await registrarUsuario(req, res);
@@ -183,8 +239,8 @@ describe('usuarioController - registrarUsuario (auto-cadastro)', () => {
     expect(res.status).toHaveBeenCalledWith(400);
   });
 
-  it('retorna 404 quando a escola informada não existe', async () => {
-    const req = { body: { nome: 'X', email: 'x@x.com', senha: '123456', escola_id: 'NAO_EXISTE' } };
+  it('retorna 404 quando o código não existe', async () => {
+    const req = { body: { nome: 'X', email: 'x@x.com', senha: '123456', codigo: 'NAOEXISTE' } };
     const res = mockRes();
 
     await registrarUsuario(req, res);
@@ -192,14 +248,57 @@ describe('usuarioController - registrarUsuario (auto-cadastro)', () => {
     expect(res.status).toHaveBeenCalledWith(404);
   });
 
-  it('retorna 409 para email duplicado', async () => {
+  it('retorna 404 (mesma mensagem) para código revogado', async () => {
+    const convite = await criarConvite({ codigo: 'REVOGADO1', revogado_em: new Date() });
+    const req = { body: { nome: 'X', email: 'y@x.com', senha: '123456', codigo: convite.codigo } };
+    const res = mockRes();
+
+    await registrarUsuario(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(404);
+  });
+
+  it('retorna 404 para código expirado', async () => {
+    const convite = await criarConvite({ codigo: 'EXPIRADO1', expira_em: new Date(Date.now() - 1000) });
+    const req = { body: { nome: 'X', email: 'z@x.com', senha: '123456', codigo: convite.codigo } };
+    const res = mockRes();
+
+    await registrarUsuario(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(404);
+  });
+
+  it('retorna 404 para código que já bateu o limite de usos', async () => {
+    const convite = await criarConvite({ codigo: 'LIMITADO1', limite_usos: 1, usos: 1 });
+    const req = { body: { nome: 'X', email: 'w@x.com', senha: '123456', codigo: convite.codigo } };
+    const res = mockRes();
+
+    await registrarUsuario(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(404);
+  });
+
+  it('normaliza o código digitado (minúsculas/hífen) antes de validar', async () => {
+    const convite = await criarConvite({ codigo: 'ABCD1234' });
+    const req = { body: { nome: 'Normalizado', email: 'norm@x.com', senha: '123456', codigo: 'abcd-1234' } };
+    const res = mockRes();
+
+    await registrarUsuario(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(201);
+  });
+
+  it('retorna 409 genérico (anti-enumeração) para email duplicado', async () => {
     await criarNoBanco({ nome: 'A', email: 'reg@x.com', senha: '123', tipo: 'ALUNO', turma: 'EF - 6º Ano' });
-    const req = { body: { nome: 'B', email: 'reg@x.com', senha: '123', escola_id: escolaId } };
+    const convite = await criarConvite();
+    const req = { body: { nome: 'B', email: 'reg@x.com', senha: '123', codigo: convite.codigo } };
     const res = mockRes();
 
     await registrarUsuario(req, res);
 
     expect(res.status).toHaveBeenCalledWith(409);
+    // Mensagem não pode confirmar que a conta já existe.
+    expect(res.json.mock.calls[0][0].message).not.toMatch(/já está cadastrado/i);
   });
 });
 

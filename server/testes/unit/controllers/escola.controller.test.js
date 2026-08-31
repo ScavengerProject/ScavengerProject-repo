@@ -4,10 +4,13 @@ import { MongoMemoryServer } from 'mongodb-memory-server';
 import Escola from '../../../src/models/Escola.js';
 import Usuario from '../../../src/models/Usuario.js';
 import Gincana from '../../../src/models/Gincana.js';
+import Equipe from '../../../src/models/Equipe.js';
+import EquipeGincana from '../../../src/models/EquipeGincana.js';
+import EquipeMembros from '../../../src/models/EquipeMembros.js';
+import Notificacao from '../../../src/models/Notificacao.js';
 import {
   listarEscolas,
   minhasEscolas,
-  listarEscolasPublicas,
   criarEscola,
   atualizarEscola,
   alterarStatusEscola,
@@ -17,6 +20,7 @@ import {
   desvincularUsuario,
   obterResumoEscola,
 } from '../../../src/escolas/escolaController.js';
+import { conflitoMultiEscola } from '../../../src/escolas/escolaHelpers.js';
 
 const mockRes = () => {
   const res = {};
@@ -50,7 +54,15 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-  await Promise.all([Escola.deleteMany({}), Usuario.deleteMany({}), Gincana.deleteMany({})]);
+  await Promise.all([
+    Escola.deleteMany({}),
+    Usuario.deleteMany({}),
+    Gincana.deleteMany({}),
+    Equipe.deleteMany({}),
+    EquipeGincana.deleteMany({}),
+    EquipeMembros.deleteMany({}),
+    Notificacao.deleteMany({}),
+  ]);
 });
 
 const reqSuper = (extra = {}) => ({ usuario: { id: superAdminId, tipo: 'SUPER_ADMIN' }, ...extra });
@@ -84,16 +96,6 @@ describe('escolaController - leitura', () => {
     const lista = res.json.mock.calls[0][0];
     expect(lista).toHaveLength(1);
     expect(lista[0]._id).toBe(ESCOLA_A);
-  });
-
-  it('listarEscolasPublicas expõe só escolas ativas e sem campos sensíveis', async () => {
-    const res = mockRes();
-    await listarEscolasPublicas({}, res);
-
-    const lista = res.json.mock.calls[0][0];
-    expect(lista).toHaveLength(1);
-    expect(lista[0].nome).toBe('Escola A');
-    expect(lista[0].criado_por).toBeUndefined();
   });
 
   it('obterResumoEscola conta gincanas e usuários da escola', async () => {
@@ -450,5 +452,140 @@ describe('escolaController - escola única para perfis de participante', () => {
         { escola_id: ESCOLA_B, tipo: 'ALUNO', turma: 'EF - 6º Ano' },
       ],
     })).rejects.toThrow(/uma única escola/);
+  });
+
+  // Insight central do desenho de convites: PENDENTE é uma SOLICITAÇÃO, não
+  // um acesso — não pode contar para a regra de escola única, senão o vínculo
+  // de destino de uma transferência é rejeitado antes mesmo de existir.
+  it('um vínculo PENDENTE em outra escola não conta para a regra de escola única', async () => {
+    await expect(Usuario.create({
+      nome: 'Transferindo', email: 'transf@x.com', senha: '123', tipo: 'ALUNO', turma: 'EF - 6º Ano',
+      vinculos: [
+        { escola_id: ESCOLA_A, tipo: 'ALUNO', turma: 'EF - 6º Ano', status: 'ATIVO' },
+        { escola_id: ESCOLA_B, tipo: 'ALUNO', turma: 'EF - 6º Ano', status: 'PENDENTE' },
+      ],
+    })).resolves.toBeDefined();
+  });
+
+  it('conflitoMultiEscola ignora vínculos PENDENTE do usuário', async () => {
+    const aluno = await Usuario.create({
+      nome: 'Aluno', email: 'aluno.pendente@x.com', senha: '123', tipo: 'ALUNO', turma: 'EF - 6º Ano',
+      vinculos: [{ escola_id: ESCOLA_A, tipo: 'ALUNO', turma: 'EF - 6º Ano', status: 'PENDENTE' }],
+    });
+
+    expect(conflitoMultiEscola(aluno, ESCOLA_B, 'ALUNO')).toBeNull();
+  });
+});
+
+// Fase 0 do plano de convites: destravar a transferência administrativa. Antes
+// desta mudança não existia NENHUMA ordem de chamadas que funcionasse — vincular
+// recusava o segundo vínculo (409 PERFIL_ESCOLA_UNICA) e desvincular recusava
+// remover o único vínculo antes de haver um novo. `transferir: true` resolve os
+// dois lados numa única `usuario.save()`.
+describe('escolaController - transferência administrativa (vincularUsuario transferir=true)', () => {
+  it('sem transferir=true, o conflito de escola única continua 409 (comportamento padrão preservado)', async () => {
+    const aluno = await Usuario.create({
+      nome: 'Aluno', email: 'aluno.semtransf@x.com', senha: '123', tipo: 'ALUNO', turma: 'EF - 6º Ano',
+      vinculos: [{ escola_id: ESCOLA_B, tipo: 'ALUNO', turma: 'EF - 6º Ano', status: 'ATIVO' }],
+    });
+    const res = mockRes();
+
+    await vincularUsuario(reqSuper({ params: { id: ESCOLA_A }, body: { email: 'aluno.semtransf@x.com' } }), res);
+
+    expect(res.status).toHaveBeenCalledWith(409);
+    const atualizado = await Usuario.findById(aluno._id);
+    expect(atualizado.vinculos).toHaveLength(1);
+    expect(atualizado.vinculos[0].escola_id).toBe(ESCOLA_B);
+  });
+
+  it('transferir=true remove o vínculo ATIVO antigo e cria o novo ATIVO numa única gravação', async () => {
+    const aluno = await Usuario.create({
+      nome: 'Transferido', email: 'aluno.transf@x.com', senha: '123', tipo: 'ALUNO', turma: 'EF - 7º Ano',
+      vinculos: [{ escola_id: ESCOLA_B, tipo: 'ALUNO', turma: 'EF - 7º Ano', status: 'ATIVO' }],
+    });
+    const res = mockRes();
+
+    await vincularUsuario(
+      reqSuper({ params: { id: ESCOLA_A }, body: { email: 'aluno.transf@x.com', turma: 'EF - 6º Ano', transferir: true } }),
+      res
+    );
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.json.mock.calls[0][0].message).toMatch(/transferido/i);
+
+    const atualizado = await Usuario.findById(aluno._id);
+    expect(atualizado.vinculos).toHaveLength(1);
+    expect(atualizado.vinculos[0].escola_id).toBe(ESCOLA_A);
+    expect(atualizado.vinculos[0].status).toBe('ATIVO');
+    expect(atualizado.vinculos[0].turma).toBe('EF - 6º Ano');
+  });
+
+  it('transferir=true sem conflito de escola única funciona como um vínculo normal (sem "transferido" na mensagem)', async () => {
+    const prof = await Usuario.create({
+      nome: 'Multi', email: 'prof.transfsemconf@x.com', senha: '123', tipo: 'PROFESSOR',
+      vinculos: [{ escola_id: ESCOLA_B, tipo: 'PROFESSOR' }],
+    });
+    const res = mockRes();
+
+    await vincularUsuario(
+      reqSuper({ params: { id: ESCOLA_A }, body: { email: 'prof.transfsemconf@x.com', transferir: true } }),
+      res
+    );
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.json.mock.calls[0][0].message).not.toMatch(/transferido/i);
+    const atualizado = await Usuario.findById(prof._id);
+    expect(atualizado.vinculos.map((v) => String(v.escola_id)).sort()).toEqual([ESCOLA_A, ESCOLA_B]);
+  });
+
+  it('transferir=true notifica o(s) coordenador(es) de origem quando o transferido era membro de gincana ativa, e não mexe em EquipeMembros', async () => {
+    const gincanaOrigem = await Gincana.create({
+      _id: 'GINCANA_ORIGEM_ADMIN', escola_id: ESCOLA_B, nome: 'Gincana B', ano: 2026, status: 'ATIVA', criado_por: superAdminId,
+    });
+    const equipe = await Equipe.create({ nome: 'Equipe Y', gincana_id: gincanaOrigem._id, cor: '#000' });
+    await EquipeGincana.create({ equipe_id: equipe._id, gincana_id: gincanaOrigem._id });
+
+    const coordenador = await Usuario.create({
+      nome: 'Coord Origem', email: 'coord.origem.admin@x.com', senha: '123', tipo: 'COORDENADOR',
+      vinculos: [{ escola_id: ESCOLA_B, tipo: 'COORDENADOR', turma: 'EF - 7º Ano', status: 'ATIVO' }],
+    });
+    await EquipeMembros.create({ equipe_id: equipe._id, usuario_id: coordenador._id, is_coordenador: true });
+
+    const aluno = await Usuario.create({
+      nome: 'Membro Transferido Admin', email: 'membro.transf.admin@x.com', senha: '123', tipo: 'ALUNO',
+      vinculos: [{ escola_id: ESCOLA_B, tipo: 'ALUNO', turma: 'EF - 7º Ano', status: 'ATIVO' }],
+    });
+    await EquipeMembros.create({ equipe_id: equipe._id, usuario_id: aluno._id, is_coordenador: false });
+
+    const res = mockRes();
+    await vincularUsuario(
+      reqSuper({ params: { id: ESCOLA_A }, body: { email: 'membro.transf.admin@x.com', turma: 'EF - 6º Ano', transferir: true } }),
+      res
+    );
+
+    expect(res.status).toHaveBeenCalledWith(200);
+
+    // EquipeMembros permanece intacto (deliberado, ver plano Fase 0).
+    expect(await EquipeMembros.countDocuments({ usuario_id: aluno._id })).toBe(1);
+
+    const notificacoes = await Notificacao.find({ usuario_id: coordenador._id });
+    expect(notificacoes.length).toBeGreaterThan(0);
+    expect(notificacoes[0].titulo).toMatch(/transferid/i);
+  });
+
+  it('transferir=true também recusa quando o vínculo com a escola alvo já existe (409, antes de olhar conflito)', async () => {
+    const aluno = await Usuario.create({
+      nome: 'Já vinculado', email: 'aluno.javinc.admin@x.com', senha: '123', tipo: 'ALUNO',
+      vinculos: [{ escola_id: ESCOLA_A, tipo: 'ALUNO', turma: 'EF - 6º Ano', status: 'ATIVO' }],
+    });
+    const res = mockRes();
+
+    await vincularUsuario(
+      reqSuper({ params: { id: ESCOLA_A }, body: { email: 'aluno.javinc.admin@x.com', transferir: true } }),
+      res
+    );
+
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect((await Usuario.findById(aluno._id)).vinculos).toHaveLength(1);
   });
 });

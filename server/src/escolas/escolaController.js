@@ -1,7 +1,7 @@
 import Escola from '../models/Escola.js';
 import Usuario from '../models/Usuario.js';
 import Gincana from '../models/Gincana.js';
-import { PERFIS_ESCOLA } from '../models/Usuario.js';
+import { PERFIS_ESCOLA, podeMultiEscola } from '../models/Usuario.js';
 import {
     filtroEscola,
     getVinculo,
@@ -9,6 +9,7 @@ import {
     aplicarVinculo,
     conflitoMultiEscola,
 } from './escolaHelpers.js';
+import { notificarCoordenadoresDeOrigem } from '../notificacoes/notificarTransferenciaEscola.js';
 
 /**
  * [GET] Lista todas as escolas (apenas SUPER_ADMIN).
@@ -64,24 +65,6 @@ export const minhasEscolas = async (req, res) => {
     } catch (error) {
         console.error('Erro ao listar minhas escolas:', error);
         res.status(500).json({ message: 'Erro interno ao listar escolas do usuário.' });
-    }
-};
-
-/**
- * [GET] Lista pública (sem autenticação) das escolas ativas.
- * Usada no auto-cadastro, onde o candidato precisa escolher a escola antes de
- * ter login. Retorna apenas _id e nome — nada sensível.
- */
-export const listarEscolasPublicas = async (req, res) => {
-    try {
-        const escolas = await Escola
-            .find({ status: 'ATIVA' })
-            .select('_id nome cidade uf')
-            .sort({ nome: 1 });
-        res.status(200).json(escolas);
-    } catch (error) {
-        console.error('Erro ao listar escolas públicas:', error);
-        res.status(500).json({ message: 'Erro interno ao listar escolas.' });
     }
 };
 
@@ -211,11 +194,20 @@ export const listarUsuariosDaEscola = async (req, res) => {
  * é informado, herda-se o papel base do usuário: um ADMIN entra como ADMIN na
  * escola nova, um COORDENADOR como COORDENADOR. Em nenhum caso o vínculo antigo
  * é alterado — era esse o bug de "virar aluno nas duas escolas".
+ *
+ * Transferência administrativa (D3 do plano de convites): quando o perfil é de
+ * escola única (ALUNO/COORDENADOR/PAI-MÃE) e a pessoa já tem um vínculo ATIVO
+ * em outra escola, o padrão continua recusando com 409 PERFIL_ESCOLA_UNICA —
+ * SÓ quando o corpo traz `transferir: true` explícito é que o vínculo antigo é
+ * removido e o novo é criado, numa única `usuario.save()` (mesmo padrão de
+ * `conviteController.decidirPendencia`; sem transação do Mongo, sem $pull+$push
+ * no mesmo updateOne). Isso existe para que a troca destrutiva nunca aconteça
+ * por acidente: sem a flag, é preciso um 409 explícito antes.
  */
 export const vincularUsuario = async (req, res) => {
     try {
         const { id } = req.params;
-        const { usuario_id, email, tipo, turma } = req.body;
+        const { usuario_id, email, tipo, turma, transferir } = req.body;
 
         if (!usuario_id && !email) {
             return res.status(400).json({ message: 'Informe usuario_id ou email.' });
@@ -249,15 +241,39 @@ export const vincularUsuario = async (req, res) => {
         // (mesma regra de aplicarVinculo) — a checagem precisa usar esse valor.
         const tipoEfetivo = tipo || (usuario.tipo === 'SUPER_ADMIN' ? 'ADMIN' : usuario.tipo);
         const conflito = conflitoMultiEscola(usuario, id, tipoEfetivo);
+
+        let vinculoOrigem = null;
         if (conflito) {
-            return res.status(409).json({ message: conflito, codigo: 'PERFIL_ESCOLA_UNICA' });
+            if (!transferir) {
+                return res.status(409).json({ message: conflito, codigo: 'PERFIL_ESCOLA_UNICA' });
+            }
+            // A transferência foi pedida explicitamente: acha o vínculo de escola
+            // única em outra escola que está causando o conflito — é ele que sai
+            // na mesma gravação em que o vínculo novo entra.
+            vinculoOrigem = usuario.vinculos.find(
+                (v) => String(v.escola_id) !== String(id) && v.status !== 'PENDENTE' && !podeMultiEscola(v.tipo)
+            );
         }
 
         const vinculo = aplicarVinculo(usuario, id, { tipo, turma });
+        if (vinculoOrigem) {
+            usuario.vinculos = usuario.vinculos.filter((v) => v !== vinculoOrigem);
+        }
+
         await usuario.save();
 
+        if (vinculoOrigem) {
+            // Best-effort: uma falha ao notificar não pode desfazer a transferência
+            // que já foi salva.
+            await notificarCoordenadoresDeOrigem(usuario, vinculoOrigem.escola_id).catch((err) => {
+                console.error('Erro ao notificar coordenador de origem sobre transferência:', err);
+            });
+        }
+
         res.status(200).json({
-            message: `${usuario.nome} vinculado(a) à escola ${escola.nome} como ${vinculo.tipo}.`,
+            message: vinculoOrigem
+                ? `${usuario.nome} transferido(a) para a escola ${escola.nome} como ${vinculo.tipo}.`
+                : `${usuario.nome} vinculado(a) à escola ${escola.nome} como ${vinculo.tipo}.`,
             vinculo,
         });
     } catch (error) {

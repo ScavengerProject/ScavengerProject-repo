@@ -2,6 +2,7 @@ import Usuario from '../models/Usuario.js';
 import EquipeMembros from '../models/EquipeMembros.js';
 import EquipeGincana from '../models/EquipeGincana.js';
 import Escola from '../models/Escola.js';
+import CodigoConvite from '../models/CodigoConvite.js';
 import { PERFIS_ESCOLA, podeMultiEscola } from '../models/Usuario.js';
 import {
   filtroEscola,
@@ -10,7 +11,13 @@ import {
   aplicarVinculo,
   conflitoMultiEscola,
 } from '../escolas/escolaHelpers.js';
+import { normalizarCodigo } from '../convites/codigoConviteHelpers.js';
 import bcrypt from 'bcryptjs';
+
+// Mensagem única para QUALQUER motivo de código inválido (inexistente,
+// revogado, expirado, limite de usos estourado) — distinguir o motivo aqui
+// seria um oráculo de força bruta para adivinhar códigos (ver plano, D7).
+const MSG_CODIGO_INVALIDO = 'Código de convite inválido ou expirado.';
 
 /**
  * Listar os usuários da escola ativa (com filtros opcionais).
@@ -156,10 +163,20 @@ export const criarUsuario = async (req, res) => {
 
 /**
  * Auto-cadastro público (sem autenticação)
+ *
+ * `escola_id` NÃO é lido do corpo (mesmo que o cliente o envie) — é
+ * propositalmente ignorado. Quem escolhe em qual escola a conta nasce é a
+ * escola, através de um `codigo` de convite (ver server/src/convites/):
+ *  - código DE TURMA → escola e turma vêm do convite, vínculo ATIVO direto;
+ *  - código PÚBLICO da escola (sem turma, `aprovacao_automatica: false`) →
+ *    vínculo PENDENTE, é a fila de aprovação manual (D8 do plano) — a escola
+ *    não pode ficar sem âncora nenhuma, então mesmo esse caminho exige um
+ *    código (o "genérico" que o admin publica abertamente).
+ * `tipo` também nunca é lido do corpo: código de convite só emite ALUNO (D4).
  */
 export const registrarUsuario = async (req, res) => {
   try {
-    const { nome, email, senha, telefone, escola_id } = req.body;
+    const { nome, email, senha, telefone, codigo } = req.body;
 
     if (!nome || !email || !senha) {
       return res.status(400).json({
@@ -167,21 +184,28 @@ export const registrarUsuario = async (req, res) => {
       });
     }
 
-    // Rota pública (o candidato ainda não tem login), então a escola vem no
-    // corpo e é validada aqui — não há header X-Escola-Id confiável.
-    if (!escola_id) {
-      return res.status(400).json({ message: 'Selecione a escola em que deseja se cadastrar.' });
+    if (!codigo) {
+      return res.status(400).json({ message: 'Informe o código de convite da sua escola.' });
     }
 
-    const escola = await Escola.findOne({ _id: escola_id, status: 'ATIVA' });
+    const convite = await CodigoConvite.findOne({ codigo: normalizarCodigo(codigo) });
+    if (!convite || !convite.estaValido()) {
+      return res.status(404).json({ message: MSG_CODIGO_INVALIDO });
+    }
+
+    const escola = await Escola.findOne({ _id: convite.escola_id, status: 'ATIVA' });
     if (!escola) {
-      return res.status(404).json({ message: 'Escola não encontrada ou inativa.' });
+      return res.status(404).json({ message: MSG_CODIGO_INVALIDO });
     }
 
     const usuarioExistente = await Usuario.findOne({ email: email.toLowerCase() });
     if (usuarioExistente) {
-      return res.status(409).json({ message: 'Este email já está cadastrado.' });
+      // Anti-enumeração (ver plano, Fase 2): não confirma nem nega que a
+      // conta já existe, só recusa o cadastro.
+      return res.status(409).json({ message: 'Não foi possível concluir o cadastro com os dados informados.' });
     }
+
+    const statusVinculo = convite.aprovacao_automatica ? 'ATIVO' : 'PENDENTE';
 
     const novoUsuario = new Usuario({
       nome,
@@ -192,15 +216,23 @@ export const registrarUsuario = async (req, res) => {
       turma: null,
       status: 'ATIVO',
     });
-    aplicarVinculo(novoUsuario, escola._id, { tipo: 'ALUNO', turma: null });
+    aplicarVinculo(novoUsuario, escola._id, {
+      tipo: 'ALUNO',
+      turma: convite.turma,
+      status: statusVinculo,
+      codigo_convite_id: convite._id,
+    });
 
     await novoUsuario.save();
+    await CodigoConvite.updateOne({ _id: convite._id }, { $inc: { usos: 1 } });
 
     const usuarioResposta = novoUsuario.toObject();
     delete usuarioResposta.senha;
 
     res.status(201).json({
-      message: 'Cadastro enviado para aprovação!',
+      message: statusVinculo === 'ATIVO'
+        ? 'Cadastro realizado com sucesso!'
+        : 'Cadastro enviado para aprovação!',
       usuario: usuarioResposta
     });
   } catch (error) {
