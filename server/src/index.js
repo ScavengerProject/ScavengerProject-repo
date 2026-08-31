@@ -17,6 +17,7 @@ import resultadoRoutes from './resultados/resultadoRoutes.js';
 import configuracaoRoutes from './configuracoes/configuracaoRoutes.js';
 import gincanaRoutes from './gincanas/gincanaRoutes.js';
 import escolaRoutes from './escolas/escolaRoutes.js';
+import conviteRoutes from './convites/conviteRoutes.js';
 import { iniciarEmailWorker } from './notificacoes/emailWorker.js';
 
 dotenv.config();
@@ -60,6 +61,7 @@ app.use('/api/resultados', resultadoRoutes);
 app.use('/api/configuracoes', configuracaoRoutes);
 app.use('/api/gincanas', gincanaRoutes);
 app.use('/api/escolas', escolaRoutes);
+app.use('/api/convites', conviteRoutes);
 
 app.listen(PORT, () => {
   console.log(`Servidor Express rodando na porta ${PORT}`);
