@@ -49,6 +49,43 @@ describe('request helper (via services)', () => {
     expect(options.headers.Authorization).toBeUndefined();
   });
 
+  // X-Escola-Id e X-Gincana-Id são o mecanismo inteiro de isolamento
+  // multi-tenant no cliente (ver resolverEscola/resolverGincana no backend):
+  // toda a garantia de "não vejo dados de outra escola/edição" depende de
+  // esses dois headers saírem certos em toda requisição.
+  it('inclui X-Escola-Id e X-Gincana-Id quando ambos estão salvos', async () => {
+    localStorage.setItem('escolaAtivaId', 'ESC_1');
+    localStorage.setItem('gincanaAtivaId', 'GINC_1');
+    global.fetch.mockResolvedValueOnce(okJson([]));
+
+    await provasService.listar();
+
+    const [, options] = global.fetch.mock.calls[0];
+    expect(options.headers['X-Escola-Id']).toBe('ESC_1');
+    expect(options.headers['X-Gincana-Id']).toBe('GINC_1');
+  });
+
+  it('NÃO inclui X-Escola-Id nem X-Gincana-Id quando não há escopo salvo', async () => {
+    global.fetch.mockResolvedValueOnce(okJson([]));
+
+    await provasService.listar();
+
+    const [, options] = global.fetch.mock.calls[0];
+    expect(options.headers['X-Escola-Id']).toBeUndefined();
+    expect(options.headers['X-Gincana-Id']).toBeUndefined();
+  });
+
+  it('inclui X-Escola-Id sem X-Gincana-Id quando só a escola foi selecionada (fluxo pós-troca de escola)', async () => {
+    localStorage.setItem('escolaAtivaId', 'ESC_1');
+    global.fetch.mockResolvedValueOnce(okJson([]));
+
+    await provasService.listar();
+
+    const [, options] = global.fetch.mock.calls[0];
+    expect(options.headers['X-Escola-Id']).toBe('ESC_1');
+    expect(options.headers['X-Gincana-Id']).toBeUndefined();
+  });
+
   it('lança erro com a mensagem do backend quando !response.ok', async () => {
     global.fetch.mockResolvedValueOnce(okJson({ message: 'Falhou no servidor' }, 400));
 
