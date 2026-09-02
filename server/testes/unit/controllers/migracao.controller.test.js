@@ -142,6 +142,34 @@ describe('migracaoController - #16 aprovação pelo coordenador de destino', () 
     const notif = await Notificacao.findOne({ usuario_id: meId, tipo: 'MIGRACAO' });
     expect(notif).not.toBeNull();
   });
+
+  it('decidirMigracao retorna 404 quando a solicitação pertence a outra gincana (não vaza pra fora do tenant)', async () => {
+    const { equipeA, egA, egB } = await criarCenario();
+    const meId = oid().toString();
+    await EquipeMembro.create({ usuario_id: meId, equipe_id: equipeA._id });
+    const mig = await MigracaoEquipe.create({
+      usuario_id: meId,
+      gincana_id: 'GINCANA_OUTRA',
+      equipe_origem_id: egA._id,
+      equipe_destino_id: egB._id,
+      solicitado_por: meId,
+      status: 'PENDENTE',
+      motivo: 'quero entrar',
+    });
+
+    const res = mockRes();
+    // ADMIN, sem restrição de coordenador — mesmo assim não pode decidir uma
+    // solicitação de fora da gincana ativa (sem X-Gincana-Id, o escopo cai no
+    // fallback 'GINCANA_PRINCIPAL', diferente de 'GINCANA_OUTRA').
+    await decidirMigracao(
+      { usuario: { id: oid().toString(), tipo: 'ADMIN' }, params: { id: mig._id.toString() }, body: { aprovar: true } },
+      res
+    );
+
+    expect(res.status).toHaveBeenCalledWith(404);
+    const migInalterada = await MigracaoEquipe.findById(mig._id);
+    expect(migInalterada.status).toBe('PENDENTE');
+  });
 });
 
 describe('migracaoController - #16 notificação ao coordenador de destino', () => {

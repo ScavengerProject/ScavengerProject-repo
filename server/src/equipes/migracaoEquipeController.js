@@ -205,14 +205,20 @@ export const decidirMigracao = async (req, res) => {
         .json({ message: 'Campo "aprovar" (boolean) é obrigatório.' });
     }
 
+    const gincanaId = escopoGincana(req);
+
+    // Mesmo 404 para "não existe" e "é de outra gincana": não dá pra
+    // diferenciar sem vazar a existência de uma solicitação de outro tenant.
     const mig = await MigracaoEquipe.findById(id);
-    if (!mig) return res.status(404).json({ message: 'Solicitação não encontrada.' });
+    if (!mig || mig.gincana_id !== gincanaId) {
+      return res.status(404).json({ message: 'Solicitação não encontrada.' });
+    }
     if (mig.status !== 'PENDENTE') {
       return res.status(409).json({ message: 'Solicitação já foi decidida.' });
     }
 
     if (me.tipo === 'COORDENADOR') {
-      const coordEquipes = await getEquipesGincanaDoCoordenador(me.id);
+      const coordEquipes = await getEquipesGincanaDoCoordenador(me.id, { gincanaId });
       const ids = coordEquipes.map((e) => e._id.toString());
 
       // #16: a entrada é aprovada pelo coordenador de DESTINO.
