@@ -195,11 +195,12 @@ export const listarPenalidades = async (req, res) => {
 export const listarEquipesParaPenalidade = async (req, res) => {
   try {
     const usuarioAtual = req.usuario;
-    let query = {};
+    const gincanaId = escopoGincana(req);
+    let query = { gincana_id: gincanaId };
 
     // Se for COORDENADOR, filtra apenas equipes que ele coordena (via is_coordenador)
     if (usuarioAtual.tipo === 'COORDENADOR') {
-      const equipesCoordenadas = await getEquipesGincanaDoCoordenador(usuarioAtual.id);
+      const equipesCoordenadas = await getEquipesGincanaDoCoordenador(usuarioAtual.id, { gincanaId });
       query._id = { $in: equipesCoordenadas.map((eg) => eg._id) };
     }
 
