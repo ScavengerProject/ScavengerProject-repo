@@ -19,15 +19,19 @@ const provaJaEncerrou = (prova) => {
 const toUniqueStrings = (arr) => Array.from(new Set((arr || []).map((item) => String(item))));
 
 async function carregarContextoCoordenadorParaProva(coordenadorId, provaId) {
-  const [prova, equipeGincana] = await Promise.all([
-    Prova.findById(provaId).select('_id titulo status data_inicio data_fim proibir_membros_consecutivos'),
-    // Qualquer coordenador (is_coordenador) da equipe pode atuar — não só o principal.
-    getEquipeGincanaDoCoordenador(coordenadorId, { populateEquipe: true }),
-  ]);
+  const prova = await Prova.findById(provaId).select('_id titulo status data_inicio data_fim proibir_membros_consecutivos gincana_id');
 
   if (!prova) {
     return { erro: { status: 404, message: 'Prova não encontrada.' } };
   }
+
+  // Qualquer coordenador (is_coordenador) da equipe pode atuar — não só o
+  // principal. Restrito à gincana da prova: sem isso, um coordenador com
+  // equipe em OUTRA edição passaria como se coordenasse uma equipe aqui.
+  const equipeGincana = await getEquipeGincanaDoCoordenador(coordenadorId, {
+    populateEquipe: true,
+    gincanaId: prova.gincana_id,
+  });
 
   if (!equipeGincana) {
     return { erro: { status: 403, message: 'Você não coordena nenhuma equipe.' } };
@@ -112,9 +116,12 @@ async function carregarContextoCoordenadorParaProva(coordenadorId, provaId) {
 async function buscarMemblosBloqueadosDaProvaAnterior(provaAtual, equipeId) {
   if (!provaAtual.data_inicio) return { bloqueados: [], provaTitulo: null };
 
-  // Busca a prova imediatamente anterior (maior data_inicio que seja < data_inicio da prova atual)
+  // Busca a prova imediatamente anterior (maior data_inicio que seja < data_inicio da prova atual),
+  // restrita à mesma gincana — senão uma prova de outra edição/escola pode ser
+  // escolhida no lugar da anterior de verdade.
   const provaAnterior = await Prova.findOne({
     _id: { $ne: provaAtual._id },
+    gincana_id: provaAtual.gincana_id,
     data_inicio: { $lt: provaAtual.data_inicio },
     proibir_membros_consecutivos: true,
   })
