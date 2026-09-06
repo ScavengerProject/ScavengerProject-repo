@@ -136,6 +136,65 @@ describe('conviteController - criarConvite', () => {
 
     expect(res.status).toHaveBeenCalledWith(400);
   });
+
+  it('recusa um segundo código de turma enquanto o primeiro ainda é válido', async () => {
+    await criarConviteDireto({ turma: 'EF - 6º Ano' });
+
+    const req = reqAdminA({ body: { turma: 'EF - 6º Ano' } });
+    const res = mockRes();
+
+    await criarConvite(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(409);
+  });
+
+  it('permite um novo código de turma depois que o anterior expirou', async () => {
+    await criarConviteDireto({ turma: 'EF - 6º Ano', expira_em: new Date(Date.now() - 1000) });
+
+    const req = reqAdminA({ body: { turma: 'EF - 6º Ano' } });
+    const res = mockRes();
+
+    await criarConvite(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(201);
+  });
+
+  it('permite um novo código de turma depois que o anterior foi revogado', async () => {
+    await criarConviteDireto({ turma: 'EF - 6º Ano', revogado_em: new Date() });
+
+    const req = reqAdminA({ body: { turma: 'EF - 6º Ano' } });
+    const res = mockRes();
+
+    await criarConvite(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(201);
+  });
+
+  it('não bloqueia turma diferente nem a mesma turma em outra escola', async () => {
+    await criarConviteDireto({ turma: 'EF - 6º Ano' });
+
+    const resOutraTurma = mockRes();
+    await criarConvite(reqAdminA({ body: { turma: 'EF - 7º Ano' } }), resOutraTurma);
+    expect(resOutraTurma.status).toHaveBeenCalledWith(201);
+
+    const resOutraEscola = mockRes();
+    await criarConvite(
+      { escolaId: ESCOLA_B, usuario: { id: adminAId.toString(), tipo: 'ADMIN' }, body: { turma: 'EF - 6º Ano' } },
+      resOutraEscola
+    );
+    expect(resOutraEscola.status).toHaveBeenCalledWith(201);
+  });
+
+  it('não bloqueia um novo código público (sem turma) quando já existe um código de turma válido', async () => {
+    await criarConviteDireto({ turma: 'EF - 6º Ano' });
+
+    const req = reqAdminA({ body: {} });
+    const res = mockRes();
+
+    await criarConvite(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(201);
+  });
 });
 
 describe('conviteController - listarConvites / revogarConvite / listarUsuariosDoConvite', () => {

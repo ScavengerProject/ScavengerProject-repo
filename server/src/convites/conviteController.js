@@ -38,6 +38,18 @@ export const criarConvite = async (req, res) => {
       return res.status(400).json({ message: 'limite_usos precisa ser um inteiro positivo (ou omitido para não ter teto).' });
     }
 
+    // Duas turmas válidas ao mesmo tempo confundem quem recebe o código (qual
+    // usar?) e dificultam revogar um vazado sem também matar o outro. Só entra
+    // um novo código de turma depois que o anterior expirar/for revogado.
+    if (turma) {
+      const codigosDaTurma = await CodigoConvite.find({ escola_id: req.escolaId, turma });
+      if (codigosDaTurma.some((c) => c.estaValido())) {
+        return res.status(409).json({
+          message: `Já existe um código de convite válido para a turma ${turma}. Revogue-o antes de criar outro.`,
+        });
+      }
+    }
+
     const codigo = await gerarCodigo();
 
     const convite = await CodigoConvite.create({
