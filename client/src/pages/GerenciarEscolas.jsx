@@ -8,7 +8,7 @@ import { Card, CardContent } from '../components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../components/ui/dialog';
 import { Label } from '../components/ui/label';
 import { Input } from '../components/ui/input';
-import { School, Plus, Power, CheckCircle, Users, Trash2, UserPlus } from 'lucide-react';
+import { School, Plus, Power, CheckCircle, Users, Trash2, UserPlus, X } from 'lucide-react';
 import { toast } from '../components/ui/toast';
 import { PERFIS_MULTI_ESCOLA, ehPerfilDeEscolaUnica } from '../lib/perfis';
 
@@ -42,7 +42,12 @@ const GerenciarEscolas = () => {
   const [escolaSelecionada, setEscolaSelecionada] = useState(null);
   const [usuariosVinculados, setUsuariosVinculados] = useState([]);
   const [carregandoVinculos, setCarregandoVinculos] = useState(false);
-  const [emailParaVincular, setEmailParaVincular] = useState('');
+  // Combobox de busca por nome/e-mail para "vincular usuário existente".
+  const [buscaUsuario, setBuscaUsuario] = useState('');
+  const [usuarioSelecionado, setUsuarioSelecionado] = useState(null);
+  const [resultadosBusca, setResultadosBusca] = useState([]);
+  const [buscandoUsuario, setBuscandoUsuario] = useState(false);
+  const [resultadosAbertos, setResultadosAbertos] = useState(false);
   // Vazio = herdar o papel base do usuário (um ADMIN entra como ADMIN).
   const [tipoParaVincular, setTipoParaVincular] = useState('');
 
@@ -101,6 +106,9 @@ const GerenciarEscolas = () => {
   const abrirVinculos = async (escola) => {
     setEscolaSelecionada(escola);
     setCarregandoVinculos(true);
+    setBuscaUsuario('');
+    setUsuarioSelecionado(null);
+    setResultadosBusca([]);
     try {
       const lista = await escolasService.listarUsuarios(escola._id);
       setUsuariosVinculados(lista || []);
@@ -112,23 +120,80 @@ const GerenciarEscolas = () => {
     }
   };
 
-  // Vincula por e-mail: o SUPER_ADMIN cola o e-mail de alguém já cadastrado em
-  // outra escola e passa a dar acesso a esta também.
+  // Busca com debounce: só dispara 300ms depois de parar de digitar, e só
+  // enquanto nenhum candidato foi escolhido ainda.
+  useEffect(() => {
+    if (!escolaSelecionada || usuarioSelecionado || buscaUsuario.trim().length < 2) {
+      setResultadosBusca([]);
+      return;
+    }
+    setBuscandoUsuario(true);
+    const timer = setTimeout(async () => {
+      try {
+        const lista = await escolasService.buscarCandidatos(escolaSelecionada._id, buscaUsuario.trim());
+        setResultadosBusca(lista || []);
+      } catch (error) {
+        console.error('Erro ao buscar usuários:', error);
+        setResultadosBusca([]);
+      } finally {
+        setBuscandoUsuario(false);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [buscaUsuario, escolaSelecionada, usuarioSelecionado]);
+
+  const selecionarCandidato = (candidato) => {
+    setUsuarioSelecionado(candidato);
+    setBuscaUsuario('');
+    setResultadosBusca([]);
+    setResultadosAbertos(false);
+  };
+
+  const limparSelecao = () => {
+    setUsuarioSelecionado(null);
+    setBuscaUsuario('');
+  };
+
+  // Vincula o candidato escolhido no combobox de busca (por nome ou e-mail).
   const handleVincular = async (e) => {
     e.preventDefault();
-    const email = emailParaVincular.trim().toLowerCase();
-    if (!email) return;
+    if (!usuarioSelecionado) return;
+
+    const dados = {
+      usuario_id: usuarioSelecionado._id,
+      ...(tipoParaVincular ? { tipo: tipoParaVincular } : {}),
+    };
 
     try {
-      const resposta = await escolasService.vincularUsuario(escolaSelecionada._id, {
-        email,
-        ...(tipoParaVincular ? { tipo: tipoParaVincular } : {}),
-      });
+      const resposta = await escolasService.vincularUsuario(escolaSelecionada._id, dados);
       toast.success(resposta?.message || 'Usuário vinculado à escola.');
-      setEmailParaVincular('');
+      limparSelecao();
       setTipoParaVincular('');
       await abrirVinculos(escolaSelecionada);
     } catch (error) {
+      // Perfil de escola única (aluno/coordenador/pai-mãe) e a pessoa já está
+      // em outra escola: a API recusa, mas sabe fazer a transferência atômica
+      // se pedirmos explicitamente — oferece isso em vez de travar o admin.
+      if (error.codigo === 'PERFIL_ESCOLA_UNICA') {
+        const confirmarTransferencia = window.confirm(
+          `${error.message}\n\nDeseja transferir o usuário para esta escola agora? O vínculo com a escola anterior será removido.`
+        );
+        if (confirmarTransferencia) {
+          try {
+            const resposta = await escolasService.vincularUsuario(escolaSelecionada._id, {
+              ...dados,
+              transferir: true,
+            });
+            toast.success(resposta?.message || 'Usuário transferido para esta escola.');
+            limparSelecao();
+            setTipoParaVincular('');
+            await abrirVinculos(escolaSelecionada);
+          } catch (erroTransferencia) {
+            toast.error(erroTransferencia.message || 'Falha ao transferir usuário.');
+          }
+        }
+        return;
+      }
       toast.error(error.message || 'Falha ao vincular usuário.');
     }
   };
@@ -276,15 +341,59 @@ const GerenciarEscolas = () => {
           </DialogHeader>
 
           <form onSubmit={handleVincular} className="flex items-end gap-2 flex-wrap">
-            <div className="flex-1 min-w-48">
-              <Label htmlFor="email-vinculo">Vincular usuário existente (e-mail)</Label>
-              <Input
-                id="email-vinculo"
-                type="email"
-                value={emailParaVincular}
-                onChange={(ev) => setEmailParaVincular(ev.target.value)}
-                placeholder="professor@escola.com"
-              />
+            <div className="flex-1 min-w-48 relative">
+              <Label htmlFor="busca-vinculo">Vincular usuário existente (nome ou e-mail)</Label>
+              {usuarioSelecionado ? (
+                <div className="h-10 flex items-center justify-between gap-2 rounded-md border border-gray-300 bg-gray-50 px-3 text-sm">
+                  <div className="min-w-0 truncate">
+                    <span className="font-medium text-gray-900">{usuarioSelecionado.nome}</span>
+                    <span className="text-gray-500"> · {usuarioSelecionado.email}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={limparSelecao}
+                    className="text-gray-400 hover:text-gray-700 shrink-0"
+                    aria-label="Trocar usuário selecionado"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <Input
+                    id="busca-vinculo"
+                    value={buscaUsuario}
+                    onChange={(ev) => setBuscaUsuario(ev.target.value)}
+                    onFocus={() => setResultadosAbertos(true)}
+                    onBlur={() => setTimeout(() => setResultadosAbertos(false), 150)}
+                    placeholder="Digite ao menos 2 letras do nome ou e-mail"
+                    autoComplete="off"
+                  />
+                  {resultadosAbertos && buscaUsuario.trim().length >= 2 && (
+                    <ul className="absolute z-10 mt-1 w-full max-h-56 overflow-y-auto rounded-md border border-gray-200 bg-white shadow-lg text-sm">
+                      {buscandoUsuario ? (
+                        <li className="px-3 py-2 text-gray-500">Buscando...</li>
+                      ) : resultadosBusca.length === 0 ? (
+                        <li className="px-3 py-2 text-gray-500">Nenhum usuário encontrado.</li>
+                      ) : (
+                        resultadosBusca.map((candidato) => (
+                          <li key={candidato._id}>
+                            <button
+                              type="button"
+                              onMouseDown={(ev) => ev.preventDefault()}
+                              onClick={() => selecionarCandidato(candidato)}
+                              className="w-full text-left px-3 py-2 hover:bg-gray-100"
+                            >
+                              <p className="font-medium text-gray-900 truncate">{candidato.nome}</p>
+                              <p className="text-xs text-gray-500 truncate">{candidato.email}</p>
+                            </button>
+                          </li>
+                        ))
+                      )}
+                    </ul>
+                  )}
+                </>
+              )}
             </div>
             <div>
               <Label htmlFor="tipo-vinculo">Perfil nesta escola</Label>
@@ -300,7 +409,11 @@ const GerenciarEscolas = () => {
                 ))}
               </select>
             </div>
-            <Button type="submit" className="flex items-center gap-1 bg-blue-600 hover:bg-blue-700 text-white">
+            <Button
+              type="submit"
+              disabled={!usuarioSelecionado}
+              className="flex items-center gap-1 bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
+            >
               <UserPlus size={16} /> Vincular
             </Button>
           </form>
@@ -311,8 +424,9 @@ const GerenciarEscolas = () => {
             aqui vale <strong>somente nesta escola</strong>: o papel dela nas outras não muda.
             <br />
             Só <strong>{PERFIS_MULTI_ESCOLA.join(' e ')}</strong> podem acumular escolas. Quem participa
-            da gincana (aluno, coordenador, pai/mãe) pertence a <strong>uma escola só</strong> — para
-            trazer um aluno de outra escola, remova antes o vínculo dele lá.
+            da gincana (aluno, coordenador, pai/mãe) pertence a <strong>uma escola só</strong> — ao
+            vincular alguém assim que já está em outra escola, o sistema pergunta se você quer
+            transferi-lo(a) para cá.
           </p>
 
           <div className="max-h-72 overflow-y-auto divide-y">

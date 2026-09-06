@@ -6,6 +6,7 @@ import {
     atualizarEscola,
     alterarStatusEscola,
     listarUsuariosDaEscola,
+    buscarCandidatosVinculo,
     vincularUsuario,
     alterarPapelUsuario,
     desvincularUsuario,
@@ -35,6 +36,7 @@ router.get('/', proteger, resolverPapelBase, autorizar('SUPER_ADMIN'), listarEsc
 router.post('/', proteger, resolverPapelBase, autorizar('SUPER_ADMIN'), criarEscola);
 router.get('/:id/resumo', proteger, resolverPapelBase, autorizar('SUPER_ADMIN'), obterResumoEscola);
 router.get('/:id/usuarios', proteger, resolverPapelBase, autorizar('SUPER_ADMIN'), listarUsuariosDaEscola);
+router.get('/:id/usuarios/candidatos', proteger, resolverPapelBase, autorizar('SUPER_ADMIN'), buscarCandidatosVinculo);
 router.post('/:id/usuarios', proteger, resolverPapelBase, autorizar('SUPER_ADMIN'), vincularUsuario);
 router.patch('/:id/usuarios/:usuarioId/papel', proteger, resolverPapelBase, autorizar('SUPER_ADMIN'), alterarPapelUsuario);
 router.delete('/:id/usuarios/:usuarioId', proteger, resolverPapelBase, autorizar('SUPER_ADMIN'), desvincularUsuario);

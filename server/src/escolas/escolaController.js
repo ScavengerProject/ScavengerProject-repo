@@ -184,6 +184,42 @@ export const listarUsuariosDaEscola = async (req, res) => {
 };
 
 /**
+ * [GET] Busca candidatos a vínculo por nome ou e-mail (SUPER_ADMIN).
+ * Busca em TODA a base (não só nesta escola) — o objetivo é achar alguém que
+ * ainda não está aqui, possivelmente vinculado só a outra escola — e exclui
+ * quem já tem vínculo nesta, já que a API de vincular recusaria de todo jeito.
+ * Alimenta o combobox de "vincular usuário" em GerenciarEscolas.
+ *
+ * Não filtra por `tipo` (papel BASE): um SUPER_ADMIN pode ter vínculos reais
+ * em escolas (ex.: ser COORDENADOR de uma gincana) além de enxergar todas —
+ * excluir esse `tipo` deixava essas contas impossíveis de achar na busca.
+ */
+export const buscarCandidatosVinculo = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const termo = String(req.query.search || '').trim();
+
+        if (termo.length < 2) {
+            return res.status(200).json([]);
+        }
+
+        const regex = new RegExp(termo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+        const usuarios = await Usuario.find({
+            'vinculos.escola_id': { $ne: String(id) },
+            $or: [{ nome: regex }, { email: regex }],
+        })
+            .select('nome email tipo')
+            .sort({ nome: 1 })
+            .limit(20);
+
+        res.status(200).json(usuarios);
+    } catch (error) {
+        console.error('Erro ao buscar candidatos a vínculo:', error);
+        res.status(500).json({ message: 'Erro interno ao buscar usuários.' });
+    }
+};
+
+/**
  * [POST] Vincula um usuário existente a uma escola (SUPER_ADMIN).
  * É este endpoint que permite um professor atuar em mais de uma escola.
  *

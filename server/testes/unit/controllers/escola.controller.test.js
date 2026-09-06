@@ -15,6 +15,7 @@ import {
   atualizarEscola,
   alterarStatusEscola,
   listarUsuariosDaEscola,
+  buscarCandidatosVinculo,
   vincularUsuario,
   alterarPapelUsuario,
   desvincularUsuario,
@@ -229,6 +230,56 @@ describe('escolaController - vínculos usuário <-> escola', () => {
     expect(lista).toHaveLength(1);
     expect(lista[0].nome).toBe('Daqui');
     expect(lista[0].senha).toBeUndefined();
+  });
+
+  it('buscarCandidatosVinculo busca por nome ou e-mail, ignorando maiúsculas', async () => {
+    await Usuario.create({
+      nome: 'Matheus Ciocca', email: 'matheus@x.com', senha: '123', tipo: 'PROFESSOR', vinculos: [{ escola_id: ESCOLA_B, tipo: 'PROFESSOR' }],
+    });
+    await Usuario.create({
+      nome: 'Outra Pessoa', email: 'contato@matheus.com', senha: '123', tipo: 'ALUNO', vinculos: [{ escola_id: ESCOLA_B, tipo: 'ALUNO' }],
+    });
+    await Usuario.create({
+      nome: 'Sem Relação', email: 'zzz@x.com', senha: '123', tipo: 'PROFESSOR', vinculos: [{ escola_id: ESCOLA_B, tipo: 'PROFESSOR' }],
+    });
+    const res = mockRes();
+
+    await buscarCandidatosVinculo(reqSuper({ params: { id: ESCOLA_A }, query: { search: 'MATHEUS' } }), res);
+
+    const lista = res.json.mock.calls[0][0];
+    expect(lista.map((u) => u.nome).sort()).toEqual(['Matheus Ciocca', 'Outra Pessoa']);
+    expect(lista[0].senha).toBeUndefined();
+  });
+
+  it('buscarCandidatosVinculo exclui quem já está vinculado à escola alvo', async () => {
+    await Usuario.create({
+      nome: 'Matheus Ciocca', email: 'matheus@x.com', senha: '123', tipo: 'PROFESSOR', vinculos: [{ escola_id: ESCOLA_A, tipo: 'PROFESSOR' }],
+    });
+    const res = mockRes();
+
+    await buscarCandidatosVinculo(reqSuper({ params: { id: ESCOLA_A }, query: { search: 'matheus' } }), res);
+
+    expect(res.json.mock.calls[0][0]).toHaveLength(0);
+  });
+
+  it('buscarCandidatosVinculo encontra um SUPER_ADMIN que também tem vínculo real em outra escola', async () => {
+    // Papel base SUPER_ADMIN não impede ter um vínculo de participante (ex.:
+    // COORDENADOR) em alguma escola — excluir por `tipo` deixava essa conta
+    // impossível de achar na busca.
+    await Usuario.create({
+      nome: 'Matheus Super', email: 'super@x.com', senha: '123', tipo: 'SUPER_ADMIN', vinculos: [{ escola_id: ESCOLA_B, tipo: 'COORDENADOR' }],
+    });
+    const res = mockRes();
+
+    await buscarCandidatosVinculo(reqSuper({ params: { id: ESCOLA_A }, query: { search: 'matheus' } }), res);
+
+    expect(res.json.mock.calls[0][0]).toHaveLength(1);
+  });
+
+  it('buscarCandidatosVinculo devolve vazio com menos de 2 letras', async () => {
+    const res = mockRes();
+    await buscarCandidatosVinculo(reqSuper({ params: { id: ESCOLA_A }, query: { search: 'm' } }), res);
+    expect(res.json.mock.calls[0][0]).toHaveLength(0);
   });
 
   it('desvincula quando o usuário tem outra escola', async () => {

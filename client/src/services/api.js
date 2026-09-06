@@ -773,6 +773,10 @@ export const escolasService = {
 
   // Vínculos usuário <-> escola (é o que permite um professor atuar em várias).
   listarUsuarios: (id) => request(`/escolas/${id}/usuarios`, { method: 'GET' }),
+  // Busca por nome ou e-mail em toda a base (não só nesta escola), excluindo
+  // quem já está vinculado aqui. Alimenta o combobox de "vincular usuário".
+  buscarCandidatos: (id, termo) =>
+    request(`/escolas/${id}/usuarios/candidatos?search=${encodeURIComponent(termo)}`, { method: 'GET' }),
   // Identifica o usuário por _id ou por e-mail: { usuario_id } ou { email }.
   // Aceita também { tipo, turma }: o papel que a pessoa terá NESTA escola.
   // Sem `tipo`, ela herda o papel base (um ADMIN entra como ADMIN).
