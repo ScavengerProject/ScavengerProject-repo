@@ -244,8 +244,11 @@ const Dashboard = () => {
       // 2. Encontrar os DADOS da minha equipe (nome, pontos)
      const minhaEquipeInfo = (indexPosicao !== -1) ? ranking[indexPosicao] : null;
 
-      // Usar minhaEquipeInfo do ranking como fonte de verdade
-      const equipeSelecionadaInfo = minhaEquipeInfo || minhaEquipe;
+      // O item do ranking só tem { posicao, nome, equipe_id, pontos } — sem
+      // `id`/`cor`/`total_membros`, que é o que o modal de detalhes precisa
+      // (ver InfosEquipeModal.jsx). `minhaEquipe` (de listarEquipesParaInscricao)
+      // já vem completo; o ranking só serve de fallback quando ele falta.
+      const equipeSelecionadaInfo = minhaEquipe || minhaEquipeInfo;
 
       // Para alunos, professores, coordenadores, pais
       return [
