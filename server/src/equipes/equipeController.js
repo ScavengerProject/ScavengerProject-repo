@@ -184,25 +184,42 @@ export const adicionarMembro = async (req, res) => {
  */
 export const listarCoordenadoresDisponiveis = async (req, res) => {
     try {
+        const gincanaId = escopoGincana(req);
+        const equipeIdsDaGincana = await EquipeGincana.find({ gincana_id: gincanaId }).distinct('equipe_id');
+
         // A agregação é a forma mais robusta de encontrar usuários livres.
         const coordenadoresDisponiveis = await Usuario.aggregate([
             // Escopo de escola: só coordenadores vinculados à escola ativa.
             { $match: filtroEscolaComPerfil(req.escolaId, 'COORDENADOR') },
             {
-                // Verifica se o usuário já é membro de alguma equipe
+                // Verifica se o usuário já é membro de alguma equipe NESTA
+                // gincana — sem restringir à edição atual, um vínculo de uma
+                // gincana anterior (nunca removido) marcava como "ocupado" um
+                // coordenador livre.
                 $lookup: {
-                    from: EquipeMembros.collection.name, // Nome da sua coleção de membros
-                    localField: "_id",
-                    foreignField: "usuario_id",
+                    from: EquipeMembros.collection.name,
+                    let: { userId: "$_id" },
+                    pipeline: [{
+                        $match: {
+                            $expr: { $eq: ["$usuario_id", "$$userId"] },
+                            equipe_id: { $in: equipeIdsDaGincana },
+                        },
+                    }],
                     as: "vinculo_membro"
                 }
             },
             {
-                // Verifica se o usuário já coordena uma equipe (registro na EquipeGincana)
+                // Verifica se o usuário já coordena uma equipe (registro na
+                // EquipeGincana) NESTA gincana.
                 $lookup: {
                     from: EquipeGincana.collection.name,
-                    localField: "_id",
-                    foreignField: "coordenador_usuario_id",
+                    let: { userId: "$_id" },
+                    pipeline: [{
+                        $match: {
+                            $expr: { $eq: ["$coordenador_usuario_id", "$$userId"] },
+                            gincana_id: gincanaId,
+                        },
+                    }],
                     as: "vinculo_coordenador"
                 }
             },
@@ -232,7 +249,9 @@ export const listarCoordenadoresDisponiveis = async (req, res) => {
  */
 export const listarEquipesGincana = async (req, res) => {
     try {
-        const equipesGincana = await EquipeGincana.find({})
+        // Restrito à gincana ativa — sem isso, a seleção de equipes pra
+        // empréstimo listava equipes de TODAS as edições misturadas.
+        const equipesGincana = await EquipeGincana.find({ gincana_id: escopoGincana(req) })
             .populate('equipe_id', 'nome cor')
             .populate('coordenador_usuario_id', 'nome email')
             .populate('gincana_id', 'nome')
@@ -262,7 +281,11 @@ export const listarEquipesGincana = async (req, res) => {
  */
 export const listarTodosMembros = async (req, res) => {
     try {
-        const membros = await EquipeMembros.find({})
+        // Restrito às equipes da gincana ativa — sem isso, membros de
+        // edições anteriores (nunca removidos, ficam como histórico) apareciam
+        // misturados com os da atual.
+        const equipeIdsDaGincana = await EquipeGincana.find({ gincana_id: escopoGincana(req) }).distinct('equipe_id');
+        const membros = await EquipeMembros.find({ equipe_id: { $in: equipeIdsDaGincana } })
             .populate('usuario_id', 'nome email tipo turma')
             .populate('equipe_id', 'nome cor')
             .sort('usuario_id.nome');
@@ -295,6 +318,10 @@ export const listarTodosMembros = async (req, res) => {
  */
 export const listarUsuariosSemEquipe = async (req, res) => {
     try {
+        // Restrito às equipes da gincana ativa — sem isso, quem já foi membro
+        // de uma equipe em uma edição anterior (o registro nunca é removido,
+        // fica como histórico) nunca mais aparecia como disponível.
+        const equipeIdsDaGincana = await EquipeGincana.find({ gincana_id: escopoGincana(req) }).distinct('equipe_id');
 
         /* const usuarios = await Usuario.find({
              equipe_id: null,
@@ -310,11 +337,16 @@ export const listarUsuariosSemEquipe = async (req, res) => {
                 $match: filtroEscola(req.escolaId)
             },
             {
-                // Para cada usuário, ele tenta encontrar um registro correspondente em Equipes_Membros.
+                // Para cada usuário, ele tenta encontrar um registro correspondente em Equipes_Membros NESTA gincana.
                 $lookup: {
                     from: "Equipes_Membros", // O nome da sua coleção de membros
-                    localField: "_id",
-                    foreignField: "usuario_id",
+                    let: { userId: "$_id" },
+                    pipeline: [{
+                        $match: {
+                            $expr: { $eq: ["$usuario_id", "$$userId"] },
+                            equipe_id: { $in: equipeIdsDaGincana },
+                        },
+                    }],
                     as: "vinculo_equipe" // Cria um array temporário com os resultados da junção
                 }
             },
@@ -626,8 +658,12 @@ export const atualizarEquipe = async (req, res) => {
                 if (!novoCoordenadorObj) return res.status(404).json({ message: 'Novo coordenador não encontrado.' });
                 if (novoCoordenadorObj.tipo !== 'COORDENADOR') return res.status(403).json({ message: 'Novo coordenador deve ser do tipo COORDENADOR.' });
 
-                // Verifica se o novo coordenador já está em outra equipe (membros)
-                const membroConflito = await EquipeMembros.findOne({ usuario_id: coordenador_usuario_id });
+                // Verifica se o novo coordenador já está em outra equipe NESTA
+                // gincana — sem restringir à edição atual, um EquipeMembros de
+                // uma gincana anterior (nunca removido) bloquearia coordenadores
+                // livres por engano.
+                const equipeIdsDaGincanaAtual = await EquipeGincana.find({ gincana_id: escopoGincana(req) }).distinct('equipe_id');
+                const membroConflito = await EquipeMembros.findOne({ usuario_id: coordenador_usuario_id, equipe_id: { $in: equipeIdsDaGincanaAtual } });
                 if (membroConflito) return res.status(409).json({ message: 'Novo coordenador já é membro de uma equipe.' });
 
                 // Remove o antigo coordenador da tabela de membros (se houver)
@@ -691,19 +727,24 @@ export const listarEquipesPublicas = async (req, res) => {
     try {
         const meId = req.usuario.id;
 
-        // Busca a equipe atual do usuário (através de EquipeMembros).
-        // EquipeMembros.equipe_id guarda o Equipe._id (mesma convenção de
-        // inscreverAlunoEmEquipe/adicionarMembro), então excluímos esse id diretamente.
-        const membroAtual = await EquipeMembros.findOne({ usuario_id: meId });
+        // Cada gincana tem suas próprias Equipe/EquipeGincana (ver criarEquipe) —
+        // sem restringir a essa lista, equipes de edições anteriores apareciam
+        // aqui misturadas com as da gincana atual.
+        const equipeIdsDaGincana = await EquipeGincana.find({ gincana_id: escopoGincana(req) }).distinct('equipe_id');
 
-        // Se não está em nenhuma equipe, retorna todas
+        // Busca a equipe atual do usuário (através de EquipeMembros), restrita
+        // às equipes DESTA gincana — um EquipeMembros de uma edição anterior
+        // (nunca removido) não deve ser confundido com o vínculo atual.
+        const membroAtual = await EquipeMembros.findOne({ usuario_id: meId, equipe_id: { $in: equipeIdsDaGincana } });
+
+        // Se não está em nenhuma equipe desta gincana, retorna todas as desta gincana
         if (!membroAtual) {
-            const equipes = await Equipe.find({}, 'nome cor');
+            const equipes = await Equipe.find({ _id: { $in: equipeIdsDaGincana } }, 'nome cor');
             return res.status(200).json(equipes);
         }
 
-        // Exclui a equipe atual do usuário (todas menos a própria)
-        const equipes = await Equipe.find({ _id: { $ne: membroAtual.equipe_id } }, 'nome cor');
+        // Exclui a equipe atual do usuário (todas as desta gincana menos a própria)
+        const equipes = await Equipe.find({ _id: { $in: equipeIdsDaGincana, $ne: membroAtual.equipe_id } }, 'nome cor');
         return res.status(200).json(equipes);
     } catch (error) {
         return res.status(500).json({ message: 'Erro ao listar equipes públicas.', error: error.message });
@@ -814,17 +855,21 @@ export const listarEquipesParaInscricao = async (req, res) => {
     try {
         const meId = req.usuario.id;
 
-        // Busca a equipe atual do usuário
-        const membroAtual = await EquipeMembros.findOne({ usuario_id: meId });
-        let equipeAtualId = null;
-
-        if (membroAtual) {
-            equipeAtualId = membroAtual.equipe_id.toString();
-        }
         // Busca todas as equipes com seus dados
         const gincanaRecords = await EquipeGincana.find({ gincana_id: escopoGincana(req) })
             .populate('equipe_id', 'nome cor')
             .populate('coordenador_usuario_id', 'nome email');
+
+        // Busca a equipe atual do usuário, restrita às equipes DESTA gincana.
+        // Um `.findOne` sem esse filtro pode pegar um EquipeMembros de uma
+        // edição anterior (a linha nunca é removida — cada gincana tem suas
+        // próprias Equipe/EquipeGincana, então quem já competiu antes carrega
+        // um registro por edição) e nunca marcar a equipe atual de verdade.
+        const equipeIdsDaGincana = gincanaRecords
+            .filter((rec) => rec.equipe_id)
+            .map((rec) => rec.equipe_id._id);
+        const membroAtual = await EquipeMembros.findOne({ usuario_id: meId, equipe_id: { $in: equipeIdsDaGincana } });
+        const equipeAtualId = membroAtual ? membroAtual.equipe_id.toString() : null;
 
         const equipes = await Promise.all(gincanaRecords.map(async (rec) => {
             if (!rec.equipe_id) return null;
@@ -862,6 +907,11 @@ export const listarUsuariosElegiveisCoordenador = async (req, res) => {
             return res.status(400).json({ message: 'ID da equipe é obrigatório.' });
         }
 
+        // Restrito às equipes da gincana ativa — mesmo motivo das outras
+        // listagens: um vínculo de uma edição anterior não deve marcar alguém
+        // como "ocupado" na gincana atual.
+        const equipeIdsDaGincana = await EquipeGincana.find({ gincana_id: escopoGincana(req) }).distinct('equipe_id');
+
         const usuariosLivres = await Usuario.aggregate([
             {
                 // Passo 1: Filtrar pelos tipos desejados (ALUNO ou COORDENADOR),
@@ -869,11 +919,16 @@ export const listarUsuariosElegiveisCoordenador = async (req, res) => {
                 $match: filtroEscolaComPerfil(req.escolaId, ['ALUNO', 'COORDENADOR'])
             },
             {
-                // Passo 2: Tentar encontrar um vínculo para cada usuário na tabela de membros
+                // Passo 2: Tentar encontrar um vínculo para cada usuário na tabela de membros NESTA gincana
                 $lookup: {
                     from: "Equipes_Membros",
-                    localField: "_id",
-                    foreignField: "usuario_id",
+                    let: { userId: "$_id" },
+                    pipeline: [{
+                        $match: {
+                            $expr: { $eq: ["$usuario_id", "$$userId"] },
+                            equipe_id: { $in: equipeIdsDaGincana },
+                        },
+                    }],
                     as: "vinculo_equipe"
                 }
             },
@@ -1008,7 +1063,13 @@ export const visualizarRankingEquipes = async (req, res) => {
 export const buscarMinhaEquipeId = async (req, res) => {
     try {
         const usuarioId = req.usuario.id;
-        const membro = await EquipeMembros.findOne({ usuario_id: usuarioId }).select('equipe_id');
+        // Restrito às equipes DESTA gincana — mesmo motivo de
+        // listarEquipesParaInscricao: um `.findOne` sem esse filtro pode
+        // devolver o registro de uma edição anterior em vez do atual.
+        const equipeIdsDaGincana = await EquipeGincana.find({ gincana_id: escopoGincana(req) }).distinct('equipe_id');
+        const membro = await EquipeMembros
+            .findOne({ usuario_id: usuarioId, equipe_id: { $in: equipeIdsDaGincana } })
+            .select('equipe_id');
 
         if (!membro) {
             return res.status(404).json({ message: 'Usuário não está alocado em nenhuma equipe.' });
@@ -1082,8 +1143,11 @@ export const adicionarCoordenador = async (req, res) => {
             return res.status(409).json({ message: `Limite máximo de ${maxCoordenadores} coordenador(es) atingido para esta equipe.` });
         }
 
-        // O usuário não pode ser membro/coordenador de OUTRA equipe.
-        const membroExistente = await EquipeMembros.findOne({ usuario_id });
+        // O usuário não pode ser membro/coordenador de OUTRA equipe NESTA
+        // gincana — restrito à edição atual pelo mesmo motivo de
+        // listarEquipesParaInscricao/buscarMinhaEquipeId.
+        const equipeIdsDaGincanaAtual = await EquipeGincana.find({ gincana_id: escopoGincana(req) }).distinct('equipe_id');
+        const membroExistente = await EquipeMembros.findOne({ usuario_id, equipe_id: { $in: equipeIdsDaGincanaAtual } });
         if (membroExistente && String(membroExistente.equipe_id) !== String(equipeId)) {
             return res.status(409).json({ message: 'Usuário já pertence a outra equipe.' });
         }
