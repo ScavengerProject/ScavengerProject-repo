@@ -13,6 +13,7 @@ import { equipesService } from '../services/api';
 import { useAuth } from '../hooks/useAuth.jsx';
 import MainLayout from '../components/MainLayout';
 
+const COR_PADRAO = '#3b82f6';
 
 const AdminEquipes = () => {
     const navigate = useNavigate();
@@ -28,9 +29,9 @@ const AdminEquipes = () => {
     // Estado do formulário de CRIAÇÃO/EDIÇÃO
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [editingEquipe, setEditingEquipe] = useState(null); 
-    const [newEquipeData, setNewEquipeData] = useState({ 
-        nome: '', 
-        cor: '', 
+    const [newEquipeData, setNewEquipeData] = useState({
+        nome: '',
+        cor: COR_PADRAO,
     });
 
     // Estado do modal de VISUALIZAÇÃO
@@ -117,7 +118,12 @@ const AdminEquipes = () => {
                 cor: equipe.cor,
             });
         } else {
-            setNewEquipeData({ nome: '', cor: '' });
+            // Mesmo valor que o seletor de cor já exibe por padrão — sem isso,
+            // quem não clicasse no seletor levava "nome e cor obrigatórios"
+            // mesmo com a cor aparentemente preenchida (o input mostrava o
+            // fallback visual, mas o estado continuava vazio).
+            setNewEquipeData({ nome: '', cor: COR_PADRAO });
+
         }
         setIsDialogOpen(true);
     };
@@ -361,20 +367,20 @@ const AdminEquipes = () => {
                                         <input
                                             id="cor"
                                             type="color"
-                                            value={newEquipeData.cor || '#3b82f6'}
+                                            value={newEquipeData.cor}
                                             onChange={(e) => setNewEquipeData({...newEquipeData, cor: e.target.value})}
                                             className="h-10 w-14 rounded-md border border-input cursor-pointer p-1"
                                             required
                                         />
                                         <div
                                             className="flex-1 h-10 rounded-md border border-gray-200 flex items-center px-3 gap-2"
-                                            style={{ backgroundColor: newEquipeData.cor || '#3b82f6' }}
+                                            style={{ backgroundColor: newEquipeData.cor }}
                                         >
                                             <span
                                                 className="text-xs font-mono font-semibold drop-shadow"
-                                                style={{ color: isColorDark(newEquipeData.cor || '#3b82f6') ? '#fff' : '#000' }}
+                                                style={{ color: isColorDark(newEquipeData.cor) ? '#fff' : '#000' }}
                                             >
-                                                {newEquipeData.cor || '#3b82f6'}
+                                                {newEquipeData.cor}
                                             </span>
                                         </div>
                                     </div>
