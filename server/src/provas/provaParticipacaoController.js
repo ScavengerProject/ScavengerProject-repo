@@ -6,6 +6,7 @@ import ProvaEquipeParticipacao from '../models/ProvaEquipeParticipacao.js';
 import EmprestimoEquipe from '../models/EmprestimoEquipe.js';
 import Usuario from '../models/Usuario.js';
 import { getEquipeGincanaDoCoordenador } from '../equipes/coordenadorEquipe.js';
+import { getVinculo } from '../escolas/escolaHelpers.js';
 
 // Escopo da gincana ativa (injetado por resolverGincana; fallback p/ gincana legada).
 const escopoGincana = (req) => req.gincanaId || 'GINCANA_PRINCIPAL';
@@ -18,7 +19,7 @@ const provaJaEncerrou = (prova) => {
 
 const toUniqueStrings = (arr) => Array.from(new Set((arr || []).map((item) => String(item))));
 
-async function carregarContextoCoordenadorParaProva(coordenadorId, provaId) {
+async function carregarContextoCoordenadorParaProva(coordenadorId, provaId, escolaId) {
   const prova = await Prova.findById(provaId).select('_id titulo status data_inicio data_fim proibir_membros_consecutivos gincana_id');
 
   if (!prova) {
@@ -60,8 +61,19 @@ async function carregarContextoCoordenadorParaProva(coordenadorId, provaId) {
     idsEmprestadosParaFora = new Set(saida.map((e) => String(e.usuario_id)));
   }
 
-  const membroIdsDaEquipe = (await EquipeMembros.find({ equipe_id: equipeId }).distinct('usuario_id'))
+  const membroIdsBrutos = (await EquipeMembros.find({ equipe_id: equipeId }).distinct('usuario_id'))
     .filter((id) => !idsEmprestadosParaFora.has(String(id)));
+
+  // Exclui quem já não tem vínculo ATIVO com esta escola: numa transferência a
+  // linha em EquipeMembros fica de propósito como histórico (ver
+  // notificarTransferenciaEscola.js), mas isso não deve deixar um ex-membro
+  // escalável para uma prova nova depois que ele já foi embora. Instalação
+  // legada / usuário sem nenhum vínculo registrado não é filtrada (só quem já
+  // passou pela migração tem `vinculos` para checar).
+  const usuariosDosMembros = await Usuario.find({ _id: { $in: membroIdsBrutos } }).select('vinculos');
+  const membroIdsDaEquipe = usuariosDosMembros
+    .filter((u) => (u.vinculos || []).length === 0 || getVinculo(u, escolaId)?.status === 'ATIVO')
+    .map((u) => String(u._id));
   const membroIdsComCoordenador = toUniqueStrings([
     ...membroIdsDaEquipe,
     coordenadorId,
@@ -150,7 +162,7 @@ export const listarEquipeParticipanteDaProva = async (req, res) => {
     const { id: provaId } = req.params;
     const coordenadorId = req.usuario.id;
 
-    const contexto = await carregarContextoCoordenadorParaProva(coordenadorId, provaId);
+    const contexto = await carregarContextoCoordenadorParaProva(coordenadorId, provaId, req.escolaId);
     if (contexto.erro) {
       return res.status(contexto.erro.status).json({ message: contexto.erro.message });
     }
@@ -249,7 +261,7 @@ export const salvarEquipeParticipanteDaProva = async (req, res) => {
       });
     }
 
-    const contexto = await carregarContextoCoordenadorParaProva(coordenadorId, provaId);
+    const contexto = await carregarContextoCoordenadorParaProva(coordenadorId, provaId, req.escolaId);
     if (contexto.erro) {
       return res.status(contexto.erro.status).json({ message: contexto.erro.message });
     }

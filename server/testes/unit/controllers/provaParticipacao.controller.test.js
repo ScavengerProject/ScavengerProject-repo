@@ -210,6 +210,29 @@ describe('provaParticipacaoController - listarEquipeParticipanteDaProva', () => 
     expect(porNome['Sem Definição']).toBe('NAO_DEFINIDO');
   });
 
+  it('exclui da lista quem já se transferiu para outra escola (EquipeMembros fica como histórico, mas não deve ser escalável)', async () => {
+    const coordenador = await criarUsuario({ nome: 'Coord', tipo: 'COORDENADOR', vinculos: [{ escola_id: 'ESCOLA_X', tipo: 'COORDENADOR' }] });
+    const membroAtual = await criarUsuario({ nome: 'Membro Atual', vinculos: [{ escola_id: 'ESCOLA_X', tipo: 'ALUNO' }] });
+    // Vínculo com ESCOLA_X foi removido numa transferência; só resta o da
+    // escola de destino — a linha em EquipeMembros continua existindo.
+    const transferido = await criarUsuario({ nome: 'Transferido', vinculos: [{ escola_id: 'ESCOLA_DESTINO', tipo: 'ALUNO' }] });
+    const { equipe } = await criarEquipeComMembros({ coordenador, membros: [membroAtual, transferido] });
+
+    const prova = await criarProva({ gincana_id: 'G1' });
+    for (const u of [membroAtual, transferido]) {
+      await ProvaUsuario.create({ prova_id: prova._id, usuario_id: u._id, gincana_id: 'G1' });
+    }
+
+    const req = { params: { id: prova._id.toString() }, usuario: { id: coordenador._id.toString() }, escolaId: 'ESCOLA_X' };
+    const res = mockRes();
+
+    await listarEquipeParticipanteDaProva(req, res);
+
+    const nomes = res.json.mock.calls[0][0].membros_inscritos.map((m) => m.nome);
+    expect(nomes).toContain('Membro Atual');
+    expect(nomes).not.toContain('Transferido');
+  });
+
   it('inclui o aluno emprestado PARA DENTRO (com equipe_origem_nome) e exclui o membro emprestado PARA FORA', async () => {
     const coordenador = await criarUsuario({ nome: 'Coord', tipo: 'COORDENADOR' });
     const membroEmprestadoPraFora = await criarUsuario({ nome: 'Emprestado Pra Fora' });
