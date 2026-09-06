@@ -69,11 +69,25 @@ export default function ResgatarConvite() {
     return () => clearTimeout(timer);
   }, [codigo]);
 
-  // Perfil de escola única (ALUNO/COORDENADOR/PAI-MÃE) já vinculado a outra
+  // Perfil de escola única (ALUNO/COORDENADOR/PAI-MÃE) já vinculado a OUTRA
   // escola: resgatar um código aqui é o que dispara a regra de conflito no
   // backend (conflitoMultiEscola) e vira uma solicitação de transferência —
   // é essa consequência destrutiva que a tela precisa deixar explícita.
-  const possivelTransferencia = (minhasEscolas || []).some((e) => ehPerfilDeEscolaUnica(e.meu_tipo));
+  //
+  // Precisa comparar pelo NOME da escola do código (nomes de escola são
+  // únicos no sistema — `criarEscola` recusa duplicata) porque o backend não
+  // expõe o escola_id do convite antes do login (D7, anti-oráculo). Sem essa
+  // comparação, o aviso de transferência aparecia até para um código da MESMA
+  // escola em que o aluno já está (outra turma/ano) — que nem chega a virar
+  // transferência: o backend recusa com 409 "já tem vínculo com esta escola"
+  // antes de checar conflito nenhum (ver resgatarConvite).
+  // PENDENTE não conta pro conflito (mesma regra de conflitoMultiEscola): é
+  // uma solicitação em análise, não um vínculo ativo que seria removido.
+  const possivelTransferencia = !!prevalidacao && (minhasEscolas || []).some(
+    (e) => ehPerfilDeEscolaUnica(e.meu_tipo)
+      && e.meu_vinculo_status !== 'PENDENTE'
+      && e.nome !== prevalidacao.escola_nome
+  );
 
   const podeEnviar =
     !!codigo.trim()

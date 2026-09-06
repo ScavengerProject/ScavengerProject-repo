@@ -99,6 +99,28 @@ describe('ResgatarConvite', () => {
     expect(botaoEnviar).not.toBeDisabled();
   });
 
+  it('não mostra aviso de transferência para um código da MESMA escola em que o aluno já está (outra turma/ano)', async () => {
+    // O backend nem chega a checar conflito nesse caso — recusa direto com
+    // 409 "já tem vínculo com esta escola" (ver resgatarConvite). O aviso de
+    // transferência só faz sentido quando a escola do código é OUTRA.
+    minhasEscolasMock = [{ _id: 'ESCOLA_ATUAL', nome: 'Escola Destino', meu_tipo: 'ALUNO' }];
+    renderPagina();
+    await digitarCodigoValido(); // prevalidarMock resolve com escola_nome: 'Escola Destino'
+
+    expect(screen.queryByText(/isso não pode ser desfeito automaticamente/i)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /resgatar código/i })).not.toBeDisabled();
+  });
+
+  it('não conta um vínculo PENDENTE como conflito de transferência', async () => {
+    // PENDENTE é uma solicitação em análise, não um vínculo ativo que seria
+    // removido — mesma regra de conflitoMultiEscola no backend.
+    minhasEscolasMock = [{ _id: 'ESCOLA_ATUAL', nome: 'Outra Escola', meu_tipo: 'ALUNO', meu_vinculo_status: 'PENDENTE' }];
+    renderPagina();
+    await digitarCodigoValido();
+
+    expect(screen.queryByText(/isso não pode ser desfeito automaticamente/i)).not.toBeInTheDocument();
+  });
+
   it('não mostra aviso de transferência quando não há vínculo de escola única em outra escola', async () => {
     // Ex.: PROFESSOR ganhando uma segunda escola — não é um perfil preso a
     // uma escola só, então resgatar não entra em conflito.
