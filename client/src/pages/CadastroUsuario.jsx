@@ -6,6 +6,7 @@ import { Label } from "../components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { toast } from "../components/ui/toast";
 import { usuariosService, convitesService } from "../services/api";
+import { formatarTelefone } from "../lib/mascaras";
 
 // Tempo de debounce da pré-validação do código: espera o usuário parar de
 // digitar antes de consultar o backend (a rota é rate-limitada).
@@ -211,10 +212,11 @@ const CadastroUsuario = () => {
               </Label>
               <Input
                 id="telefone"
-                type="telefone"
-                placeholder="Ex: (00) 00000-0000"
+                type="tel"
+                placeholder="(99) 9 9999-9999"
                 value={telefone}
-                onChange={(event) => setTelefone(event.target.value)}
+                onChange={(event) => setTelefone(formatarTelefone(event.target.value))}
+                maxLength={17}
                 className="bg-white border-gray-300 focus:ring-blue-500"
                 disabled={loading}
               />

@@ -102,7 +102,7 @@ describe('CadastroUsuario', () => {
     expect(payload).toEqual({
       nome: 'Fulano de Tal',
       email: 'fulano@escola.com',
-      telefone: '51999999999',
+      telefone: '(51) 9 9999-9999',
       senha: 'senha123',
       codigo: 'CODIGO01',
     });

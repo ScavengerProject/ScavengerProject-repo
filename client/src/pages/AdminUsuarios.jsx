@@ -32,6 +32,7 @@ import { useAuth } from "../hooks/useAuth";
 import MainLayout from "../components/MainLayout";
 import { usuariosService } from "../services/api";
 import { toast } from "../components/ui/toast";
+import { formatarTelefone } from "../lib/mascaras";
 import { ehAdmin } from "../lib/perfis";
 
 const AdminUsuarios = () => {
@@ -653,9 +654,12 @@ const AdminUsuarios = () => {
                 <Input
                   id="telefone"
                   name="telefone"
+                  type="tel"
                   autoComplete="off"
+                  placeholder="(99) 9 9999-9999"
                   value={formData.telefone}
-                  onChange={(e) => setFormData({ ...formData, telefone: e.target.value })}
+                  onChange={(e) => setFormData({ ...formData, telefone: formatarTelefone(e.target.value) })}
+                  maxLength={17}
                 />
               </div>
             </div>
