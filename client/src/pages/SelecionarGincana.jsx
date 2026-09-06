@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Trophy, Lock, ChevronRight, ArrowLeft, Plus, CalendarDays } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useEscola } from '../hooks/useEscola';
@@ -50,6 +50,29 @@ export default function SelecionarGincana() {
 
   const isAdmin = ehAdmin(usuario);
   const podeTrocarEscola = minhasEscolas.length > 1;
+
+  // Sem equipe ainda, `gincanasAcessiveis` vem vazio pra quem não é admin (só
+  // lista gincanas onde já se participa). Sem isso o aluno nunca via a gincana
+  // pra poder escolher uma equipe e se inscrever nela.
+  const [gincanasDisponiveis, setGincanasDisponiveis] = useState([]);
+  const [carregandoDisponiveis, setCarregandoDisponiveis] = useState(false);
+
+  useEffect(() => {
+    if (isAdmin || loading || gincanasAcessiveis.length > 0) {
+      setGincanasDisponiveis([]);
+      return;
+    }
+    let cancelado = false;
+    setCarregandoDisponiveis(true);
+    gincanasService.disponiveis()
+      .then((lista) => { if (!cancelado) setGincanasDisponiveis(lista || []); })
+      .catch((error) => {
+        console.error('Erro ao carregar gincanas disponíveis:', error);
+        if (!cancelado) setGincanasDisponiveis([]);
+      })
+      .finally(() => { if (!cancelado) setCarregandoDisponiveis(false); });
+    return () => { cancelado = true; };
+  }, [isAdmin, loading, gincanasAcessiveis.length]);
 
   const criarGincana = async (event) => {
     event.preventDefault();
@@ -112,7 +135,63 @@ export default function SelecionarGincana() {
           {/* Escola sem nenhuma edição em andamento. Nomear a escola aqui é o
               que evita a sensação de laço para quem administra várias: sem
               isso, escolher a escola parecia "voltar para a mesma tela". */}
-          {!loading && gincanasAcessiveis.length === 0 && (
+          {!loading && gincanasAcessiveis.length === 0 && !isAdmin && !carregandoDisponiveis && gincanasDisponiveis.length > 0 && (
+            <div>
+              <div className="text-center mb-4">
+                <Trophy size={32} className="mx-auto text-gray-400 mb-2" />
+                <p className="font-semibold text-gray-800">Você ainda não está em nenhuma equipe</p>
+                <p className="text-sm text-gray-600 mt-1">
+                  Escolha uma gincana em andamento para ver as equipes e se inscrever.
+                </p>
+              </div>
+              <ul className="grid gap-3 sm:grid-cols-2">
+                {gincanasDisponiveis.map((gincana) => (
+                  <li key={gincana._id}>
+                    <button
+                      type="button"
+                      onClick={() => setGincanaAtiva(gincana._id, '/inscricao-equipes')}
+                      className="w-full text-left border border-gray-200 rounded-xl p-4 hover:border-blue-500 hover:bg-blue-50 transition flex items-start gap-3 group"
+                    >
+                      <span className="bg-blue-100 text-blue-700 rounded-lg p-2 shrink-0">
+                        <Trophy size={20} />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block font-semibold text-gray-900 wrap-break-word">
+                          {gincana.nome}
+                        </span>
+                        <span className="block text-xs text-gray-600 mt-0.5">{gincana.ano}</span>
+                        {periodo(gincana) && (
+                          <span className="flex items-center gap-1 text-xs text-gray-500 mt-1">
+                            <CalendarDays size={12} />
+                            {periodo(gincana)}
+                          </span>
+                        )}
+                      </span>
+                      <ChevronRight
+                        size={20}
+                        className="text-gray-400 group-hover:text-blue-600 shrink-0 mt-1"
+                      />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              {podeTrocarEscola && (
+                <div className="mt-4 flex justify-center">
+                  <Button
+                    onClick={limparEscolaAtiva}
+                    className="bg-gray-100 hover:bg-gray-200 text-gray-800 inline-flex items-center gap-2"
+                  >
+                    <ArrowLeft size={18} />
+                    Escolher outra escola
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {!loading
+            && gincanasAcessiveis.length === 0
+            && (isAdmin || carregandoDisponiveis || gincanasDisponiveis.length === 0) && (
             <div className="text-center py-8">
               <Trophy size={40} className="mx-auto text-gray-400 mb-3" />
               <p className="font-semibold text-gray-800">
@@ -121,9 +200,11 @@ export default function SelecionarGincana() {
                   : 'Nenhuma gincana em andamento'}
               </p>
               <p className="text-sm text-gray-600 mt-1">
-                {isAdmin
-                  ? 'Crie uma edição para esta escola ou escolha outra escola.'
-                  : 'Assim que uma nova edição for aberta nesta escola, ela aparecerá aqui.'}
+                {carregandoDisponiveis
+                  ? 'Carregando gincanas disponíveis...'
+                  : isAdmin
+                    ? 'Crie uma edição para esta escola ou escolha outra escola.'
+                    : 'Assim que uma nova edição for aberta nesta escola, ela aparecerá aqui.'}
               </p>
               <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
                 {isAdmin && (

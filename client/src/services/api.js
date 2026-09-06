@@ -731,6 +731,9 @@ export const configuracoesService = {
 export const gincanasService = {
   // Gincanas visíveis para o usuário logado (ADMIN vê todas; demais, as que participam).
   minhas: () => request('/gincanas/minhas', { method: 'GET' }),
+  // Gincanas ATIVAS da escola sem exigir participação — usada quando `minhas`
+  // vem vazio, pra oferecer algo em que entrar (ver SelecionarGincana.jsx).
+  disponiveis: () => request('/gincanas/disponiveis', { method: 'GET' }),
   // Listagem completa (apenas ADMIN).
   listar: () => request('/gincanas', { method: 'GET' }),
   criar: (dados) => request('/gincanas', {

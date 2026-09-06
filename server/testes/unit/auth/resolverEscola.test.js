@@ -7,7 +7,7 @@ import Usuario from '../../../src/models/Usuario.js';
 import Equipe from '../../../src/models/Equipe.js';
 import EquipeGincana from '../../../src/models/EquipeGincana.js';
 import EquipeMembros from '../../../src/models/EquipeMembros.js';
-import { resolverEscola, resolverGincana, autorizar } from '../../../src/auth/authPermissions.js';
+import { resolverEscola, resolverGincana, resolverGincanaParaInscricao, autorizar } from '../../../src/auth/authPermissions.js';
 
 const mockRes = () => {
   const res = {};
@@ -206,6 +206,75 @@ describe('authPermissions - resolverGincana com escopo de escola', () => {
 
     expect(next).toHaveBeenCalledTimes(1);
     expect(req.gincanaId).toBe('GINCANA_A');
+  });
+});
+
+describe('authPermissions - resolverGincanaParaInscricao (rotas de entrar numa equipe)', () => {
+  it('deixa um ALUNO sem nenhuma participação passar, ao contrário de resolverGincana', async () => {
+    const gincana = await Gincana.create({
+      _id: 'GINCANA_INSCRICAO', escola_id: ESCOLA_A, nome: 'Gincana', ano: 2026, criado_por: criadorId,
+    });
+    const alunoSemEquipeId = new mongoose.Types.ObjectId().toString();
+
+    const reqEstrito = {
+      headers: { 'x-gincana-id': gincana._id },
+      usuario: { id: alunoSemEquipeId, tipo: 'ALUNO' },
+      escolaId: ESCOLA_A,
+    };
+    const resEstrito = mockRes();
+    await resolverGincana(reqEstrito, resEstrito, jest.fn());
+    expect(resEstrito.status).toHaveBeenCalledWith(403);
+
+    const reqPermissivo = {
+      headers: { 'x-gincana-id': gincana._id },
+      usuario: { id: alunoSemEquipeId, tipo: 'ALUNO' },
+      escolaId: ESCOLA_A,
+    };
+    const resPermissivo = mockRes();
+    const next = jest.fn();
+    await resolverGincanaParaInscricao(reqPermissivo, resPermissivo, next);
+
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(reqPermissivo.gincanaId).toBe('GINCANA_INSCRICAO');
+  });
+
+  it('mantém a barreira entre tenants: recusa gincana de outra escola mesmo sem exigir participação', async () => {
+    const gincanaDaB = await Gincana.create({
+      _id: 'GINCANA_B_INSCRICAO', escola_id: ESCOLA_B, nome: 'Gincana da B', ano: 2026, criado_por: criadorId,
+    });
+
+    const req = {
+      headers: { 'x-gincana-id': gincanaDaB._id },
+      usuario: { id: new mongoose.Types.ObjectId().toString(), tipo: 'ALUNO' },
+      escolaId: ESCOLA_A,
+    };
+    const res = mockRes();
+    const next = jest.fn();
+
+    await resolverGincanaParaInscricao(req, res, next);
+
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('mantém a recusa de edição encerrada mesmo sem exigir participação', async () => {
+    const gincanaEncerrada = await Gincana.create({
+      _id: 'GINCANA_ENCERRADA_INSCRICAO', escola_id: ESCOLA_A, nome: 'Encerrada', ano: 2026, status: 'ENCERRADA', criado_por: criadorId,
+    });
+
+    const req = {
+      headers: { 'x-gincana-id': gincanaEncerrada._id },
+      usuario: { id: new mongoose.Types.ObjectId().toString(), tipo: 'ALUNO' },
+      escolaId: ESCOLA_A,
+    };
+    const res = mockRes();
+    const next = jest.fn();
+
+    await resolverGincanaParaInscricao(req, res, next);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ codigo: 'GINCANA_ENCERRADA' }));
+    expect(next).not.toHaveBeenCalled();
   });
 });
 

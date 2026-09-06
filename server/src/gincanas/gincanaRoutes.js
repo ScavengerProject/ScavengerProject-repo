@@ -2,6 +2,7 @@ import express from 'express';
 import {
     listarGincanas,
     minhasGincanas,
+    listarGincanasDisponiveis,
     criarGincana,
     atualizarGincana,
     alterarStatusGincana,
@@ -13,6 +14,11 @@ const router = express.Router();
 // Gincanas em que o usuário logado participa, dentro da escola ativa.
 // Rota literal antes de qualquer '/:id' para não colidir.
 router.get('/minhas', proteger, resolverEscola, minhasGincanas);
+
+// Gincanas ATIVAS da escola, sem exigir participação — usada quando
+// `minhasGincanas` vem vazio para oferecer algo em que entrar (ver
+// SelecionarGincana.jsx).
+router.get('/disponiveis', proteger, resolverEscola, listarGincanasDisponiveis);
 
 // Listagem completa e escritas: ADMIN (restrito à escola ativa) ou SUPER_ADMIN.
 router.get('/', proteger, resolverEscola, autorizar('ADMIN'), listarGincanas);

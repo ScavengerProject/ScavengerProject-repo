@@ -23,53 +23,62 @@ import {
   visualizarRankingEquipes,
   buscarMinhaEquipeId
 } from './equipeController.js';
-import { proteger, autorizar, resolverEscola, resolverGincana } from '../auth/authPermissions.js';
+import {
+  proteger,
+  autorizar,
+  resolverEscola,
+  resolverGincana,
+  resolverGincanaParaInscricao,
+} from '../auth/authPermissions.js';
 
 const router = express.Router();
 
-// Resolve o escopo da gincana ativa (X-Gincana-Id) para todas as rotas de equipes.
-router.use(proteger, resolverEscola, resolverGincana);
+// Cada rota encadeia seu próprio resolvedor de gincana (em vez de um
+// `router.use` único) porque as DUAS rotas de inscrição (logo abaixo) usam a
+// variante permissiva `resolverGincanaParaInscricao`: a estrita exige que o
+// usuário já participe da gincana, e são justamente essas rotas que deixam
+// alguém sem equipe passar a participar pela primeira vez.
 
 // ✅ rota "pública" para QUALQUER usuário autenticado (inclui aluno)
-router.get('/publicas', proteger, listarEquipesPublicas);
+router.get('/publicas', proteger, resolverEscola, resolverGincana, listarEquipesPublicas);
 
 // ✅ Lista equipes para inscrição, indicando qual é a equipe atual do aluno
-router.get('/para-inscricao', proteger, autorizar('ALUNO', 'PROFESSOR', 'PAI/MÃE', 'COORDENADOR'), listarEquipesParaInscricao);
+router.get('/para-inscricao', proteger, resolverEscola, resolverGincanaParaInscricao, autorizar('ALUNO', 'PROFESSOR', 'PAI/MÃE', 'COORDENADOR'), listarEquipesParaInscricao);
 
 // Lista todas as equipes (Admin, Coordenador, Professor, Aluno)
-router.get('/', proteger, autorizar('ADMIN', 'COORDENADOR', 'PROFESSOR', 'ALUNO'), listarEquipes);
+router.get('/', proteger, resolverEscola, resolverGincana, autorizar('ADMIN', 'COORDENADOR', 'PROFESSOR', 'ALUNO'), listarEquipes);
 
 // Criar nova equipe (apenas Admin)
-router.post('/', proteger, autorizar('ADMIN'), criarEquipe);
+router.post('/', proteger, resolverEscola, resolverGincana, autorizar('ADMIN'), criarEquipe);
 // Excluir equipe (apenas Admin)
-router.delete('/:id', proteger, autorizar('ADMIN'), deletarEquipe);
+router.delete('/:id', proteger, resolverEscola, resolverGincana, autorizar('ADMIN'), deletarEquipe);
 // [GET] Listar membros por ID da Equipe
-router.get('/:equipeId/membros', proteger, autorizar('ADMIN', 'COORDENADOR', 'PROFESSOR', 'ALUNO'), listarMembrosPorEquipe);
+router.get('/:equipeId/membros', proteger, resolverEscola, resolverGincana, autorizar('ADMIN', 'COORDENADOR', 'PROFESSOR', 'ALUNO'), listarMembrosPorEquipe);
 // [PUT] Atualizar equipe (Admin)
-router.put('/:id', proteger, autorizar('ADMIN'), atualizarEquipe);
+router.put('/:id', proteger, resolverEscola, resolverGincana, autorizar('ADMIN'), atualizarEquipe);
 // [PATCH] Atribuir/Trocar Coordenador (legado, coordenador único)
-router.patch('/:id/coordenador', proteger, autorizar('ADMIN'), atribuirCoordenador);
+router.patch('/:id/coordenador', proteger, resolverEscola, resolverGincana, autorizar('ADMIN'), atribuirCoordenador);
 
 // Gestão de MÚLTIPLOS coordenadores por equipe (ADMIN)
-router.post('/:id/coordenadores', proteger, autorizar('ADMIN'), adicionarCoordenador);
-router.delete('/:id/coordenadores/:usuarioId', proteger, autorizar('ADMIN'), removerCoordenador);
-router.patch('/:id/max-coordenadores', proteger, autorizar('ADMIN'), atualizarMaxCoordenadores);
+router.post('/:id/coordenadores', proteger, resolverEscola, resolverGincana, autorizar('ADMIN'), adicionarCoordenador);
+router.delete('/:id/coordenadores/:usuarioId', proteger, resolverEscola, resolverGincana, autorizar('ADMIN'), removerCoordenador);
+router.patch('/:id/max-coordenadores', proteger, resolverEscola, resolverGincana, autorizar('ADMIN'), atualizarMaxCoordenadores);
 
-router.patch('/:id/membros', proteger, autorizar('ADMIN'), adicionarMembro);
-router.get('/coordenadores-disponiveis', proteger, autorizar('ADMIN'), listarCoordenadoresDisponiveis);
-router.get('/membros-disponiveis', proteger, autorizar('ADMIN', 'COORDENADOR'), listarUsuariosSemEquipe);
-router.get('/:equipeId/alunos-disponiveis', proteger, autorizar('ADMIN'), listarUsuariosElegiveisCoordenador);
-router.get('/todos-membros', proteger, autorizar('ADMIN'), listarTodosMembros);
-router.get('/equipes-gincana', proteger, autorizar('ADMIN'), listarEquipesGincana);
+router.patch('/:id/membros', proteger, resolverEscola, resolverGincana, autorizar('ADMIN'), adicionarMembro);
+router.get('/coordenadores-disponiveis', proteger, resolverEscola, resolverGincana, autorizar('ADMIN'), listarCoordenadoresDisponiveis);
+router.get('/membros-disponiveis', proteger, resolverEscola, resolverGincana, autorizar('ADMIN', 'COORDENADOR'), listarUsuariosSemEquipe);
+router.get('/:equipeId/alunos-disponiveis', proteger, resolverEscola, resolverGincana, autorizar('ADMIN'), listarUsuariosElegiveisCoordenador);
+router.get('/todos-membros', proteger, resolverEscola, resolverGincana, autorizar('ADMIN'), listarTodosMembros);
+router.get('/equipes-gincana', proteger, resolverEscola, resolverGincana, autorizar('ADMIN'), listarEquipesGincana);
 
 // Coordenador gerencia sua própria equipe
-router.get('/minha-equipe', proteger, autorizar('COORDENADOR'), visualizarEquipe);
-router.delete('/minha-equipe/membros/:membroId', proteger, autorizar('COORDENADOR'), removerMembroEquipe);
+router.get('/minha-equipe', proteger, resolverEscola, resolverGincana, autorizar('COORDENADOR'), visualizarEquipe);
+router.delete('/minha-equipe/membros/:membroId', proteger, resolverEscola, resolverGincana, autorizar('COORDENADOR'), removerMembroEquipe);
 
 // --- ROTA PARA INSCRIÇÃO DE ALUNO (US08) ---
 // Aluno autenticado se inscreve em uma equipe
-router.post('/:equipeId/register', proteger, autorizar('ALUNO'), inscreverAlunoEmEquipe);
+router.post('/:equipeId/register', proteger, resolverEscola, resolverGincanaParaInscricao, autorizar('ALUNO'), inscreverAlunoEmEquipe);
 
-router.get('/ranking', proteger, visualizarRankingEquipes);
-router.get('/minha-equipe-id', proteger, buscarMinhaEquipeId);
+router.get('/ranking', proteger, resolverEscola, resolverGincana, visualizarRankingEquipes);
+router.get('/minha-equipe-id', proteger, resolverEscola, resolverGincana, buscarMinhaEquipeId);
 export default router;

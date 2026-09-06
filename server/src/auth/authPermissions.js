@@ -223,14 +223,16 @@ export const resolverEscola = async (req, res, next) => {
 };
 
 /**
- * Middleware de escopo de gincana. Deve ser encadeado DEPOIS de `resolverEscola`.
+ * Fábrica do middleware de escopo de gincana. Deve ser encadeado DEPOIS de
+ * `resolverEscola`.
  *
  * Resolve a gincana "ativa" da requisição a partir do header `X-Gincana-Id`:
  *  - valida que a gincana existe;
  *  - valida que ela pertence à escola ativa (`req.escolaId`) — é isso que impede
  *    uma escola de alcançar dados de outra;
  *  - recusa gincanas ENCERRADA/ARQUIVADA: edições passadas são só histórico;
- *  - para perfis não-ADMIN, valida que o usuário participa dela (403 caso contrário);
+ *  - com `exigirParticipacao` (padrão), perfis não-ADMIN precisam já participar
+ *    da gincana (403 caso contrário);
  *  - injeta `req.gincanaId` (String) para uso nos controllers.
  *
  * Sem o header, só cai na gincana legada 'GINCANA_PRINCIPAL' se ela for da escola
@@ -238,8 +240,16 @@ export const resolverEscola = async (req, res, next) => {
  * o front usa esse código para mandar o usuário à tela de escolher a gincana.
  * (O fallback cego era o que quebrava tudo depois de trocar de escola: o header
  * antigo apontava para uma gincana de outro tenant.)
+ *
+ * `exigirParticipacao: false` gera `resolverGincanaParaInscricao`, usado SÓ nas
+ * rotas de entrar numa equipe (`GET /equipes/para-inscricao` e
+ * `POST /equipes/:id/register`): sem isso, um aluno recém-vinculado à escola
+ * nunca conseguia ver ou se inscrever em nenhuma equipe — a checagem de
+ * participação (que vem justamente de estar numa equipe) bloqueava a própria
+ * rota que o deixaria entrar numa. As demais checagens (tenant, encerrada)
+ * continuam valendo por igual.
  */
-export const resolverGincana = async (req, res, next) => {
+const construirResolverGincana = ({ exigirParticipacao }) => async (req, res, next) => {
   try {
     const headerGincanaId = req.headers['x-gincana-id'];
 
@@ -286,8 +296,10 @@ export const resolverGincana = async (req, res, next) => {
       });
     }
 
-    // ADMIN opera em qualquer gincana; demais perfis só nas que participam.
-    if (req.usuario.tipo !== 'ADMIN' && req.usuario.tipo !== 'SUPER_ADMIN') {
+    // ADMIN opera em qualquer gincana; demais perfis só nas que participam
+    // (exceto nas rotas de inscrição, que precisam ser alcançáveis por quem
+    // ainda não participa de nenhuma).
+    if (exigirParticipacao && req.usuario.tipo !== 'ADMIN' && req.usuario.tipo !== 'SUPER_ADMIN') {
       const participa = await usuarioParticipaDaGincana(req.usuario.id, gincana._id);
       if (!participa) {
         return res.status(403).json({ message: 'Você não participa desta gincana.' });
@@ -302,3 +314,6 @@ export const resolverGincana = async (req, res, next) => {
     res.status(500).json({ message: 'Erro interno ao resolver o escopo da gincana.' });
   }
 };
+
+export const resolverGincana = construirResolverGincana({ exigirParticipacao: true });
+export const resolverGincanaParaInscricao = construirResolverGincana({ exigirParticipacao: false });

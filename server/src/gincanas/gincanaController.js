@@ -57,6 +57,26 @@ export const minhasGincanas = async (req, res) => {
 };
 
 /**
+ * [GET] Lista as gincanas ATIVAS da escola ativa, sem exigir participação —
+ * ao contrário de `minhasGincanas`, que para não-admin só devolve gincanas
+ * onde o usuário já tem equipe. Alimenta a tela de seleção quando um aluno
+ * ainda não está em nenhuma equipe: ele precisa VER a gincana pra poder
+ * escolher uma equipe e se inscrever, antes de "participar" dela.
+ */
+export const listarGincanasDisponiveis = async (req, res) => {
+    try {
+        const gincanas = await Gincana
+            .find({ escola_id: req.escolaId, status: 'ATIVA' })
+            .select('nome ano descricao data_inicio data_fim status')
+            .sort({ ano: -1, criado_em: -1 });
+        res.status(200).json(gincanas);
+    } catch (error) {
+        console.error('Erro ao listar gincanas disponíveis:', error);
+        res.status(500).json({ message: 'Erro interno ao listar gincanas disponíveis.' });
+    }
+};
+
+/**
  * [POST] Cria uma nova gincana na escola ativa (ADMIN da escola ou SUPER_ADMIN).
  */
 export const criarGincana = async (req, res) => {

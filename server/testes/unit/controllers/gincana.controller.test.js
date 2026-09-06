@@ -9,6 +9,7 @@ import {
   criarGincana,
   listarGincanas,
   minhasGincanas,
+  listarGincanasDisponiveis,
   atualizarGincana,
   alterarStatusGincana,
 } from '../../../src/gincanas/gincanaController.js';
@@ -209,6 +210,34 @@ describe('gincanaController - minhasGincanas', () => {
     const res = mockRes();
 
     await minhasGincanas(req, res);
+
+    expect(res.json.mock.calls[0][0]).toEqual([]);
+  });
+});
+
+describe('gincanaController - listarGincanasDisponiveis (sem exigir participação)', () => {
+  it('devolve as ATIVAS da escola ativa para um usuário sem nenhuma equipe', async () => {
+    const alunoId = new mongoose.Types.ObjectId().toString();
+    await criarGincanaDoc({ nome: 'Ativa Sem Equipe', ano: anoAtual, status: 'ATIVA', escola_id: 'ESCOLA_ATIVA' });
+
+    const req = { escolaId: 'ESCOLA_ATIVA', usuario: { id: alunoId, tipo: 'ALUNO' } };
+    const res = mockRes();
+
+    await listarGincanasDisponiveis(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.json.mock.calls[0][0].map((g) => g.nome)).toEqual(['Ativa Sem Equipe']);
+  });
+
+  it('não devolve gincanas de outra escola nem ENCERRADA/ARQUIVADA', async () => {
+    await criarGincanaDoc({ nome: 'De Outra Escola', ano: anoAtual, status: 'ATIVA', escola_id: 'ESCOLA_OUTRA' });
+    await criarGincanaDoc({ nome: 'Encerrada', ano: anoAtual, status: 'ENCERRADA', escola_id: 'ESCOLA_ATIVA' });
+    await criarGincanaDoc({ nome: 'Arquivada', ano: anoAtual, status: 'ARQUIVADA', escola_id: 'ESCOLA_ATIVA' });
+
+    const req = { escolaId: 'ESCOLA_ATIVA', usuario: { id: new mongoose.Types.ObjectId().toString(), tipo: 'ALUNO' } };
+    const res = mockRes();
+
+    await listarGincanasDisponiveis(req, res);
 
     expect(res.json.mock.calls[0][0]).toEqual([]);
   });
