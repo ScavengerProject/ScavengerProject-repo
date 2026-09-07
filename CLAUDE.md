@@ -21,7 +21,14 @@ run each separately.
 - Run one test by name: `npx jest -t "nome do teste"`
 - Migration/seed scripts (see "Migrating an existing DB" below):
   `node src/scripts/seedAdmin.js`, `node src/scripts/seedGincanaPrincipal.js`,
-  `npm run seed:escola`, `npm run migrar:papeis`
+  `npm run migrar:gincana`, `npm run seed:escola`, `npm run migrar:papeis`
+- `npm run inventario -- prod|dev|<db>` — read-only inventory of a database
+  (doc counts + indexes per collection, deterministic output so two runs can be
+  `diff`ed). Use it to capture a "before", to verify a restored backup, and to
+  confirm obsolete indexes were actually dropped.
+- `src/scripts/backupProducao.ps1` — `mongodump` of `MONGO_URI` into one gzipped
+  archive; refuses a database whose name ends in `_Dev`. `-DryRun` to check the
+  guards without connecting.
 
 ### Frontend (`client/`)
 - `npm start` — Vite dev server (http://localhost:5173)
@@ -144,13 +151,35 @@ instead — kept alive by external pings to `/health` (see comments there and in
 `jestSetupAfterEnv.js`, so backend tests never touch Redis.
 
 ### Migrating an existing DB to multi-escola
-All idempotent, run in order (see README for full detail): `seedAdmin.js` →
-`seedGincanaPrincipal.js` → `npm run seed:escola` (creates `ESCOLA_PRINCIPAL`,
+All idempotent, run in order (see README for full detail): `seedAdmin.js` (skip
+it if the DB already has an ADMIN) → `seedGincanaPrincipal.js` →
+`npm run migrar:gincana` → `npm run seed:escola` (creates `ESCOLA_PRINCIPAL`,
 links existing users, promotes the first admin to `SUPER_ADMIN`) →
 `npm run migrar:papeis` (converts legacy `Usuario.escolas` into
-`Usuario.vinculos`). Step 4 is not optional — without it, everyone but
-`SUPER_ADMIN` gets 403 `SEM_VINCULO_ESCOLA` and loops on the escola-selection
-screen.
+`Usuario.vinculos`). Take a backup first and verify it by restoring.
+
+Neither of the last two steps is optional:
+
+- **`migrar:gincana`** (`migrarDadosParaGincana.js`, no argument) materializes
+  `gincana_id` on the 14 scoped collections. Several models gained the field
+  after the DB was already in use (`Notificacao`, `ProvaUsuario`,
+  `ProvaEquipeParticipacao`, `MigracaoEquipe`, `OfertaEmprestimo`), and the
+  schema's `default: 'GINCANA_PRINCIPAL'` only applies on write — so those
+  documents have **no field at all** and drop out of every gincana-filtered
+  query. Nothing errors; the data just vanishes from the UI while sitting intact
+  in the DB.
+- **`migrar:papeis`** — without it `Usuario.vinculos` stays empty and everyone
+  but `SUPER_ADMIN` gets 403 `SEM_VINCULO_ESCOLA`, looping on the
+  escola-selection screen. On a DB that never used the legacy `Usuario.escolas`
+  array it is a no-op, because `seed:escola` already created the vinculos.
+
+**Indexes are the real risk, not the documents.** Mongoose's `autoIndex` creates
+the new indexes on boot but *never drops obsolete ones* — only the
+`syncIndexes()` calls inside the seeds do. Until `seedGincanaPrincipal` runs,
+production still carries the old global uniques (`Equipes.nome_1`,
+`Equipes_Gincana.equipe_id_1`) alongside the new composite ones, so a second
+team with the same name in another gincana fails with E11000. Diff
+`npm run inventario` before and after to confirm the old ones are gone.
 
 ### Legacy fallback IDs
 `GINCANA_FALLBACK_ID = 'GINCANA_PRINCIPAL'` and

@@ -256,23 +256,45 @@ Rode os seeds nesta ordem (todos idempotentes):
 
 ```bash
 cd server
-node src/scripts/seedAdmin.js            # 1. admin inicial
+npm run inventario -- prod               # 0. registre o "antes" (só leitura)
+node src/scripts/seedAdmin.js            # 1. admin inicial (pule se já houver ADMIN)
 node src/scripts/seedGincanaPrincipal.js # 2. gincana legada
-npm run seed:escola                      # 3. escola legada + vínculos
-npm run migrar:papeis                    # 4. papel por escola
+npm run migrar:gincana                   # 3. gincana_id nas coleções antigas
+npm run seed:escola                      # 4. escola legada + vínculos
+npm run migrar:papeis                    # 5. papel por escola
+npm run inventario -- prod               # 6. compare com o "antes"
 ```
 
-O passo 3 (`seedEscolaPrincipal.js`) cria a escola `ESCOLA_PRINCIPAL`, vincula
+> **Faça backup antes** (`src/scripts/backupProducao.ps1`) e valide-o
+> restaurando num banco descartável — o `npm run inventario` serve justamente
+> para comparar o restaurado com o original.
+
+O passo 1 é dispensável se o banco já tiver algum ADMIN: o script depende de
+`ADMIN_EMAIL`/`ADMIN_PASSWORD` no `.env` e sai sem fazer nada quando já existe
+um administrador.
+
+O passo 3 (`migrarDadosParaGincana.js`, sem argumento) preenche `gincana_id` nas
+14 coleções escopadas que ainda não tenham o campo. **Ele não é opcional.**
+Vários models ganharam `gincana_id` depois que a base já estava em uso
+(`Notificacao`, `ProvaUsuario`, `ProvaEquipeParticipacao`, `MigracaoEquipe`,
+`OfertaEmprestimo`); o `default: 'GINCANA_PRINCIPAL'` do schema só vale na
+escrita, então os documentos antigos continuam **sem o campo** e desaparecem de
+qualquer consulta filtrada por gincana. O sintoma é cruel: nada dá erro, os
+dados simplesmente somem da interface enquanto seguem intactos no banco.
+
+O passo 4 (`seedEscolaPrincipal.js`) cria a escola `ESCOLA_PRINCIPAL`, vincula
 todos os usuários existentes a ela, preenche `escola_id` nas gincanas antigas e
 promove o primeiro ADMIN a SUPER_ADMIN — sem ele não há como cadastrar a segunda
 escola pela interface. Requisições sem `X-Escola-Id` caem nesse mesmo fallback,
 então clientes com cache antigo continuam funcionando.
 
-O passo 4 (`migrarPapeisPorEscola.js`) converte o antigo array `Usuario.escolas`
+O passo 5 (`migrarPapeisPorEscola.js`) converte o antigo array `Usuario.escolas`
 em `Usuario.vinculos`, herdando o papel/turma/status atuais de cada pessoa —
-ninguém muda de perfil por causa da migração — e remove o campo legado.
+ninguém muda de perfil por causa da migração — e remove o campo legado. Numa
+base que nunca chegou a usar `Usuario.escolas` ele é um no-op: quem cria os
+vínculos, nesse caso, é o passo 4.
 
-> **O passo 4 não é opcional.** Enquanto ele não roda, `Usuario.vinculos` fica
+> **O passo 5 não é opcional.** Enquanto ele não roda, `Usuario.vinculos` fica
 > vazio e o `resolverEscola` responde **403 `SEM_VINCULO_ESCOLA`** para todo
 > mundo que não é SUPER_ADMIN: o front limpa a escola ativa, manda para
 > `/selecionar-escola`, e lá `/escolas/minhas` devolve lista vazia
