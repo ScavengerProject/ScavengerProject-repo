@@ -6,6 +6,10 @@ import ProvaEquipeParticipacao from '../models/ProvaEquipeParticipacao.js';
 import EmprestimoEquipe from '../models/EmprestimoEquipe.js';
 import Usuario from '../models/Usuario.js';
 import { getEquipeGincanaDoCoordenador } from '../equipes/coordenadorEquipe.js';
+import { getVinculo } from '../escolas/escolaHelpers.js';
+
+// Escopo da gincana ativa (injetado por resolverGincana; fallback p/ gincana legada).
+const escopoGincana = (req) => req.gincanaId || 'GINCANA_PRINCIPAL';
 
 // Uma prova está "encerrada" (e portanto não recebe mais empréstimos) quando já passou da data_fim.
 const provaJaEncerrou = (prova) => {
@@ -15,16 +19,20 @@ const provaJaEncerrou = (prova) => {
 
 const toUniqueStrings = (arr) => Array.from(new Set((arr || []).map((item) => String(item))));
 
-async function carregarContextoCoordenadorParaProva(coordenadorId, provaId) {
-  const [prova, equipeGincana] = await Promise.all([
-    Prova.findById(provaId).select('_id titulo status data_inicio data_fim proibir_membros_consecutivos'),
-    // Qualquer coordenador (is_coordenador) da equipe pode atuar — não só o principal.
-    getEquipeGincanaDoCoordenador(coordenadorId, { populateEquipe: true }),
-  ]);
+async function carregarContextoCoordenadorParaProva(coordenadorId, provaId, escolaId) {
+  const prova = await Prova.findById(provaId).select('_id titulo status data_inicio data_fim proibir_membros_consecutivos gincana_id');
 
   if (!prova) {
     return { erro: { status: 404, message: 'Prova não encontrada.' } };
   }
+
+  // Qualquer coordenador (is_coordenador) da equipe pode atuar — não só o
+  // principal. Restrito à gincana da prova: sem isso, um coordenador com
+  // equipe em OUTRA edição passaria como se coordenasse uma equipe aqui.
+  const equipeGincana = await getEquipeGincanaDoCoordenador(coordenadorId, {
+    populateEquipe: true,
+    gincanaId: prova.gincana_id,
+  });
 
   if (!equipeGincana) {
     return { erro: { status: 403, message: 'Você não coordena nenhuma equipe.' } };
@@ -53,8 +61,19 @@ async function carregarContextoCoordenadorParaProva(coordenadorId, provaId) {
     idsEmprestadosParaFora = new Set(saida.map((e) => String(e.usuario_id)));
   }
 
-  const membroIdsDaEquipe = (await EquipeMembros.find({ equipe_id: equipeId }).distinct('usuario_id'))
+  const membroIdsBrutos = (await EquipeMembros.find({ equipe_id: equipeId }).distinct('usuario_id'))
     .filter((id) => !idsEmprestadosParaFora.has(String(id)));
+
+  // Exclui quem já não tem vínculo ATIVO com esta escola: numa transferência a
+  // linha em EquipeMembros fica de propósito como histórico (ver
+  // notificarTransferenciaEscola.js), mas isso não deve deixar um ex-membro
+  // escalável para uma prova nova depois que ele já foi embora. Instalação
+  // legada / usuário sem nenhum vínculo registrado não é filtrada (só quem já
+  // passou pela migração tem `vinculos` para checar).
+  const usuariosDosMembros = await Usuario.find({ _id: { $in: membroIdsBrutos } }).select('vinculos');
+  const membroIdsDaEquipe = usuariosDosMembros
+    .filter((u) => (u.vinculos || []).length === 0 || getVinculo(u, escolaId)?.status === 'ATIVO')
+    .map((u) => String(u._id));
   const membroIdsComCoordenador = toUniqueStrings([
     ...membroIdsDaEquipe,
     coordenadorId,
@@ -109,9 +128,12 @@ async function carregarContextoCoordenadorParaProva(coordenadorId, provaId) {
 async function buscarMemblosBloqueadosDaProvaAnterior(provaAtual, equipeId) {
   if (!provaAtual.data_inicio) return { bloqueados: [], provaTitulo: null };
 
-  // Busca a prova imediatamente anterior (maior data_inicio que seja < data_inicio da prova atual)
+  // Busca a prova imediatamente anterior (maior data_inicio que seja < data_inicio da prova atual),
+  // restrita à mesma gincana — senão uma prova de outra edição/escola pode ser
+  // escolhida no lugar da anterior de verdade.
   const provaAnterior = await Prova.findOne({
     _id: { $ne: provaAtual._id },
+    gincana_id: provaAtual.gincana_id,
     data_inicio: { $lt: provaAtual.data_inicio },
     proibir_membros_consecutivos: true,
   })
@@ -140,7 +162,7 @@ export const listarEquipeParticipanteDaProva = async (req, res) => {
     const { id: provaId } = req.params;
     const coordenadorId = req.usuario.id;
 
-    const contexto = await carregarContextoCoordenadorParaProva(coordenadorId, provaId);
+    const contexto = await carregarContextoCoordenadorParaProva(coordenadorId, provaId, req.escolaId);
     if (contexto.erro) {
       return res.status(contexto.erro.status).json({ message: contexto.erro.message });
     }
@@ -239,7 +261,7 @@ export const salvarEquipeParticipanteDaProva = async (req, res) => {
       });
     }
 
-    const contexto = await carregarContextoCoordenadorParaProva(coordenadorId, provaId);
+    const contexto = await carregarContextoCoordenadorParaProva(coordenadorId, provaId, req.escolaId);
     if (contexto.erro) {
       return res.status(contexto.erro.status).json({ message: contexto.erro.message });
     }
@@ -285,6 +307,7 @@ export const salvarEquipeParticipanteDaProva = async (req, res) => {
       {
         prova_id: provaId,
         equipe_id: equipeId,
+        gincana_id: prova.gincana_id,
         titulares_usuario_ids: titularesIds,
         suplentes_usuario_ids: suplentesIds,
         definido_por_usuario_id: coordenadorId,
@@ -320,14 +343,15 @@ export const salvarEquipeParticipanteDaProva = async (req, res) => {
 // Lista, por prova, as equipes e seus titulares/suplentes, marcando alunos emprestados.
 export const listarAssociacoesProvas = async (req, res) => {
   try {
+    const gincanaId = escopoGincana(req);
     const [provas, participacoes, equipesGincana, emprestimos] = await Promise.all([
-      Prova.find().select('titulo data_inicio data_fim status').sort({ data_inicio: -1 }),
-      ProvaEquipeParticipacao.find()
+      Prova.find({ gincana_id: gincanaId }).select('titulo data_inicio data_fim status').sort({ data_inicio: -1 }),
+      ProvaEquipeParticipacao.find({ gincana_id: gincanaId })
         .populate('equipe_id', 'nome cor')
         .populate('titulares_usuario_ids', 'nome email tipo turma status')
         .populate('suplentes_usuario_ids', 'nome email tipo turma status'),
-      EquipeGincana.find().select('_id equipe_id'),
-      EmprestimoEquipe.find({ status: 'ATIVO' })
+      EquipeGincana.find({ gincana_id: gincanaId }).select('_id equipe_id'),
+      EmprestimoEquipe.find({ status: 'ATIVO', gincana_id: gincanaId })
         .select('usuario_id prova_id equipe_destino_id')
         .populate({ path: 'equipe_origem_id', populate: { path: 'equipe_id', model: 'Equipe', select: 'nome' } }),
     ]);

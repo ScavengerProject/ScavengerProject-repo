@@ -3,6 +3,8 @@ import { MongoMemoryServer } from 'mongodb-memory-server';
 
 import Prova from '../../../src/models/Prova.js';
 import ProvaUsuario from '../../../src/models/ProvaUsuario.js';
+import Usuario from '../../../src/models/Usuario.js';
+import EquipeMembros from '../../../src/models/EquipeMembros.js';
 import {
   calcularStatusProva,
   criarProva,
@@ -12,6 +14,7 @@ import {
   atualizarRequisitoUsuario,
   verificarInscricao,
   listarProvas,
+  inscreverUsuarioNaProva,
 } from '../../../src/provas/provaController.js';
 import { emailQueue } from '../../../src/notificacoes/emailQueue.js';
 
@@ -41,6 +44,8 @@ afterAll(async () => {
 afterEach(async () => {
   await Prova.deleteMany({});
   await ProvaUsuario.deleteMany({});
+  await Usuario.deleteMany({});
+  await EquipeMembros.deleteMany({});
 });
 
 describe('calcularStatusProva (lógica pura de status por datas)', () => {
@@ -320,5 +325,149 @@ describe('provaController - verificarInscricao', () => {
     await verificarInscricao(req, res);
 
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ inscrito: true }));
+  });
+});
+
+describe('provaController - inscreverUsuarioNaProva (grupo/ano escolar por vínculo)', () => {
+  const criarProvaComCota = (overrides) => Prova.create({
+    titulo: 'Prova com cota', descricao: 'd', formato: 'PROVA_PRATICA',
+    data_inicio: new Date(Date.now() - 24 * 60 * 60 * 1000),
+    pontuacao: { '1': 100 },
+    criado_por_usuario_id: adminId,
+    requisito_usuario: { ALUNOS_FUNDAMENTAL: 5, ALUNOS_MEDIO: 5 },
+    ...overrides,
+  });
+
+  it('determina o grupo pela turma do VÍNCULO — quem entrou por convite (turma só no vínculo) consegue se inscrever', async () => {
+    const escolaId = 'ESCOLA_X';
+    const prova = await criarProvaComCota();
+    // Igual a um cadastro por convite: campo legado `turma` fica null, a turma
+    // real só existe no vínculo daquela escola (ver registrarUsuario).
+    const aluno = await Usuario.create({
+      nome: 'Aluno Convite', email: 'aluno-convite@x.com', senha: '123',
+      tipo: 'ALUNO', turma: null,
+      vinculos: [{ escola_id: escolaId, tipo: 'ALUNO', turma: 'EF - 6º Ano' }],
+    });
+    await EquipeMembros.create({ equipe_id: new mongoose.Types.ObjectId(), usuario_id: aluno._id, is_coordenador: false });
+
+    const req = {
+      params: { id: prova._id.toString() },
+      body: {},
+      usuario: { id: aluno._id.toString(), tipo: 'ALUNO' },
+      escolaId,
+    };
+    const res = mockRes();
+
+    await inscreverUsuarioNaProva(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(201);
+  });
+
+  it('retorna GRUPO_INDETERMINADO quando não há turma nem no vínculo nem no campo legado', async () => {
+    const escolaId = 'ESCOLA_X';
+    const prova = await criarProvaComCota();
+    const aluno = await Usuario.create({
+      nome: 'Aluno Sem Turma', email: 'aluno-sem-turma@x.com', senha: '123',
+      tipo: 'ALUNO', turma: null,
+      vinculos: [{ escola_id: escolaId, tipo: 'ALUNO', turma: null }],
+    });
+    await EquipeMembros.create({ equipe_id: new mongoose.Types.ObjectId(), usuario_id: aluno._id, is_coordenador: false });
+
+    const req = {
+      params: { id: prova._id.toString() },
+      body: {},
+      usuario: { id: aluno._id.toString(), tipo: 'ALUNO' },
+      escolaId,
+    };
+    const res = mockRes();
+
+    await inscreverUsuarioNaProva(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(422);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ code: 'GRUPO_INDETERMINADO' }));
+  });
+
+  it('conta as vagas do grupo usando a turma do vínculo de cada inscrito já existente', async () => {
+    const escolaId = 'ESCOLA_X';
+    const prova = await criarProvaComCota({ requisito_usuario: { ALUNOS_FUNDAMENTAL: 1, ALUNOS_MEDIO: 5 } });
+
+    const jaInscrito = await Usuario.create({
+      nome: 'Já Inscrito', email: 'ja-inscrito@x.com', senha: '123',
+      tipo: 'ALUNO', turma: null,
+      vinculos: [{ escola_id: escolaId, tipo: 'ALUNO', turma: 'EF - 7º Ano' }],
+    });
+    await ProvaUsuario.create({ prova_id: prova._id, usuario_id: jaInscrito._id, gincana_id: 'G1' });
+
+    const novoAluno = await Usuario.create({
+      nome: 'Novo Aluno', email: 'novo-aluno@x.com', senha: '123',
+      tipo: 'ALUNO', turma: null,
+      vinculos: [{ escola_id: escolaId, tipo: 'ALUNO', turma: 'EF - 8º Ano' }],
+    });
+    await EquipeMembros.create({ equipe_id: new mongoose.Types.ObjectId(), usuario_id: novoAluno._id, is_coordenador: false });
+
+    const req = {
+      params: { id: prova._id.toString() },
+      body: {},
+      usuario: { id: novoAluno._id.toString(), tipo: 'ALUNO' },
+      escolaId,
+    };
+    const res = mockRes();
+
+    await inscreverUsuarioNaProva(req, res);
+
+    // Cota de fundamental já era 1 e o "Já Inscrito" (também fundamental, via
+    // vínculo) já ocupou a vaga — sem ler o vínculo essa contagem daria 0.
+    expect(res.status).toHaveBeenCalledWith(422);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ code: 'VAGAS_ESGOTADAS' }));
+  });
+
+  it('recusa inscrever um usuário que já não tem vínculo ATIVO com esta escola (transferido para outra)', async () => {
+    const escolaId = 'ESCOLA_X';
+    const prova = await criarProvaComCota();
+    // Simula quem já se transferiu: o vínculo com ESCOLA_X foi removido, só
+    // resta o vínculo (ATIVO) na escola de destino.
+    const transferido = await Usuario.create({
+      nome: 'Transferido', email: 'transferido@x.com', senha: '123',
+      tipo: 'ALUNO', turma: null,
+      vinculos: [{ escola_id: 'ESCOLA_DESTINO', tipo: 'ALUNO', turma: 'EF - 6º Ano' }],
+    });
+    // EquipeMembros da escola antiga não é removido numa transferência —
+    // é justamente essa a brecha que este teste cobre.
+    await EquipeMembros.create({ equipe_id: new mongoose.Types.ObjectId(), usuario_id: transferido._id, is_coordenador: false });
+
+    const req = {
+      params: { id: prova._id.toString() },
+      body: { usuario_id: transferido._id.toString() },
+      usuario: { id: adminId, tipo: 'COORDENADOR' },
+      escolaId,
+    };
+    const res = mockRes();
+
+    await inscreverUsuarioNaProva(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ code: 'SEM_VINCULO_ESCOLA' }));
+  });
+
+  it('não filtra por vínculo quando o usuário nunca teve nenhum (instalação legada)', async () => {
+    const escolaId = 'ESCOLA_X';
+    const prova = await criarProvaComCota();
+    const alunoLegado = await Usuario.create({
+      nome: 'Aluno Legado', email: 'aluno-legado@x.com', senha: '123',
+      tipo: 'ALUNO', turma: 'EF - 6º Ano',
+    });
+    await EquipeMembros.create({ equipe_id: new mongoose.Types.ObjectId(), usuario_id: alunoLegado._id, is_coordenador: false });
+
+    const req = {
+      params: { id: prova._id.toString() },
+      body: {},
+      usuario: { id: alunoLegado._id.toString(), tipo: 'ALUNO' },
+      escolaId,
+    };
+    const res = mockRes();
+
+    await inscreverUsuarioNaProva(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(201);
   });
 });

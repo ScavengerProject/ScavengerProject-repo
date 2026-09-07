@@ -1,6 +1,8 @@
 import React from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth.jsx';
+import { useEscola } from './hooks/useEscola.jsx';
+import { useGincana } from './hooks/useGincana.jsx';
 import Login from './pages/Login';
 import CadastroUsuario from './pages/CadastroUsuario';
 import Dashboard from './pages/Dashboard';
@@ -9,6 +11,14 @@ import MinhasInscricoes from './pages/MinhasInscricoes';
 import AdminProvas from './pages/AdminProvas';
 import AdminProvasAssociacoes from './pages/AdminProvasAssociacoes.jsx';
 import AdminEquipes from './pages/AdminEquipes.jsx';
+import GerenciarGincanas from './pages/GerenciarGincanas.jsx';
+import GerenciarEscolas from './pages/GerenciarEscolas.jsx';
+import GerenciarConvites from './pages/GerenciarConvites.jsx';
+import AprovarVinculosEscola from './pages/AprovarVinculosEscola.jsx';
+import ResgatarConvite from './pages/ResgatarConvite.jsx';
+import AguardandoAprovacao from './pages/AguardandoAprovacao.jsx';
+import SelecionarEscola from './pages/SelecionarEscola.jsx';
+import SelecionarGincana from './pages/SelecionarGincana.jsx';
 import GerenciarEquipe from './pages/GerenciarEquipes.jsx';
 import InscricaoEquipes from './pages/InscricaoEquipes.jsx';
 import SolicitarMigracao from './pages/solicitarMigracao.jsx';
@@ -31,24 +41,84 @@ import CoordGerenciarOfertas from './pages/CoordGerenciarOfertas.jsx';
 import CoordGerenciarEmprestimos from './pages/CoordGerenciarEmprestimos.jsx';
 import CoordDefinirParticipacaoProva from './pages/CoordDefinirParticipacaoProva.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
+import { ehAdmin, ehSuperAdmin } from './lib/perfis';
+
+// Rotas que funcionam sem uma gincana escolhida: as próprias telas de seleção
+// e a administração de escolas/gincanas — é nelas que o admin cria a primeira
+// edição, então exigir uma gincana ali travaria o sistema num laço.
+const ROTAS_SEM_GINCANA = [
+  '/selecionar-escola',
+  '/selecionar-gincana',
+  '/admin/escolas',
+  '/admin/gincanas',
+  '/admin/convites',
+  '/admin/vinculos-pendentes',
+  // Vínculo PENDENTE: sem acesso à escola ainda, então não há gincana para
+  // escolher (ver codigo VINCULO_PENDENTE em services/api.js).
+  '/aguardando-aprovacao',
+  // Resgatar convite não depende da gincana ativa — e exigir uma trancaria
+  // justamente quem mais precisa da tela: o aluno que troca de escola na virada
+  // do ano, quando a única gincana da escola de origem já está ENCERRADA e não
+  // há nada selecionável em /selecionar-gincana.
+  '/convites/resgatar',
+];
+
+// Tela de espera usada tanto na inicialização da sessão quanto enquanto o
+// escopo (escola/gincana) ainda está sendo resolvido.
+const TelaCarregando = () => (
+  <div className="min-h-screen bg-linear-to-br from-blue-600 to-purple-600 flex items-center justify-center">
+    <div className="text-center">
+      <div className="w-16 h-16 border-4 border-white border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+      <p className="text-white text-lg font-semibold">Carregando...</p>
+    </div>
+  </div>
+);
 
 function App() {
   const { usuario, isAuthenticated, loading, logout } = useAuth();
+  const {
+    precisaSelecionarEscola,
+    escolaAtivaId,
+    carregado: escolaCarregada,
+  } = useEscola();
+  const { precisaSelecionarGincana, carregado: gincanaCarregada } = useGincana();
+  const location = useLocation();
   const { toasts } = useToast();
+
+  // SUPER_ADMIN (multi-escola) tem acesso a tudo que o ADMIN tem, restrito à
+  // escola ativa pelo backend. Espelha o comportamento de autorizar() na API.
+  const isAdmin = ehAdmin(usuario);
+  const isSuperAdmin = ehSuperAdmin(usuario);
 
   const handleLogout = () => {
     logout();
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-linear-to-br from-blue-600 to-purple-600 flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-white border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-white text-lg font-semibold">Carregando...</p>
-        </div>
-      </div>
-    );
+    return <TelaCarregando />;
+  }
+
+  // Nenhuma tela pode montar antes de o escopo estar resolvido: as páginas
+  // disparam requisições no mount, e sem os headers X-Escola-Id/X-Gincana-Id
+  // corretos elas levariam 400/404 e jogariam o usuário para fora da rota.
+  if (isAuthenticated && (!escolaCarregada || (escolaAtivaId && !gincanaCarregada))) {
+    return <TelaCarregando />;
+  }
+
+  // Escopo obrigatório antes de qualquer tela: primeiro a escola (que define o
+  // papel do usuário), depois a gincana. Só entra em ação quando o provider já
+  // carregou a lista e concluiu que falta escolher.
+  if (isAuthenticated && precisaSelecionarEscola && location.pathname !== '/selecionar-escola') {
+    return <Navigate to="/selecionar-escola" replace />;
+  }
+
+  if (
+    isAuthenticated
+    && !precisaSelecionarEscola
+    && precisaSelecionarGincana
+    && !ROTAS_SEM_GINCANA.includes(location.pathname)
+  ) {
+    return <Navigate to="/selecionar-gincana" replace />;
   }
 
   return (
@@ -89,12 +159,88 @@ function App() {
           element={isAuthenticated ? <MinhasInscricoes /> : <Navigate to="/login" replace />}
         />
 
+        {/* Seleção de escola: qual tenant o usuário vai acessar (e com que papel) */}
+        <Route
+          path="/selecionar-escola"
+          element={
+            isAuthenticated
+              ? (precisaSelecionarEscola ? <SelecionarEscola /> : <Navigate to="/" replace />)
+              : <Navigate to="/login" replace />
+          }
+        />
+
+        {/* Seleção de gincana dentro da escola ativa */}
+        <Route
+          path="/selecionar-gincana"
+          element={isAuthenticated ? <SelecionarGincana /> : <Navigate to="/login" replace />}
+        />
+
+        {/* Gerenciamento de Escolas (apenas SUPER_ADMIN) */}
+        <Route
+          path="/admin/escolas"
+          element={
+            isAuthenticated
+              ? (isSuperAdmin ? <GerenciarEscolas /> : <Navigate to="/" replace />)
+              : <Navigate to="/login" replace />
+          }
+        />
+
+        {/* Gerenciamento de Convites (ADMIN da escola ativa) */}
+        <Route
+          path="/admin/convites"
+          element={
+            isAuthenticated
+              ? (isAdmin ? <GerenciarConvites /> : <Navigate to="/" replace />)
+              : <Navigate to="/login" replace />
+          }
+        />
+
+        {/* Vínculos pendentes: cadastro sem código de turma + transferências (ADMIN) */}
+        <Route
+          path="/admin/vinculos-pendentes"
+          element={
+            isAuthenticated
+              ? (isAdmin ? <AprovarVinculosEscola /> : <Navigate to="/" replace />)
+              : <Navigate to="/login" replace />
+          }
+        />
+
+        {/* Tela de espera do vínculo PENDENTE (ver codigo VINCULO_PENDENTE) */}
+        <Route
+          path="/aguardando-aprovacao"
+          element={isAuthenticated ? <AguardandoAprovacao /> : <Navigate to="/login" replace />}
+        />
+
+        {/* Resgate de código de convite por quem já tem conta (ex.: aluno
+            mudando de escola). NÃO entra em ROTAS_SEM_GINCANA: diferente das
+            telas de seleção/administração, quem chega aqui já tem escola e
+            gincana ativas — é uma ação extra dentro da sessão normal, não
+            uma etapa de resolução de escopo. */}
+        <Route
+          path="/convites/resgatar"
+          element={
+            isAuthenticated
+              ? (usuario.tipo === 'ALUNO' ? <ResgatarConvite /> : <Navigate to="/" replace />)
+              : <Navigate to="/login" replace />
+          }
+        />
+
+        {/* Gerenciamento de Gincanas (Admin) */}
+        <Route
+          path="/admin/gincanas"
+          element={
+            isAuthenticated
+              ? (isAdmin ? <GerenciarGincanas /> : <Navigate to="/" replace />)
+              : <Navigate to="/login" replace />
+          }
+        />
+
         {/* Rota para o Gerenciamento de Equipes (Admin) */}
         <Route
           path="/admin/equipes"
           element={
             isAuthenticated 
-              ? (usuario.tipo === 'ADMIN' ? <AdminEquipes /> : <Navigate to="/" replace />)
+              ? (isAdmin ? <AdminEquipes /> : <Navigate to="/" replace />)
               : <Navigate to="/login" replace />
           }
         />
@@ -141,7 +287,7 @@ function App() {
           path="/admin/emprestimos"
           element={
             isAuthenticated
-              ? (usuario.tipo === 'ADMIN' ? <AdminEmprestimos /> : <Navigate to="/" replace />)
+              ? (isAdmin ? <AdminEmprestimos /> : <Navigate to="/" replace />)
               : <Navigate to="/login" replace />
           }
         />
@@ -151,7 +297,7 @@ function App() {
           path="/admin/usuarios"
           element={
             isAuthenticated
-              ? (usuario.tipo === 'ADMIN' ? <AdminUsuarios /> : <Navigate to="/" replace />)
+              ? (isAdmin ? <AdminUsuarios /> : <Navigate to="/" replace />)
               : <Navigate to="/login" replace />
           }
         />
@@ -189,7 +335,7 @@ function App() {
           path="/admin/penalidades"
           element={
             isAuthenticated
-              ? (usuario.tipo === 'ADMIN' ? <AdminPenalidades /> : <Navigate to="/" replace />)
+              ? (isAdmin ? <AdminPenalidades /> : <Navigate to="/" replace />)
               : <Navigate to="/login" replace />
           }
         />
@@ -211,7 +357,7 @@ function App() {
           path="/admin/feedbacks"
           element={
             isAuthenticated 
-              ? (usuario.tipo === 'ADMIN' ? <AdminFeedbacks /> : <Navigate to="/" replace />)
+              ? (isAdmin ? <AdminFeedbacks /> : <Navigate to="/" replace />)
               : <Navigate to="/login" replace />
           }
         />
@@ -281,7 +427,7 @@ function App() {
           path="/admin/aprovar-solicitacoes"
           element={
             isAuthenticated
-              ? (usuario.tipo === 'ADMIN' ? <AdminAprovarSolicitacoes /> : <Navigate to="/" replace />)
+              ? (isAdmin ? <AdminAprovarSolicitacoes /> : <Navigate to="/" replace />)
               : <Navigate to="/login" replace />
           }
         />

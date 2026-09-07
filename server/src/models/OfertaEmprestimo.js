@@ -3,10 +3,12 @@ import mongoose from 'mongoose';
 
 const OfertaEmprestimoSchema = new mongoose.Schema(
   {
+    gincana_id: { type: String, required: true, default: 'GINCANA_PRINCIPAL', index: true },
+
     // Solicitação à qual esta oferta se refere
-    solicitacao_id: { 
-      type: mongoose.Schema.Types.ObjectId, 
-      ref: 'SolicitacaoEmprestimo', 
+    solicitacao_id: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'SolicitacaoEmprestimo',
       required: true,
       index: true
     },

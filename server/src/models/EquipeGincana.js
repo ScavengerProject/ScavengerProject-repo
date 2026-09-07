@@ -5,13 +5,12 @@ const EquipeGincanaSchema = new mongoose.Schema({
     
     equipe_id: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'Equipe', 
+        ref: 'Equipe',
         required: [true, 'A referência à equipe é obrigatória.'],
-        unique: true, // garante que uma equipe só tenha uma entrada por gincana se gincana_id for sempre o mesmo
     },
 
     gincana_id: {
-        type: String, 
+        type: String,
         required: [true, 'A gincana é obrigatória.'],
         default: 'GINCANA_PRINCIPAL', // usando valor padrão
     },
@@ -42,6 +41,9 @@ const EquipeGincanaSchema = new mongoose.Schema({
         default: Date.now 
     },
 });
+
+// Uma equipe só tem UMA participação por gincana (substitui o unique global de equipe_id).
+EquipeGincanaSchema.index({ equipe_id: 1, gincana_id: 1 }, { unique: true });
 
 const EquipeGincana = mongoose.model('EquipeGincana', EquipeGincanaSchema, 'Equipes_Gincana');
 

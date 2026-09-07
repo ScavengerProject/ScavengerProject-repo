@@ -6,7 +6,8 @@ import EquipeMembro from '../models/EquipeMembros.js';
 import { criarNotificacao } from '../notificacoes/notificacaoController.js';
 import { getEquipesGincanaDoCoordenador, getCoordenadoresIdsDaEquipe } from './coordenadorEquipe.js';
 
-const GINCANA_ATUAL_ID = 'GINCANA_PRINCIPAL';
+// Escopo da gincana ativa (injetado por resolverGincana; fallback p/ gincana legada).
+const escopoGincana = (req) => req.gincanaId || 'GINCANA_PRINCIPAL';
 
 // Campos comuns de populate para devolver nomes/cores no front
 const basePopulate = [
@@ -49,7 +50,7 @@ export const listarMinhasMigracoes = async (req, res) => {
   try {
     const meId = req.usuario.id;
 
-    const items = await MigracaoEquipe.find({ usuario_id: meId })
+    const items = await MigracaoEquipe.find({ usuario_id: meId, gincana_id: escopoGincana(req) })
       .sort({ criado_em: -1 })
       .populate(basePopulate);
 
@@ -70,11 +71,12 @@ export const listarMinhasMigracoes = async (req, res) => {
 export const listarMigracoesPendentes = async (req, res) => {
   try {
     const me = req.usuario;
+    const gincanaId = escopoGincana(req);
 
-    let filtro = { status: 'PENDENTE' };
+    let filtro = { status: 'PENDENTE', gincana_id: gincanaId };
 
     if (me.tipo === 'COORDENADOR') {
-      const equipesCoord = await getEquipesGincanaDoCoordenador(me.id);
+      const equipesCoord = await getEquipesGincanaDoCoordenador(me.id, { gincanaId });
 
       const ids = equipesCoord.map((e) => e._id);
 
@@ -126,7 +128,7 @@ export const solicitarMigracao = async (req, res) => {
     // equipe atual pela referência equipe_id, não pelo _id.
     const egOrigem = await EquipeGincana.findOne({
       equipe_id: membroAtual.equipe_id,
-      gincana_id: GINCANA_ATUAL_ID
+      gincana_id: escopoGincana(req)
     });
 
     if (!egOrigem) {
@@ -147,6 +149,7 @@ export const solicitarMigracao = async (req, res) => {
 
     const doc = await MigracaoEquipe.create({
       usuario_id: me.id,
+      gincana_id: escopoGincana(req),
       equipe_origem_id: egOrigem._id, // agr salva o ID correto que o coordenador procura
       equipe_destino_id: egDestino._id,
       motivo,
@@ -170,7 +173,8 @@ export const solicitarMigracao = async (req, res) => {
             'Nova solicitação de entrada',
             `${nomeSolicitante} solicitou entrada na equipe "${equipeDestino.nome}". Avalie a solicitação na tela de aprovações.`,
             null,
-            doc._id
+            doc._id,
+            doc.gincana_id
           )
         )
       );
@@ -201,14 +205,20 @@ export const decidirMigracao = async (req, res) => {
         .json({ message: 'Campo "aprovar" (boolean) é obrigatório.' });
     }
 
+    const gincanaId = escopoGincana(req);
+
+    // Mesmo 404 para "não existe" e "é de outra gincana": não dá pra
+    // diferenciar sem vazar a existência de uma solicitação de outro tenant.
     const mig = await MigracaoEquipe.findById(id);
-    if (!mig) return res.status(404).json({ message: 'Solicitação não encontrada.' });
+    if (!mig || mig.gincana_id !== gincanaId) {
+      return res.status(404).json({ message: 'Solicitação não encontrada.' });
+    }
     if (mig.status !== 'PENDENTE') {
       return res.status(409).json({ message: 'Solicitação já foi decidida.' });
     }
 
     if (me.tipo === 'COORDENADOR') {
-      const coordEquipes = await getEquipesGincanaDoCoordenador(me.id);
+      const coordEquipes = await getEquipesGincanaDoCoordenador(me.id, { gincanaId });
       const ids = coordEquipes.map((e) => e._id.toString());
 
       // #16: a entrada é aprovada pelo coordenador de DESTINO.
@@ -274,7 +284,7 @@ export const decidirMigracao = async (req, res) => {
         ? `Sua solicitação de entrada na equipe "${nomeDestino}" foi aprovada.`
         : `Sua solicitação de entrada na equipe "${nomeDestino}" foi rejeitada.` +
           (justificativa ? ` Justificativa: ${justificativa}` : '');
-      await criarNotificacao(mig.usuario_id, 'MIGRACAO', titulo, mensagem, null, mig._id);
+      await criarNotificacao(mig.usuario_id, 'MIGRACAO', titulo, mensagem, null, mig._id, mig.gincana_id);
     } catch (notifErr) {
       console.error('Erro ao notificar solicitante sobre decisão de migração:', notifErr);
     }

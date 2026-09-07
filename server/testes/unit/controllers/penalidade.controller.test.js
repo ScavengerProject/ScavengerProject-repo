@@ -7,7 +7,7 @@ import EquipeMembros from '../../../src/models/EquipeMembros.js';
 import Usuario from '../../../src/models/Usuario.js';
 import Penalidade from '../../../src/models/Penalidade.js';
 import Notificacao from '../../../src/models/Notificacao.js';
-import { criarPenalidade, listarPenalidades } from '../../../src/penalidades/penalidadesController.js';
+import { criarPenalidade, listarPenalidades, listarEquipesParaPenalidade } from '../../../src/penalidades/penalidadesController.js';
 
 const mockRes = () => {
   const res = {};
@@ -132,5 +132,50 @@ describe('penalidadesController - listarPenalidades', () => {
 
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.json.mock.calls[0][0]).toHaveLength(2);
+  });
+});
+
+// GET /penalidades/equipes é a rota de origem para o formulário de penalidade
+// (ADMIN, COORDENADOR e ALUNO acessam). Sem escopo de gincana, ela vaza equipes
+// de outras edições/escolas para dentro desse formulário.
+describe('penalidadesController - listarEquipesParaPenalidade (escopo de gincana)', () => {
+  it('ADMIN só vê equipes da gincana ativa, não de outra edição', async () => {
+    const equipeG1 = await Equipe.create({ nome: 'Equipe G1', cor: '#111', gincana_id: 'GINCANA_1' });
+    const egG1 = await EquipeGincana.create({ equipe_id: equipeG1._id, gincana_id: 'GINCANA_1' });
+    const equipeG2 = await Equipe.create({ nome: 'Equipe G2', cor: '#222', gincana_id: 'GINCANA_2' });
+    await EquipeGincana.create({ equipe_id: equipeG2._id, gincana_id: 'GINCANA_2' });
+
+    const req = { usuario: adminUsuario, gincanaId: 'GINCANA_1' };
+    const res = mockRes();
+
+    await listarEquipesParaPenalidade(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    const corpo = res.json.mock.calls[0][0];
+    expect(corpo).toHaveLength(1);
+    expect(corpo[0].id).toBe(egG1._id.toString());
+  });
+
+  it('COORDENADOR de equipes em duas edições só vê a da gincana ativa', async () => {
+    const coordenador = await Usuario.create({
+      nome: 'Coord', email: 'coord@x.com', senha: '123', tipo: 'COORDENADOR', turma: 'EF - 6º Ano',
+    });
+
+    const equipeG1 = await Equipe.create({ nome: 'Equipe G1', cor: '#111', gincana_id: 'GINCANA_1' });
+    const egG1 = await EquipeGincana.create({ equipe_id: equipeG1._id, gincana_id: 'GINCANA_1', coordenador_usuario_id: coordenador._id });
+    await EquipeMembros.create({ equipe_id: equipeG1._id, usuario_id: coordenador._id, is_coordenador: true });
+
+    const equipeG2 = await Equipe.create({ nome: 'Equipe G2', cor: '#222', gincana_id: 'GINCANA_2' });
+    await EquipeGincana.create({ equipe_id: equipeG2._id, gincana_id: 'GINCANA_2', coordenador_usuario_id: coordenador._id });
+    await EquipeMembros.create({ equipe_id: equipeG2._id, usuario_id: coordenador._id, is_coordenador: true });
+
+    const req = { usuario: { id: coordenador._id.toString(), tipo: 'COORDENADOR' }, gincanaId: 'GINCANA_1' };
+    const res = mockRes();
+
+    await listarEquipesParaPenalidade(req, res);
+
+    const corpo = res.json.mock.calls[0][0];
+    expect(corpo).toHaveLength(1);
+    expect(corpo[0].id).toBe(egG1._id.toString());
   });
 });

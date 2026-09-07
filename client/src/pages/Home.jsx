@@ -4,6 +4,7 @@ import { LogOut, User, BookOpen, BarChart3, Settings, Users, UserCheck, Handshak
 import { Button } from '../components/ui/button';
 import FeedbackFAB from '../components/EnviarFeedbackModal';
 import NotificacoesDropdown from '../components/NotificacoesDropdown';
+import { ehAdmin } from '../lib/perfis';
 
 
 export default function Home({ usuario, onLogout }) {
@@ -17,7 +18,7 @@ export default function Home({ usuario, onLogout }) {
   };
 
   // Agora inclui coordenador
-  const isAdmin = usuario?.tipo === 'ADMIN';
+  const isAdmin = ehAdmin(usuario);
   const isAdminOrCoordenador = isAdmin || usuario?.tipo === 'COORDENADOR';
 
   return (

@@ -1,6 +1,7 @@
 import Usuario from '../models/Usuario.js';
 import { criarNotificacao } from '../notificacoes/notificacaoController.js';
 import { emailQueue } from '../notificacoes/emailQueue.js';
+import Gincana from '../models/Gincana.js';
 
 /**
  * Indica se a prova já está publicada (visível para os participantes).
@@ -25,10 +26,32 @@ export const estaPublicada = (prova) => {
  * (in-app), mas o e-mail só sai quando a fila voltar a ser processada.
  */
 export const dispatchNotificacoesNovaProva = async (prova) => {
-  const participantes = await Usuario.find({
-    tipo: { $in: ['ALUNO', 'COORDENADOR'] },
-    status: 'ATIVO',
-  }).select('_id nome email tipo');
+  // Esta função é chamada por jobs/agendamentos, sem `req`, então a escola é
+  // derivada da gincana da prova em vez do header X-Escola-Id.
+  const gincana = await Gincana.findById(prova.gincana_id).select('escola_id');
+
+  // O papel do participante é o do vínculo com a escola DESTA gincana: quem é
+  // aluno aqui pode ser professor em outra escola, e não deve entrar na lista.
+  //
+  // Escopo por ESCOLA, não pela gincana_id da prova (não filtra por
+  // participação real via EquipeMembros/EquipeGincana, como faz
+  // usuarioParticipaDaGincana em gincanaHelpers.js). Decisão deliberada: o
+  // sistema não suporta mais de uma gincana ativa por escola ao mesmo tempo,
+  // então escola == gincana ativa. Se isso mudar, revisar este filtro — ver
+  // ADR-0005 no repositório de docs.
+  const filtro = gincana?.escola_id
+    ? {
+      vinculos: {
+        $elemMatch: {
+          escola_id: String(gincana.escola_id),
+          tipo: { $in: ['ALUNO', 'COORDENADOR'] },
+          status: 'ATIVO',
+        },
+      },
+    }
+    : { tipo: { $in: ['ALUNO', 'COORDENADOR'] }, status: 'ATIVO' };
+
+  const participantes = await Usuario.find(filtro).select('_id nome email tipo');
 
   const titulo = `Nova Prova: ${prova.titulo}`;
   const mensagem = `Uma nova prova "${prova.titulo}" foi criada e está disponível para você.`;
@@ -40,7 +63,9 @@ export const dispatchNotificacoesNovaProva = async (prova) => {
         'NOVA_PROVA',
         titulo,
         mensagem,
-        prova._id
+        prova._id,
+        null,
+        prova.gincana_id
       );
     } catch (err) {
       console.error(`Erro ao notificar usuário ${participante._id}:`, err);

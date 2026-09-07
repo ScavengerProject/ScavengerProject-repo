@@ -1,20 +1,62 @@
-import React, { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import React, { useState, useEffect } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { toast } from "../components/ui/toast";
-import { usuariosService } from "../services/api";
+import { usuariosService, convitesService } from "../services/api";
+import { formatarTelefone } from "../lib/mascaras";
+
+// Tempo de debounce da pré-validação do código: espera o usuário parar de
+// digitar antes de consultar o backend (a rota é rate-limitada).
+const DEBOUNCE_PREVALIDACAO_MS = 400;
 
 const CadastroUsuario = () => {
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
     const [nome, setNome] = useState("");
     const [email, setEmail] = useState("");
     const [telefone, setTelefone] = useState("");
     const [senha, setSenha] = useState("");
     const [confirmacao, setConfirmacao] = useState("");
     const [loading, setLoading] = useState(false);
+
+    // Código de convite: substitui o antigo seletor de escola. Aceita
+    // ?convite=XXX na URL (link/QR code enviado pela escola) já pré-preenchido.
+    const [codigo, setCodigo] = useState(() => (searchParams.get("convite") || "").toUpperCase());
+    const [prevalidacao, setPrevalidacao] = useState(null); // { escola_nome, turma }
+    const [prevalidando, setPrevalidando] = useState(false);
+    const [erroCodigo, setErroCodigo] = useState("");
+
+    // Pré-validação com debounce: confirma "Você está entrando na Escola X —
+    // 6º Ano" antes do candidato preencher o resto do formulário, sem revelar
+    // nada além do que o backend expõe publicamente (GET /convites/:codigo).
+    useEffect(() => {
+      const codigoLimpo = codigo.trim();
+      setPrevalidacao(null);
+      setErroCodigo("");
+
+      if (!codigoLimpo) {
+        setPrevalidando(false);
+        return;
+      }
+
+      setPrevalidando(true);
+      const timer = setTimeout(() => {
+        convitesService
+          .prevalidar(codigoLimpo)
+          .then((dados) => {
+            setPrevalidacao(dados);
+          })
+          .catch((error) => {
+            setErroCodigo(error.message || "Código de convite inválido ou expirado.");
+          })
+          .finally(() => setPrevalidando(false));
+      }, DEBOUNCE_PREVALIDACAO_MS);
+
+      return () => clearTimeout(timer);
+    }, [codigo]);
 
     const handleSubmit = async (event) => {
     event.preventDefault();
@@ -61,28 +103,30 @@ const CadastroUsuario = () => {
       return;
     }
 
+    if (!codigo.trim()) {
+      toast.error("Informe o código de convite da sua escola");
+      return;
+    }
+
     setLoading(true);
     try {
-      // O backend espera um objeto com a estrutura do Usuario,
-      // mas sem os campos que sao preenchidos automaticamente (id, tipo, turma)
       const dadosParaEnviar = {
-        nome: nome,
-        email: email,
+        nome,
+        email,
         telefone: telefone || null,
-        tipo: "ALUNO",
-        turma: null,
-        senha: senha,
-        status: "ATIVO"
+        senha,
+        codigo: codigo.trim(),
       };
 
-      await usuariosService.registrar(dadosParaEnviar);
-      toast.success("Cadastro efetuado com sucesso!");
+      const resposta = await usuariosService.registrar(dadosParaEnviar);
+      toast.success(resposta?.message || "Cadastro efetuado com sucesso!");
 
       setNome("");
       setEmail("");
       setTelefone("");
       setSenha("");
       setConfirmacao("");
+      setCodigo("");
 
       // Redireciona para a tela de login após o cadastro ser efetivado
       navigate("/login");
@@ -133,15 +177,46 @@ const CadastroUsuario = () => {
               />
             </div>
             <div className="space-y-2">
+              <Label htmlFor="codigo" className="text-gray-900 font-medium">
+                Código de convite
+              </Label>
+              <Input
+                id="codigo"
+                type="text"
+                placeholder="Ex: A1B2C3D4"
+                value={codigo}
+                onChange={(event) => setCodigo(event.target.value.toUpperCase())}
+                className="bg-white border-gray-300 focus:ring-blue-500 uppercase"
+                disabled={loading}
+              />
+              <p className="text-xs text-gray-500">
+                Peça o código à sua escola. Ele diz automaticamente em qual escola (e turma) você
+                vai entrar — não é mais possível escolher a escola livremente.
+              </p>
+              {prevalidando && (
+                <p className="text-xs text-gray-600">Verificando código...</p>
+              )}
+              {!prevalidando && prevalidacao && (
+                <p className="text-xs text-green-700 font-medium">
+                  Você está entrando na Escola {prevalidacao.escola_nome}
+                  {prevalidacao.turma ? ` — ${prevalidacao.turma}` : " — aguardando aprovação da escola (sem turma de código próprio)"}
+                </p>
+              )}
+              {!prevalidando && !prevalidacao && erroCodigo && (
+                <p className="text-xs text-red-600 font-medium">{erroCodigo}</p>
+              )}
+            </div>
+            <div className="space-y-2">
               <Label htmlFor="telefone" className="text-gray-900 font-medium">
                 Telefone
               </Label>
               <Input
                 id="telefone"
-                type="telefone"
-                placeholder="Ex: (00) 00000-0000"
+                type="tel"
+                placeholder="(99) 9 9999-9999"
                 value={telefone}
-                onChange={(event) => setTelefone(event.target.value)}
+                onChange={(event) => setTelefone(formatarTelefone(event.target.value))}
+                maxLength={17}
                 className="bg-white border-gray-300 focus:ring-blue-500"
                 disabled={loading}
               />

@@ -9,6 +9,7 @@ import { toast } from "../components/ui/toast";
 import ProvaDetalhesModal from "../components/ProvaDetalhesModal";
 import InfosEquipeModal from "../components/InfosEquipeModal";
 import MainLayout from "../components/MainLayout"; 
+import { ehAdmin } from '../lib/perfis';
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -36,7 +37,7 @@ const Dashboard = () => {
       setProvas(provasData || []);
 
       // Carregar equipes
-      if (usuario?.tipo === 'ADMIN') {
+      if (ehAdmin(usuario)) {
         const equipesData = await equipesService.listarEquipes();
         setEquipes(equipesData || []);
       } else {
@@ -108,7 +109,7 @@ const Dashboard = () => {
   // Filtrar provas disponíveis para o usuário
   const provasDisponiveis = provas.filter(prova => {
     // Se for admin, mostrar todas
-    if (usuario?.tipo === 'ADMIN') return true;
+    if (ehAdmin(usuario)) return true;
 
     // Verificar se há cotas disponíveis (requisito_usuario)
     const requisitos = prova.requisito_usuario || {};
@@ -192,7 +193,7 @@ const Dashboard = () => {
 
   // Stats baseados no tipo de usuário
   const getStats = () => {
-    if (usuario?.tipo === 'ADMIN') {
+    if (ehAdmin(usuario)) {
       return [
         {
           title: "Provas Ativas",
@@ -243,8 +244,11 @@ const Dashboard = () => {
       // 2. Encontrar os DADOS da minha equipe (nome, pontos)
      const minhaEquipeInfo = (indexPosicao !== -1) ? ranking[indexPosicao] : null;
 
-      // Usar minhaEquipeInfo do ranking como fonte de verdade
-      const equipeSelecionadaInfo = minhaEquipeInfo || minhaEquipe;
+      // O item do ranking só tem { posicao, nome, equipe_id, pontos } — sem
+      // `id`/`cor`/`total_membros`, que é o que o modal de detalhes precisa
+      // (ver InfosEquipeModal.jsx). `minhaEquipe` (de listarEquipesParaInscricao)
+      // já vem completo; o ranking só serve de fallback quando ele falta.
+      const equipeSelecionadaInfo = minhaEquipe || minhaEquipeInfo;
 
       // Para alunos, professores, coordenadores, pais
       return [
@@ -306,7 +310,7 @@ const Dashboard = () => {
             Olá, {usuario?.nome}! 👋
           </h2>
           <p className="text-sm sm:text-base text-gray-600">
-            {usuario?.tipo === 'ADMIN' 
+            {ehAdmin(usuario) 
               ? 'Acompanhe o andamento da gincana em tempo real'
               : minhaEquipe
                 ? `Confira o desempenho da sua equipe e as próximas provas.`
@@ -446,7 +450,7 @@ const Dashboard = () => {
                               {equipe.nome}
                             </p>
                             {/* Admin sempre vê as notas, outros usuários só se a configuração permitir */}
-                            {(usuario?.tipo === 'ADMIN' || equipe.pontos !== undefined) && (
+                            {(ehAdmin(usuario) || equipe.pontos !== undefined) && (
                               <p className="text-xs sm:text-sm text-gray-600">
                                 {equipe.pontos !== undefined ? equipe.pontos : 0} pontos
                               </p>

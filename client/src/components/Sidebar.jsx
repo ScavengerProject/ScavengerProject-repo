@@ -1,16 +1,19 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { 
-  BookOpen, Users, UserCheck, Handshake, MessageSquare, 
-  History, Gavel, AlertCircle, User,
-  ChevronRight, Menu, X, ChevronDown
+import {
+  BookOpen, Users, UserCheck, Handshake, MessageSquare,
+  History, Gavel, AlertCircle, User, Trophy, School,
+  ChevronRight, Menu, X, ChevronDown, Ticket, UserPlus, KeyRound
 } from 'lucide-react';
 import { Button } from './ui/button';
+import { ehAdmin, ehSuperAdmin } from '../lib/perfis';
 
 export default function Sidebar({ usuario, isOpen, onToggle, isMobile }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const isAdmin = usuario?.tipo === 'ADMIN';
+  // SUPER_ADMIN enxerga tudo do ADMIN (restrito à escola ativa pelo backend).
+  const isAdmin = ehAdmin(usuario);
+  const isSuperAdmin = ehSuperAdmin(usuario);
   const isCoordenador = usuario?.tipo === 'COORDENADOR';
   
   // Estado para controlar seções expansíveis
@@ -56,6 +59,35 @@ export default function Sidebar({ usuario, isOpen, onToggle, isMobile }) {
       show: ['ALUNO', 'PROFESSOR', 'PAI/MÃE'].includes(usuario?.tipo)
     },
     {
+      id: 'resgatar-convite',
+      icon: KeyRound,
+      title: 'Código de Convite',
+      description: 'Entrar em outra escola',
+      path: '/convites/resgatar',
+      color: 'indigo',
+      // Código de convite só emite ALUNO (D4 do plano de convites) — é para
+      // quem já tem conta e está mudando de escola.
+      show: usuario?.tipo === 'ALUNO'
+    },
+    {
+      id: 'gerenciar-escolas',
+      icon: School,
+      title: 'Gerenciar Escolas',
+      description: 'Escolas do sistema',
+      path: '/admin/escolas',
+      color: 'emerald',
+      show: isSuperAdmin
+    },
+    {
+      id: 'gerenciar-gincanas',
+      icon: Trophy,
+      title: 'Gerenciar Gincanas',
+      description: 'Edições da gincana',
+      path: '/admin/gincanas',
+      color: 'amber',
+      show: isAdmin
+    },
+    {
       id: 'gerenciar-provas',
       icon: BookOpen,
       title: 'Gerenciar Provas',
@@ -80,6 +112,24 @@ export default function Sidebar({ usuario, isOpen, onToggle, isMobile }) {
       description: 'Configurar usuários',
       path: '/admin/usuarios',
       color: 'teal',
+      show: isAdmin
+    },
+    {
+      id: 'gerenciar-convites',
+      icon: Ticket,
+      title: 'Gerenciar Convites',
+      description: 'Códigos de turma e da escola',
+      path: '/admin/convites',
+      color: 'emerald',
+      show: isAdmin
+    },
+    {
+      id: 'vinculos-pendentes',
+      icon: UserPlus,
+      title: 'Vínculos Pendentes',
+      description: 'Cadastros e transferências',
+      path: '/admin/vinculos-pendentes',
+      color: 'amber',
       show: isAdmin
     },
     {
@@ -217,6 +267,7 @@ export default function Sidebar({ usuario, isOpen, onToggle, isMobile }) {
     green: 'bg-green-100 text-green-700 hover:bg-green-200 border-green-200',
     amber: 'bg-amber-100 text-amber-700 hover:bg-amber-200 border-amber-200',
     teal: 'bg-teal-100 text-teal-700 hover:bg-teal-200 border-teal-200',
+    emerald: 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border-emerald-200',
     red: 'bg-red-100 text-red-700 hover:bg-red-200 border-red-200',
     pink: 'bg-pink-100 text-pink-700 hover:bg-pink-200 border-pink-200'
   };

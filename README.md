@@ -150,6 +150,141 @@ mongoose.connect(process.env.MONGO_URI)
 
 ---
 
+## Multi-escola (multi-tenant)
+
+O sistema roda várias escolas na mesma instalação. A hierarquia de escopo é:
+
+```
+Escola  ->  Gincana  ->  Equipes / Provas / Resultados / Penalidades / ...
+```
+
+Cada entidade de dados já carrega `gincana_id`, e cada `Gincana` pertence a uma
+`Escola` via `escola_id` — o isolamento entre escolas é, portanto, transitivo.
+
+### Como o escopo chega ao backend
+
+O front envia dois cabeçalhos em toda requisição (`client/src/services/api.js`):
+
+| Header | Origem no front | Middleware que resolve |
+|---|---|---|
+| `X-Escola-Id` | `EscolaProvider` (`hooks/useEscola.jsx`) | `resolverEscola` → `req.escolaId` |
+| `X-Gincana-Id` | `GincanaProvider` (`hooks/useGincana.jsx`) | `resolverGincana` → `req.gincanaId` |
+
+`resolverGincana` recusa (404) uma gincana que não pertença a `req.escolaId` —
+é essa checagem que impede alcançar dados de outra escola trocando o header.
+
+`resolverEscola` faz mais do que validar o tenant: ele resolve o **papel do
+usuário naquela escola** e o injeta em `req.usuario.tipo`, substituindo o papel
+que veio no token. É por isso que `autorizar('ADMIN')` e os controllers não
+precisaram mudar — passaram a ser por escola automaticamente.
+
+Quando o escopo guardado no front não vale mais, a API responde com um `codigo`
+que o cliente usa para mandar o usuário escolher de novo:
+
+| `codigo` | Quando acontece | O front faz |
+|---|---|---|
+| `GINCANA_NAO_SELECIONADA` | trocou de escola e ainda não escolheu uma gincana | vai para `/selecionar-gincana` |
+| `GINCANA_ENCERRADA` | a edição ativa foi encerrada (ou o ano virou) | vai para `/selecionar-gincana` |
+| `SEM_VINCULO_ESCOLA` / `VINCULO_INATIVO` | perdeu o vínculo com a escola ativa | vai para `/selecionar-escola` |
+
+### Fluxo de entrada
+
+Depois do login o usuário escolhe **escola → gincana → sistema**:
+
+1. `/selecionar-escola` — cards com as escolas do usuário e, em cada uma, o papel
+   com que ele vai entrar. Quem tem uma escola só pula esta tela.
+2. `/selecionar-gincana` — edições em andamento da escola escolhida. Edições
+   **encerradas** (status `ENCERRADA`/`ARQUIVADA` ou de anos passados) aparecem
+   listadas como histórico, mas não podem ser abertas — o `resolverGincana`
+   recusa o escopo delas. Quem tem uma gincana só pula esta tela.
+3. Home normal, com os seletores de escola e gincana na navbar para trocar
+   sem passar de novo pelas telas.
+
+### Perfis — o papel é **por escola**
+
+- **SUPER_ADMIN** — global. Único que cadastra escolas e vincula usuários a elas
+  (tela *Gerenciar Escolas*). Passa em qualquer `autorizar(...)`, em qualquer escola.
+- **ADMIN** — administra apenas as escolas às quais está vinculado.
+- Demais perfis — restritos às escolas do seu vínculo.
+
+#### Quantas escolas cada perfil pode ter
+
+| Grupo | Perfis | Escolas |
+|---|---|---|
+| Organização | `ADMIN`, `PROFESSOR` | **várias** |
+| Participante | `ALUNO`, `COORDENADOR`, `PAI/MÃE` | **uma só** |
+| Global | `SUPER_ADMIN` | todas (sem vínculo) |
+
+Quem compete pertence a uma escola só: turma, equipe, provas e resultados só
+fazem sentido dentro dela, e o mesmo aluno em duas escolas competiria contra si
+mesmo. Quem organiza pode acumular — é o caso do professor que toca a gincana de
+mais de uma escola.
+
+A lista fica em `PERFIS_MULTI_ESCOLA` (`server/src/models/Usuario.js`) e é o
+único lugar a editar para mudar o grupo de um perfil. A regra é aplicada em três
+camadas: o schema de `Usuario` (rede de segurança, vale até para scripts), o
+helper `conflitoMultiEscola()` usado pelos controllers de escola e de usuário
+(devolve **409 `PERFIL_ESCOLA_UNICA`** com a mensagem certa) e o espelho no
+front, em `client/src/lib/perfis.js`.
+
+Para mover um aluno de escola, **remova o vínculo antigo antes** de criar o novo
+— não existe aluno em duas escolas ao mesmo tempo.
+
+O vínculo fica em `Usuario.vinculos`, um por escola:
+
+```js
+vinculos: [
+  { escola_id: 'ESCOLA_A', tipo: 'COORDENADOR', turma: 'EF - 6º Ano', status: 'ATIVO' },
+  { escola_id: 'ESCOLA_B', tipo: 'ADMIN',       turma: null,          status: 'ATIVO' },
+]
+```
+
+Uma pessoa tem **um login só**: quem atua em duas escolas é o mesmo cadastro com
+dois vínculos, e alterna pelo seletor de escola na navbar. O papel, a turma e o
+status são **independentes em cada escola** — rebaixar alguém na escola A não
+mexe no papel dela na escola B.
+
+`Usuario.tipo` continua existindo, mas **não é a fonte da verdade dentro de uma
+escola**: ele marca o SUPER_ADMIN e serve de padrão herdado ao criar um vínculo
+novo (é o que faz um ADMIN continuar ADMIN ao ser vinculado a outra escola).
+Para decidir permissão, use `req.usuario.tipo` depois do `resolverEscola`, ou o
+helper `papelNaEscola(usuario, escolaId)` de `src/escolas/escolaHelpers.js`.
+
+### Migrando uma base existente
+
+Rode os seeds nesta ordem (todos idempotentes):
+
+```bash
+cd server
+node src/scripts/seedAdmin.js            # 1. admin inicial
+node src/scripts/seedGincanaPrincipal.js # 2. gincana legada
+npm run seed:escola                      # 3. escola legada + vínculos
+npm run migrar:papeis                    # 4. papel por escola
+```
+
+O passo 3 (`seedEscolaPrincipal.js`) cria a escola `ESCOLA_PRINCIPAL`, vincula
+todos os usuários existentes a ela, preenche `escola_id` nas gincanas antigas e
+promove o primeiro ADMIN a SUPER_ADMIN — sem ele não há como cadastrar a segunda
+escola pela interface. Requisições sem `X-Escola-Id` caem nesse mesmo fallback,
+então clientes com cache antigo continuam funcionando.
+
+O passo 4 (`migrarPapeisPorEscola.js`) converte o antigo array `Usuario.escolas`
+em `Usuario.vinculos`, herdando o papel/turma/status atuais de cada pessoa —
+ninguém muda de perfil por causa da migração — e remove o campo legado.
+
+> **O passo 4 não é opcional.** Enquanto ele não roda, `Usuario.vinculos` fica
+> vazio e o `resolverEscola` responde **403 `SEM_VINCULO_ESCOLA`** para todo
+> mundo que não é SUPER_ADMIN: o front limpa a escola ativa, manda para
+> `/selecionar-escola`, e lá `/escolas/minhas` devolve lista vazia
+> ("Nenhuma escola disponível"). É o sintoma de laço na tela de seleção.
+
+Quem estava em mais de uma escola com perfil de participante fica em **uma só**
+(a escola da equipe/gincana em que realmente participa; na falta desse sinal, a
+primeira da lista). O script imprime no fim quem foi ajustado e de quais escolas
+foi removido, para conferência.
+
+---
+
 ## 📌 Observações
 - Sempre rode **npm install** antes de iniciar o projeto pela primeira vez (cliente e servidor).
 - Nunca faça commit dos arquivos `.env` (Eles já estão no **gitignore**).

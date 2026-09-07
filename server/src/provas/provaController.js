@@ -2,6 +2,7 @@ import Prova from '../models/Prova.js';
 import Usuario from '../models/Usuario.js';
 import ProvaUsuario from '../models/ProvaUsuario.js';
 import EquipeMembros from '../models/EquipeMembros.js';
+import { getVinculo } from '../escolas/escolaHelpers.js';
 import {
   estaPublicada,
   agendarOuDispararPublicacao,
@@ -13,6 +14,32 @@ const GRUPO_LABEL = {
   PROFESSORES: 'professores',
   'PAI/MÃE': 'pais/mães'
 };
+
+/**
+ * Determina o "grupo" (cota de prova) de um usuário NA ESCOLA ATIVA.
+ *
+ * `tipo`/`turma` são por escola (Usuario.vinculos[]) — quem entrou por convite
+ * só tem a turma real no vínculo, nunca no campo legado `Usuario.turma`, que
+ * fica null (ver `registrarUsuario`). Ler o campo de topo aqui deixava
+ * "ano escolar indeterminável" para todo mundo que se cadastrou por convite.
+ */
+const determinarGrupo = (usuario, escolaId) => {
+  const vinculo = getVinculo(usuario, escolaId);
+  const tipo = vinculo?.tipo || usuario.tipo;
+  const turma = vinculo ? vinculo.turma : usuario.turma;
+
+  if (tipo === 'ALUNO') {
+    if (turma?.startsWith('EF')) return 'ALUNOS_FUNDAMENTAL';
+    if (turma?.startsWith('EM')) return 'ALUNOS_MEDIO';
+    return null;
+  }
+  if (tipo === 'PROFESSOR') return 'PROFESSORES';
+  if (tipo === 'PAI/MÃE') return 'PAI/MÃE';
+  return null;
+};
+
+// Escopo da gincana ativa (injetado por resolverGincana; fallback p/ gincana legada).
+const escopoGincana = (req) => req.gincanaId || 'GINCANA_PRINCIPAL';
 
 /**
  * Calcula o status da prova automaticamente com base nas datas, ignorando
@@ -85,6 +112,7 @@ export const criarProva = async (req, res) => {
       criterio_elegibilidade: criterio_elegibilidade || {},
       sequenciamento: sequenciamento || {},
       configuracao_quesitos: configuracao_quesitos || {},
+      gincana_id: escopoGincana(req),
       criado_por_usuario_id: req.usuario.id,
     });
 
@@ -115,10 +143,11 @@ export const listarProvas = async (req, res) => {
     // #18: ADMIN enxerga todas as provas (inclusive as agendadas). Os demais
     // perfis só veem as já publicadas (sem data de publicação ou com data já
     // alcançada).
-    const isAdmin = req.usuario?.tipo === 'ADMIN';
+    const isAdmin = ['ADMIN', 'SUPER_ADMIN'].includes(req.usuario?.tipo);
+    const gincanaId = escopoGincana(req);
     const matchVisibilidade = isAdmin
-      ? {}
-      : { $or: [{ data_publicacao: null }, { data_publicacao: { $lte: new Date() } }] };
+      ? { gincana_id: gincanaId }
+      : { gincana_id: gincanaId, $or: [{ data_publicacao: null }, { data_publicacao: { $lte: new Date() } }] };
 
     const provas = await Prova.aggregate([
       // Filtra pela visibilidade conforme o perfil do usuário
@@ -217,7 +246,7 @@ export const obterProva = async (req, res) => {
         }
 
         // #18: prova ainda não publicada fica indisponível para não-ADMIN.
-        const isAdmin = req.usuario?.tipo === 'ADMIN';
+        const isAdmin = ['ADMIN', 'SUPER_ADMIN'].includes(req.usuario?.tipo);
         if (!isAdmin && !estaPublicada(prova)) {
             return res.status(404).json({ message: 'Prova não encontrada.' });
         }
@@ -362,6 +391,26 @@ export const inscreverUsuarioNaProva = async (req, res) => {
     if (!prova) return res.status(404).json({ message: 'Prova não encontrada.' });
     if (!usuario) return res.status(404).json({ message: 'Usuário não encontrado.' });
 
+    // Quem transferiu de escola mantém a linha antiga em EquipeMembros como
+    // histórico (ver notificarTransferenciaEscola.js), então continuaria
+    // passando pela checagem de equipe abaixo mesmo sem acesso a esta escola.
+    // Sem isto, um coordenador da equipe de origem poderia inscrever um
+    // ex-membro em provas NOVAS da escola que ele já deixou.
+    // Instalação legada / usuário sem nenhum vínculo registrado: não filtra —
+    // só quem JÁ tem vinculos (ou seja, passou pela migração) pode ser barrado
+    // por não ter mais um ATIVO nesta escola especificamente.
+    const temVinculos = (usuario.vinculos || []).length > 0;
+    if (usuario.tipo !== 'SUPER_ADMIN' && temVinculos) {
+      const vinculo = getVinculo(usuario, req.escolaId);
+      if (!vinculo || vinculo.status !== 'ATIVO') {
+        return res.status(403).json({
+          ok: false,
+          code: 'SEM_VINCULO_ESCOLA',
+          message: 'Este usuário não tem mais vínculo ativo com esta escola.',
+        });
+      }
+    }
+
     // É obrigatório pertencer a uma equipe para se inscrever em uma prova.
     const possuiEquipe = await EquipeMembros.exists({ usuario_id: usuario._id });
     if (!possuiEquipe) {
@@ -372,16 +421,8 @@ export const inscreverUsuarioNaProva = async (req, res) => {
       });
     }
 
-    // Determina o macro-tipo do usuário (grupo)
-    let grupo = null;
-    if (usuario.tipo === 'ALUNO') {
-      if (usuario.turma?.startsWith('EF')) grupo = 'ALUNOS_FUNDAMENTAL';
-      else if (usuario.turma?.startsWith('EM')) grupo = 'ALUNOS_MEDIO';
-    } else if (usuario.tipo === 'PROFESSOR') {
-      grupo = 'PROFESSORES';
-    } else if (usuario.tipo === 'PAI/MÃE') {
-      grupo = 'PAI/MÃE';
-    }
+    // Determina o macro-tipo do usuário (grupo) NA ESCOLA ATIVA.
+    const grupo = determinarGrupo(usuario, req.escolaId);
 
     if (!grupo) {
       return res.status(422).json({
@@ -409,15 +450,11 @@ export const inscreverUsuarioNaProva = async (req, res) => {
 
     // Conta já inscritos desse grupo
     const atuais = await ProvaUsuario.find({ prova_id: prova._id })
-      .populate('usuario_id', 'tipo turma');
+      .populate('usuario_id', 'tipo turma vinculos');
     const countGrupo = atuais.reduce((acc, item) => {
       const u = item.usuario_id;
       if (!u) return acc;
-      if (u.tipo === 'ALUNO' && u.turma?.startsWith('EF')) return acc + (grupo === 'ALUNOS_FUNDAMENTAL' ? 1 : 0);
-      if (u.tipo === 'ALUNO' && u.turma?.startsWith('EM')) return acc + (grupo === 'ALUNOS_MEDIO' ? 1 : 0);
-      if (u.tipo === 'PROFESSOR') return acc + (grupo === 'PROFESSORES' ? 1 : 0);
-      if (u.tipo === 'PAI/MÃE') return acc + (grupo === 'PAI/MÃE' ? 1 : 0);
-      return acc;
+      return acc + (determinarGrupo(u, req.escolaId) === grupo ? 1 : 0);
     }, 0);
 
     if (countGrupo >= limite) {
@@ -429,7 +466,7 @@ export const inscreverUsuarioNaProva = async (req, res) => {
       });
     }
 
-    const vinculo = await ProvaUsuario.create({ prova_id: prova._id, usuario_id: usuario._id });
+    const vinculo = await ProvaUsuario.create({ prova_id: prova._id, usuario_id: usuario._id, gincana_id: prova.gincana_id });
     return res.status(201).json({ ok: true, message: 'Inscrição realizada com sucesso.', inscricao: vinculo });
 
   } catch (error) {

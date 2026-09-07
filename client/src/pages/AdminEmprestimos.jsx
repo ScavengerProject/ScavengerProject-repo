@@ -12,6 +12,7 @@ import { useAuth } from '../hooks/useAuth';
 import MainLayout from '../components/MainLayout';
 import { emprestimosService, equipesService, provasService } from '../services/api';
 import { ArrowLeft, Plus, X, Clock } from 'lucide-react';
+import { ehAdmin } from '../lib/perfis';
 
 export default function AdminEmprestimos() {
   const navigate = useNavigate();
@@ -263,7 +264,7 @@ export default function AdminEmprestimos() {
                     </div>
 
                     {/* Ações */}
-                    {emp.status === 'ATIVO' && usuario.tipo === 'ADMIN' && (
+                    {emp.status === 'ATIVO' && ehAdmin(usuario) && (
                       <Button
                         size="sm"
                         variant="outline"

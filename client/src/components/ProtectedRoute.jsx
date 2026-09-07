@@ -1,6 +1,7 @@
 import React, { useRef } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { toast } from './ui/toast';
+import { temPerfil } from '../lib/perfis';
 
 /**
  * Componente para proteger rotas baseado no tipo de usuário
@@ -31,10 +32,9 @@ const ProtectedRoute = ({
     return null;
   }
 
-  // Verifica se tem permissão
-  const hasPermission = Array.isArray(requiredRole)
-    ? requiredRole.includes(usuario.tipo)
-    : usuario.tipo === requiredRole;
+  // Verifica se tem permissão. temPerfil() espelha o autorizar() do backend:
+  // o SUPER_ADMIN (multi-escola) passa em qualquer rota.
+  const hasPermission = temPerfil(usuario, requiredRole);
 
   // Se não tiver permissão, exibe toast e redireciona
   if (!hasPermission) {
