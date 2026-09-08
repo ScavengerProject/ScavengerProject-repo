@@ -67,6 +67,42 @@ export const GincanaProvider = ({ children }) => {
         return;
       }
 
+      // `minhas` só devolve gincanas em que a pessoa JÁ participa, e participar
+      // significa estar numa equipe (getGincanaIdsDoUsuario, no backend). Para um
+      // aluno recém-aprovado ela vem SEMPRE vazia — então, sem este ramo, a
+      // gincana que ele acabou de escolher em /selecionar-gincana era apagada no
+      // primeiro reload e ele voltava para a tela de seleção, em laço, sem nunca
+      // conseguir chegar na inscrição em equipe.
+      //
+      // A escolha continua válida se a gincana está entre as DISPONÍVEIS da escola
+      // (mesma lista que /selecionar-gincana oferece a quem ainda não tem equipe).
+      // Ela entra em `minhasGincanas` para o seletor da navbar conseguir mostrar o
+      // nome do escopo ativo. Se por acaso estiver encerrada, quem corrige é a
+      // próxima requisição: a API responde GINCANA_ENCERRADA e o api.js limpa.
+      if (atualPersistida) {
+        let disponiveis;
+        try {
+          disponiveis = await gincanasService.disponiveis();
+        } catch (error) {
+          // Falha na consulta não é prova de que a escolha é inválida — e
+          // descartá-la aqui era o que jogava o usuário de volta para
+          // /selecionar-gincana em laço: qualquer requisição cancelada por uma
+          // navegação (ou um soluço de rede) apagava a gincana recém-escolhida.
+          // Mantém a escolha; se ela realmente não valer, a próxima requisição
+          // responde GINCANA_ENCERRADA/404 e o api.js corrige.
+          console.error('Erro ao verificar as gincanas disponíveis:', error);
+          setGincanaAtivaIdState(atualPersistida);
+          return;
+        }
+
+        const escolhida = (disponiveis || []).find((g) => g._id === atualPersistida);
+        if (escolhida) {
+          setMinhasGincanas([...(lista || []), { ...escolhida, encerrada: false }]);
+          setGincanaAtivaIdState(atualPersistida);
+          return;
+        }
+      }
+
       if (idsAcessiveis.length === 1) {
         // Uma gincana só em andamento: entra direto, sem tela intermediária.
         localStorage.setItem(STORAGE_KEY, idsAcessiveis[0]);

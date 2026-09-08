@@ -178,31 +178,54 @@ export const registrarUsuario = async (req, res) => {
   try {
     const { nome, email, senha, telefone, codigo } = req.body;
 
+    // Todos os motivos de recusa são apurados ANTES de responder, e voltam
+    // juntos em `erros`. A tela de cadastro não pré-valida mais o código (não
+    // dá para descobrir se um código existe sem tentar se cadastrar), então
+    // este é o único momento em que a pessoa recebe a crítica do formulário:
+    // devolver só o primeiro problema a obrigaria a reenviar o formulário uma
+    // vez por erro para descobrir os outros.
+    const erros = [];
+
     if (!nome || !email || !senha) {
-      return res.status(400).json({
-        message: 'Campos nome, email e senha são obrigatórios.'
-      });
+      erros.push('Campos nome, email e senha são obrigatórios.');
     }
 
+    let convite = null;
+    let escola = null;
     if (!codigo) {
-      return res.status(400).json({ message: 'Informe o código de convite da sua escola.' });
+      erros.push('Informe o código de convite da sua escola.');
+    } else {
+      convite = await CodigoConvite.findOne({ codigo: normalizarCodigo(codigo) });
+      if (convite?.estaValido()) {
+        escola = await Escola.findOne({ _id: convite.escola_id, status: 'ATIVA' });
+      }
+      // Mesma mensagem para código inexistente, revogado, expirado, estourado
+      // ou de escola inativa — ver MSG_CODIGO_INVALIDO.
+      if (!escola) erros.push(MSG_CODIGO_INVALIDO);
     }
 
-    const convite = await CodigoConvite.findOne({ codigo: normalizarCodigo(codigo) });
-    if (!convite || !convite.estaValido()) {
-      return res.status(404).json({ message: MSG_CODIGO_INVALIDO });
+    if (email) {
+      const usuarioExistente = await Usuario.findOne({ email: email.toLowerCase() });
+      if (usuarioExistente) {
+        // Anti-enumeração (ver plano, Fase 2): não confirma nem nega que a
+        // conta já existe, só recusa o cadastro.
+        erros.push('Não foi possível concluir o cadastro com os dados informados.');
+      }
     }
 
-    const escola = await Escola.findOne({ _id: convite.escola_id, status: 'ATIVA' });
-    if (!escola) {
-      return res.status(404).json({ message: MSG_CODIGO_INVALIDO });
-    }
+    if (erros.length > 0) {
+      // O status segue a ordem original das checagens (campo obrigatório 400 →
+      // código 404 → email 409), para não mudar o contrato de quem já lia só o
+      // status; o corpo é que passou a carregar a lista inteira.
+      let status = 409;
+      if (!nome || !email || !senha || !codigo) status = 400;
+      else if (!escola) status = 404;
 
-    const usuarioExistente = await Usuario.findOne({ email: email.toLowerCase() });
-    if (usuarioExistente) {
-      // Anti-enumeração (ver plano, Fase 2): não confirma nem nega que a
-      // conta já existe, só recusa o cadastro.
-      return res.status(409).json({ message: 'Não foi possível concluir o cadastro com os dados informados.' });
+      return res.status(status).json({
+        message: erros[0],
+        erros,
+        codigo: 'CADASTRO_INVALIDO',
+      });
     }
 
     const statusVinculo = convite.aprovacao_automatica ? 'ATIVO' : 'PENDENTE';
@@ -273,6 +296,18 @@ export const atualizarUsuario = async (req, res) => {
       if (emailExistente) {
         return res.status(409).json({ message: 'Este email já está em uso por outro usuário.' });
       }
+    }
+
+    // Mesmo motivo do bloqueio em alternarStatusUsuario: promover/rebaixar um
+    // vínculo PENDENTE por aqui pula a fila de aprovação (turma obrigatória +
+    // remoção do vínculo de origem). Corrigir nome/email/turma do pendente
+    // continua liberado — só o `status` é que pertence ao decidirPendencia.
+    if (status && getVinculo(usuario, req.escolaId)?.status === 'PENDENTE') {
+      return res.status(409).json({
+        message: 'Este usuário tem uma solicitação de vínculo aguardando aprovação. '
+          + 'Aprove ou rejeite pela fila de vínculos pendentes — é lá que a turma é definida.',
+        codigo: 'APROVACAO_PELA_FILA',
+      });
     }
 
     // Dados da PESSOA (valem em qualquer escola).
@@ -393,6 +428,23 @@ export const alternarStatusUsuario = async (req, res) => {
     // outra escola em que ele atua.
     const vinculo = getVinculo(usuario, req.escolaId);
     const statusAtual = vinculo?.status || usuario.status;
+
+    // Um vínculo PENDENTE não é "usuário desativado": é uma SOLICITAÇÃO, e ela
+    // só pode ser resolvida por decidirPendencia (convites/conviteController).
+    // `filtroEscola` não filtra por status, então o pendente aparece na lista
+    // de Gerenciar Usuários e o toggle o promoveria a ATIVO aqui, pulando as
+    // duas coisas que só a fila de aprovação faz: exigir a turma (sem ela o
+    // aluno cai em GRUPO_INDETERMINADO na inscrição em prova) e remover o
+    // vínculo ATIVO da escola de origem numa transferência (sem isso um ALUNO
+    // fica ATIVO em duas escolas, furando a regra de escola única).
+    if (statusAtual === 'PENDENTE') {
+      return res.status(409).json({
+        message: 'Este usuário tem uma solicitação de vínculo aguardando aprovação. '
+          + 'Aprove ou rejeite pela fila de vínculos pendentes — é lá que a turma é definida.',
+        codigo: 'APROVACAO_PELA_FILA',
+      });
+    }
+
     const statusFinal = novoStatus || (statusAtual === 'ATIVO' ? 'INATIVO' : 'ATIVO');
 
     aplicarVinculo(usuario, req.escolaId, { status: statusFinal });

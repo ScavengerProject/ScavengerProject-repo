@@ -320,12 +320,14 @@ const AdminUsuarios = () => {
       'INATIVO': 'bg-gray-100 text-gray-700',
       'BANIDO': 'bg-red-200 text-red-900',
       'SUSPENSO': 'bg-orange-100 text-orange-800',
+      // Solicitação de vínculo na fila de aprovação, não um usuário desativado.
+      'PENDENTE': 'bg-yellow-100 text-yellow-800',
     };
     return colors[status] || 'bg-gray-100 text-gray-700';
   };
 
   const getStatusLabel = (status) => {
-    const labels = { ATIVO: 'Ativo', INATIVO: 'Inativo', BANIDO: 'Banido', SUSPENSO: 'Suspenso' };
+    const labels = { ATIVO: 'Ativo', INATIVO: 'Inativo', BANIDO: 'Banido', SUSPENSO: 'Suspenso', PENDENTE: 'Aguardando aprovação' };
     return labels[status] || status;
   };
 
@@ -535,7 +537,10 @@ const AdminUsuarios = () => {
                           variant="outline"
                           size="sm"
                           onClick={(e) => { e.stopPropagation(); setDropdownStatusAberto(dropdownStatusAberto === usuario._id ? null : usuario._id); }}
-                          disabled={usuario._id === usuarioLogado.id}
+                          disabled={usuario._id === usuarioLogado.id || usuario.status === 'PENDENTE'}
+                          title={usuario.status === 'PENDENTE'
+                            ? 'Vínculo aguardando aprovação: aprove ou rejeite em Vínculos Pendentes, onde a turma é definida.'
+                            : undefined}
                           className="text-xs border-gray-300 text-gray-700 hover:bg-gray-50 flex items-center gap-1"
                         >
                           <ChevronDown className="h-3 w-3 sm:h-4 sm:w-4" />

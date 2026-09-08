@@ -1,16 +1,12 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { toast } from "../components/ui/toast";
-import { usuariosService, convitesService } from "../services/api";
+import { usuariosService } from "../services/api";
 import { formatarTelefone } from "../lib/mascaras";
-
-// Tempo de debounce da pré-validação do código: espera o usuário parar de
-// digitar antes de consultar o backend (a rota é rate-limitada).
-const DEBOUNCE_PREVALIDACAO_MS = 400;
 
 const CadastroUsuario = () => {
     const navigate = useNavigate();
@@ -25,41 +21,16 @@ const CadastroUsuario = () => {
     // Código de convite: substitui o antigo seletor de escola. Aceita
     // ?convite=XXX na URL (link/QR code enviado pela escola) já pré-preenchido.
     const [codigo, setCodigo] = useState(() => (searchParams.get("convite") || "").toUpperCase());
-    const [prevalidacao, setPrevalidacao] = useState(null); // { escola_nome, turma }
-    const [prevalidando, setPrevalidando] = useState(false);
-    const [erroCodigo, setErroCodigo] = useState("");
 
-    // Pré-validação com debounce: confirma "Você está entrando na Escola X —
-    // 6º Ano" antes do candidato preencher o resto do formulário, sem revelar
-    // nada além do que o backend expõe publicamente (GET /convites/:codigo).
-    useEffect(() => {
-      const codigoLimpo = codigo.trim();
-      setPrevalidacao(null);
-      setErroCodigo("");
-
-      if (!codigoLimpo) {
-        setPrevalidando(false);
-        return;
-      }
-
-      setPrevalidando(true);
-      const timer = setTimeout(() => {
-        convitesService
-          .prevalidar(codigoLimpo)
-          .then((dados) => {
-            setPrevalidacao(dados);
-          })
-          .catch((error) => {
-            setErroCodigo(error.message || "Código de convite inválido ou expirado.");
-          })
-          .finally(() => setPrevalidando(false));
-      }, DEBOUNCE_PREVALIDACAO_MS);
-
-      return () => clearTimeout(timer);
-    }, [codigo]);
+    // Críticas devolvidas pelo backend no envio. É uma LISTA porque o cadastro
+    // apura todos os motivos de recusa de uma vez (código errado + email já
+    // usado, por exemplo) — mostrar só o primeiro faria a pessoa reenviar o
+    // formulário uma vez por erro para descobrir o que mais está errado.
+    const [errosEnvio, setErrosEnvio] = useState([]);
 
     const handleSubmit = async (event) => {
     event.preventDefault();
+    setErrosEnvio([]);
 
     // Validações campo a campo
     if (!nome.trim()) {
@@ -127,11 +98,17 @@ const CadastroUsuario = () => {
       setSenha("");
       setConfirmacao("");
       setCodigo("");
+      setErrosEnvio([]);
 
       // Redireciona para a tela de login após o cadastro ser efetivado
       navigate("/login");
     } catch (error) {
-      toast.error(error.message || "Não foi possível concluir o cadastro");
+      // `error.erros` (ver services/api.js) traz todas as críticas do cadastro;
+      // erros sem lista (rede, 500) entram como uma mensagem só.
+      const mensagens = error.erros?.length
+        ? error.erros
+        : [error.message || "Não foi possível concluir o cadastro"];
+      setErrosEnvio(mensagens);
     } finally {
       setLoading(false);
     }
@@ -189,22 +166,13 @@ const CadastroUsuario = () => {
                 className="bg-white border-gray-300 focus:ring-blue-500 uppercase"
                 disabled={loading}
               />
+              {/* Campo comum, de propósito: nada aqui diz se o código digitado
+                  existe ou não. A conferência acontece só no envio, junto com o
+                  resto do formulário. */}
               <p className="text-xs text-gray-500">
                 Peça o código à sua escola. Ele diz automaticamente em qual escola (e turma) você
                 vai entrar — não é mais possível escolher a escola livremente.
               </p>
-              {prevalidando && (
-                <p className="text-xs text-gray-600">Verificando código...</p>
-              )}
-              {!prevalidando && prevalidacao && (
-                <p className="text-xs text-green-700 font-medium">
-                  Você está entrando na Escola {prevalidacao.escola_nome}
-                  {prevalidacao.turma ? ` — ${prevalidacao.turma}` : " — aguardando aprovação da escola (sem turma de código próprio)"}
-                </p>
-              )}
-              {!prevalidando && !prevalidacao && erroCodigo && (
-                <p className="text-xs text-red-600 font-medium">{erroCodigo}</p>
-              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="telefone" className="text-gray-900 font-medium">
@@ -249,6 +217,22 @@ const CadastroUsuario = () => {
                 disabled={loading}
               />
             </div>
+            {errosEnvio.length > 0 && (
+              <div
+                role="alert"
+                className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700"
+              >
+                {errosEnvio.length === 1 ? (
+                  <p className="font-medium">{errosEnvio[0]}</p>
+                ) : (
+                  <ul className="list-disc space-y-1 pl-5 font-medium">
+                    {errosEnvio.map((mensagem) => (
+                      <li key={mensagem}>{mensagem}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
             <Button
               type="submit"
               className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold"

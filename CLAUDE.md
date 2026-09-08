@@ -99,10 +99,65 @@ a generic error banner):
 | `GINCANA_ENCERRADA` | active edition ended (or year rolled over) | go to `/selecionar-gincana` |
 | `SEM_VINCULO_ESCOLA` / `VINCULO_INATIVO` | lost access to active escola | go to `/selecionar-escola` |
 | `ESCOLA_NAO_SELECIONADA` | no `X-Escola-Id` sent on an already-migrated DB | go to `/selecionar-escola` |
+| `SEM_EQUIPE_NA_GINCANA` | scope is fine, but the user isn't in any team of it yet | go to `/selecionar-equipe` (any non-admin role) |
 
-Post-login flow is **escola → gincana → app** (`client/src/App.jsx`): a user
-can't reach any page until `useEscola`/`useGincana` report loaded, because
-pages fire requests on mount that need the headers set correctly.
+An error body may also carry `erros: [...]` — every reason the request was
+refused, not just the first. `request()` re-exposes it as `error.erros`
+(`error.message` stays the first one, so callers that only show a message keep
+working). `POST /usuarios/registrar` uses it: the sign-up screen has no
+per-field code check (the invite field is a plain input — telling the visitor
+whether a code exists as they type is an oracle for guessing codes), so submit
+is the only chance to criticize the form, and a wrong code plus an unusable
+email must come back together.
+
+Post-login flow is **escola → gincana → equipe → app** (`client/src/App.jsx`):
+a user can't reach any page until `useEscola`/`useGincana`/`useEquipe` report
+loaded, because pages fire requests on mount that need the headers set
+correctly — and, for non-admins, need a team to exist at all (next section).
+
+There is a fourth step for participants, and it is a hard gate: **gincana
+participation is derived from `EquipeMembros`**, not from the escola vinculo (see
+`getGincanaIdsDoUsuario` in `server/src/gincanas/gincanaHelpers.js`). So a
+freshly approved non-admin has a valid escola *and* a selected gincana and still
+gets 403 `SEM_EQUIPE_NA_GINCANA` on every strict-`resolverGincana` route
+(provas, resultados, notificacoes, penalidades, feedbacks, configuracoes) until
+they join a team. Only three routes use `resolverGincanaParaInscricao` and stay
+reachable: `GET /equipes/meu-vinculo`, `GET /equipes/para-inscricao` and
+`POST /equipes/:id/register`.
+
+Because *every* other screen 403s, the frontend doesn't let such a user in at
+all. `hooks/useEquipe.jsx` asks `GET /equipes/meu-vinculo` (200 with
+`tem_equipe: false` — reachable precisely because it isn't strict) right after
+the gincana resolves, and `precisaSelecionarEquipe` pins the user to
+`/selecionar-equipe` until they have a team. That page deliberately does **not**
+use `MainLayout`: the sidebar links and the 30s notification poll would each
+403, and `api.js`'s `SEM_EQUIPE_NA_GINCANA` handler would reload the page in a
+loop. Its only exits are joining a team, switching gincana/escola, and logging
+out.
+
+Two invariants keep that from becoming a redirect loop, and both are easy to
+break by "simplifying" the conditions:
+
+1. `/selecionar-equipe` renders on `podeVerSelecaoEquipe` (non-admin *without a
+   confirmed team*), **not** on `precisaSelecionarEquipe`. The two differ when
+   the vinculo lookup itself fails: nobody is force-gated (a network blip must
+   not lock the app), but every strict route still 403s and `api.js` still sends
+   everyone here — so if this page redirected to `/` in that state, the browser
+   would bounce between the two, reloading each time. In that "unknown" state
+   the page shows a retry, plus a way back in when `/equipes/para-inscricao`
+   marks the user's team (`isMinhaEquipe`).
+2. `useGincana` only discards the persisted `gincanaAtivaId` when it *knows* the
+   choice is invalid. A failed `gincanasService.disponiveis()` keeps it — a
+   request cancelled by a navigation used to erase the gincana the user had just
+   picked, which is what landed them back on `/selecionar-gincana`.
+
+`ADMIN`/`SUPER_ADMIN` skip the gate entirely — `resolverGincana` exempts them
+from the participation check, so they run the gincana without any team.
+Self-enrollment (`POST /equipes/:id/register`) is `autorizar('ALUNO')`, so
+`PROFESSOR`/`COORDENADOR`/`PAI-MÃE` see the same screen read-only and wait for
+an ADMIN to put them in a team. `/inscricao-equipes` stays for alunos who
+already have one (it's the "trocar de equipe" view) and is NOT in
+`ROTAS_SEM_EQUIPE`.
 
 ### Roles: per-escola, not global
 `Usuario.tipo` is only the **base** role (marks `SUPER_ADMIN`, and is the

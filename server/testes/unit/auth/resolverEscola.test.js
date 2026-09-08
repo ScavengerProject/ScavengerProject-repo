@@ -207,6 +207,55 @@ describe('authPermissions - resolverGincana com escopo de escola', () => {
     expect(next).toHaveBeenCalledTimes(1);
     expect(req.gincanaId).toBe('GINCANA_A');
   });
+
+  // Participação vem de EquipeMembros, então um aluno recém-aprovado na escola
+  // leva 403 em TODA tela até entrar numa equipe. O `codigo` é o que permite ao
+  // front mandá-lo para a inscrição em vez de mostrar um erro solto por página.
+  it('marca o 403 de quem ainda não tem equipe com codigo SEM_EQUIPE_NA_GINCANA', async () => {
+    const gincana = await Gincana.create({
+      _id: 'GINCANA_SEM_EQUIPE', escola_id: ESCOLA_A, nome: 'Gincana', ano: new Date().getFullYear(), criado_por: criadorId,
+    });
+
+    const req = {
+      headers: { 'x-gincana-id': gincana._id },
+      usuario: { id: new mongoose.Types.ObjectId().toString(), tipo: 'ALUNO' },
+      escolaId: ESCOLA_A,
+    };
+    const res = mockRes();
+    const next = jest.fn();
+
+    await resolverGincana(req, res, next);
+
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.json.mock.calls[0][0].codigo).toBe('SEM_EQUIPE_NA_GINCANA');
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('deixa passar assim que o aluno entra numa equipe da gincana', async () => {
+    const gincana = await Gincana.create({
+      _id: 'GINCANA_COM_EQUIPE', escola_id: ESCOLA_A, nome: 'Gincana', ano: new Date().getFullYear(), criado_por: criadorId,
+    });
+    const aluno = await Usuario.create({
+      nome: 'Aluno', email: 'aluno@x.com', senha: '123', tipo: 'ALUNO',
+      vinculos: [{ escola_id: ESCOLA_A, tipo: 'ALUNO', turma: 'EF - 6º Ano' }],
+    });
+    const equipe = await Equipe.create({ nome: 'Time', cor: '#123456', gincana_id: gincana._id });
+    await EquipeGincana.create({ equipe_id: equipe._id, gincana_id: gincana._id });
+    await EquipeMembros.create({ equipe_id: equipe._id, usuario_id: aluno._id });
+
+    const req = {
+      headers: { 'x-gincana-id': gincana._id },
+      usuario: { id: aluno._id.toString(), tipo: 'ALUNO' },
+      escolaId: ESCOLA_A,
+    };
+    const res = mockRes();
+    const next = jest.fn();
+
+    await resolverGincana(req, res, next);
+
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(req.gincanaId).toBe('GINCANA_COM_EQUIPE');
+  });
 });
 
 describe('authPermissions - resolverGincanaParaInscricao (rotas de entrar numa equipe)', () => {
