@@ -15,14 +15,20 @@ module.exports = {
     coverageDirectory: 'coverage',
 
     // Gate de cobertura (ratchet): o CI falha se a cobertura cair abaixo destes
-    // pisos. Definidos um pouco abaixo do atual para evitar flakiness; suba-os à
-    // medida que mais fluxos (empréstimo/oferta/migração de equipe) forem cobertos.
+    // pisos. Ficam ~2 pontos abaixo do medido para absorver flakiness; suba-os à
+    // medida que mais fluxos forem cobertos.
+    //
+    // Medido em 2026-09-07: 75.10 stmts / 67.15 branch / 85.21 funcs / 76.77 lines.
+    // Os pisos anteriores (50/40/42/52) deixavam ~25 pontos de folga, o que
+    // tornava o gate decorativo: dava para apagar um terço dos testes sem o CI
+    // reclamar. Próxima subida ao fim da cobertura de equipes/resultados/
+    // penalidades (issue #42).
     coverageThreshold: {
         global: {
-            statements: 50,
-            branches: 40,
-            functions: 42,
-            lines: 52,
+            statements: 73,
+            branches: 65,
+            functions: 83,
+            lines: 74,
         },
     },
 
