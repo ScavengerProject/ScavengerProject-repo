@@ -75,10 +75,14 @@ const request = async (endpoint, options = {}) => {
       // tenta parsear JSON; se vier HTML (erro do Express padrão), evita quebrar com "<!DOCTYPE"
       let errorMessage = 'Erro na requisição';
       let codigo = null;
+      // Algumas rotas (o auto-cadastro, por exemplo) apuram TODOS os motivos de
+      // recusa e devolvem a lista; quem chama decide se mostra uma ou todas.
+      let erros = null;
       try {
         const errorData = await response.json();
         errorMessage = errorData.message || errorMessage;
         codigo = errorData.codigo || null;
+        erros = Array.isArray(errorData.erros) && errorData.erros.length > 0 ? errorData.erros : null;
       } catch (_) {
         // Se não conseguir fazer parse de JSON, tentar ler como texto
         // Mas só tenta se houver body ainda disponível
@@ -108,6 +112,19 @@ const request = async (endpoint, options = {}) => {
         localStorage.removeItem('escolaAtivaId');
         localStorage.removeItem('gincanaAtivaId');
         redirecionarPara('/selecionar-escola');
+      } else if (codigo === 'SEM_EQUIPE_NA_GINCANA') {
+        // Escola e gincana estão corretas — falta a equipe. A participação na
+        // gincana vem de EquipeMembros, então até entrar numa equipe a pessoa
+        // leva 403 em toda tela (provas, resultados, notificações, penalidades...).
+        // Não limpa o escopo salvo: a gincana escolhida continua válida.
+        //
+        // O destino é o gate /selecionar-equipe, e não /inscricao-equipes: ele
+        // atende TODOS os perfis não-admin (a inscrição própria é exclusiva do
+        // ALUNO; os demais dependem do admin) e não monta o MainLayout, cujos
+        // sidebar/notificações disparariam o mesmo 403 num laço de recargas.
+        // Esta é a rede de segurança — o caminho normal é o gate do App.jsx,
+        // que impede a tela de montar antes de saber se falta equipe.
+        redirecionarPara('/selecionar-equipe');
       } else if (codigo === 'VINCULO_PENDENTE') {
         // Vínculo em análise (cadastro sem código de turma, ou transferência
         // aguardando o ADMIN de destino): diferente de VINCULO_INATIVO, NÃO é
@@ -119,6 +136,7 @@ const request = async (endpoint, options = {}) => {
 
       const erro = new Error(errorMessage);
       erro.codigo = codigo;
+      erro.erros = erros;
       throw erro;
     }
 
@@ -249,6 +267,16 @@ export const equipesService = {
 
   // ✅ Lista equipes para inscrição, marcando qual é a equipe atual
   listarEquipesParaInscricao: () => request('/equipes/para-inscricao', { method: 'GET' }),
+
+  /**
+   * [GET] /api/equipes/meu-vinculo — { tem_equipe, equipe_id, equipe_nome,
+   * is_coordenador } do usuário logado na gincana ativa.
+   *
+   * Responde 200 mesmo sem equipe (e é alcançável por quem ainda não
+   * participa da gincana): é a consulta que sustenta o gate de escolha de
+   * equipe em hooks/useEquipe.jsx.
+   */
+  meuVinculoNaGincana: () => request('/equipes/meu-vinculo', { method: 'GET' }),
 
   listarCoordenadoresDisponiveis: () =>
     request('/equipes/coordenadores-disponiveis', { method: 'GET' }),

@@ -7,11 +7,20 @@ vi.mock('../components/ui/toast', () => ({
 }));
 
 const registrarMock = vi.fn();
-const prevalidarMock = vi.fn();
+// `convitesService` NÃO entra no mock de propósito: a tela não pré-valida mais
+// o código de convite, e se voltar a importá-lo o teste quebra.
 vi.mock('../services/api', () => ({
   usuariosService: { registrar: (...args) => registrarMock(...args) },
-  convitesService: { prevalidar: (...args) => prevalidarMock(...args) },
 }));
+
+// Erro no formato que services/api.js lança: `message` + `erros` (a lista com
+// todos os motivos de recusa apurados pelo backend).
+const erroDeCadastro = (mensagens) => {
+  const erro = new Error(mensagens[0]);
+  erro.erros = mensagens;
+  erro.codigo = 'CADASTRO_INVALIDO';
+  return erro;
+};
 
 import CadastroUsuario from './CadastroUsuario';
 import { toast } from '../components/ui/toast';
@@ -47,34 +56,71 @@ describe('CadastroUsuario', () => {
   });
 
   it('pré-preenche o código a partir de ?convite= na URL', () => {
-    prevalidarMock.mockResolvedValue({ escola_nome: 'Escola A', turma: 'EF - 6º Ano' });
     renderPagina('/inscricao?convite=abc12345');
 
     expect(screen.getByLabelText(/código de convite/i)).toHaveValue('ABC12345');
   });
 
-  it('após digitar um código válido, mostra a confirmação da escola/turma (pré-validação com debounce)', async () => {
-    prevalidarMock.mockResolvedValue({ escola_nome: 'Escola Modelo', turma: 'EF - 7º Ano' });
+  // O campo do código é um input comum: digitar não pode dizer se o código
+  // existe ou não (nem "verificando", nem a escola/turma confirmada).
+  it('não dá nenhum retorno sobre o código enquanto a pessoa digita', async () => {
     renderPagina();
 
     fireEvent.change(screen.getByLabelText(/código de convite/i), { target: { value: 'CODIGO01' } });
+    // Mais do que o debounce da antiga pré-validação (400ms).
+    await new Promise((r) => setTimeout(r, 700));
 
-    await waitFor(() => expect(prevalidarMock).toHaveBeenCalledWith('CODIGO01'), { timeout: 2000 });
-    await waitFor(() => {
-      expect(screen.getByText(/Você está entrando na Escola Escola Modelo/i)).toBeInTheDocument();
-    });
-    expect(screen.getByText(/EF - 7º Ano/)).toBeInTheDocument();
+    expect(screen.queryByText(/verificando código/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/você está entrando na escola/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/inválido ou expirado/i)).not.toBeInTheDocument();
+    expect(registrarMock).not.toHaveBeenCalled();
   });
 
-  it('mostra um erro quando o código não pré-valida', async () => {
-    prevalidarMock.mockRejectedValue(new Error('Código de convite inválido ou expirado.'));
+  it('mostra a mensagem de erro do código somente depois do envio', async () => {
+    registrarMock.mockRejectedValue(erroDeCadastro(['Código de convite inválido ou expirado.']));
     renderPagina();
-
+    preencherFormularioBasico();
     fireEvent.change(screen.getByLabelText(/código de convite/i), { target: { value: 'INVALIDO' } });
 
+    fireEvent.click(screen.getByRole('button', { name: /cadastrar conta/i }));
+
     await waitFor(() => {
-      expect(screen.getByText('Código de convite inválido ou expirado.')).toBeInTheDocument();
-    }, { timeout: 2000 });
+      expect(screen.getByRole('alert')).toHaveTextContent('Código de convite inválido ou expirado.');
+    });
+  });
+
+  // O backend apura todos os motivos de recusa de uma vez; a tela precisa
+  // mostrar a lista inteira, senão a pessoa reenvia o formulário uma vez por
+  // erro para descobrir o que mais está errado.
+  it('mostra todas as mensagens quando o cadastro tem mais de um erro', async () => {
+    registrarMock.mockRejectedValue(erroDeCadastro([
+      'Código de convite inválido ou expirado.',
+      'Não foi possível concluir o cadastro com os dados informados.',
+    ]));
+    renderPagina();
+    preencherFormularioBasico();
+    fireEvent.change(screen.getByLabelText(/código de convite/i), { target: { value: 'INVALIDO' } });
+
+    fireEvent.click(screen.getByRole('button', { name: /cadastrar conta/i }));
+
+    const alerta = await waitFor(() => screen.getByRole('alert'));
+    expect(alerta).toHaveTextContent('Código de convite inválido ou expirado.');
+    expect(alerta).toHaveTextContent('Não foi possível concluir o cadastro com os dados informados.');
+    expect(alerta.querySelectorAll('li')).toHaveLength(2);
+  });
+
+  // Falha sem lista (rede, 500) continua sendo mostrada como uma mensagem só.
+  it('mostra a mensagem única quando o erro não traz lista', async () => {
+    registrarMock.mockRejectedValue(new Error('Erro ao registrar usuário.'));
+    renderPagina();
+    preencherFormularioBasico();
+    fireEvent.change(screen.getByLabelText(/código de convite/i), { target: { value: 'CODIGO01' } });
+
+    fireEvent.click(screen.getByRole('button', { name: /cadastrar conta/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent('Erro ao registrar usuário.');
+    });
   });
 
   it('recusa o envio sem código de convite (não chama o backend)', () => {

@@ -21,7 +21,14 @@ run each separately.
 - Run one test by name: `npx jest -t "nome do teste"`
 - Migration/seed scripts (see "Migrating an existing DB" below):
   `node src/scripts/seedAdmin.js`, `node src/scripts/seedGincanaPrincipal.js`,
-  `npm run seed:escola`, `npm run migrar:papeis`
+  `npm run migrar:gincana`, `npm run seed:escola`, `npm run migrar:papeis`
+- `npm run inventario -- prod|dev|<db>` — read-only inventory of a database
+  (doc counts + indexes per collection, deterministic output so two runs can be
+  `diff`ed). Use it to capture a "before", to verify a restored backup, and to
+  confirm obsolete indexes were actually dropped.
+- `src/scripts/backupProducao.ps1` — `mongodump` of `MONGO_URI` into one gzipped
+  archive; refuses a database whose name ends in `_Dev`. `-DryRun` to check the
+  guards without connecting.
 
 ### Frontend (`client/`)
 - `npm start` — Vite dev server (http://localhost:5173)
@@ -92,10 +99,65 @@ a generic error banner):
 | `GINCANA_ENCERRADA` | active edition ended (or year rolled over) | go to `/selecionar-gincana` |
 | `SEM_VINCULO_ESCOLA` / `VINCULO_INATIVO` | lost access to active escola | go to `/selecionar-escola` |
 | `ESCOLA_NAO_SELECIONADA` | no `X-Escola-Id` sent on an already-migrated DB | go to `/selecionar-escola` |
+| `SEM_EQUIPE_NA_GINCANA` | scope is fine, but the user isn't in any team of it yet | go to `/selecionar-equipe` (any non-admin role) |
 
-Post-login flow is **escola → gincana → app** (`client/src/App.jsx`): a user
-can't reach any page until `useEscola`/`useGincana` report loaded, because
-pages fire requests on mount that need the headers set correctly.
+An error body may also carry `erros: [...]` — every reason the request was
+refused, not just the first. `request()` re-exposes it as `error.erros`
+(`error.message` stays the first one, so callers that only show a message keep
+working). `POST /usuarios/registrar` uses it: the sign-up screen has no
+per-field code check (the invite field is a plain input — telling the visitor
+whether a code exists as they type is an oracle for guessing codes), so submit
+is the only chance to criticize the form, and a wrong code plus an unusable
+email must come back together.
+
+Post-login flow is **escola → gincana → equipe → app** (`client/src/App.jsx`):
+a user can't reach any page until `useEscola`/`useGincana`/`useEquipe` report
+loaded, because pages fire requests on mount that need the headers set
+correctly — and, for non-admins, need a team to exist at all (next section).
+
+There is a fourth step for participants, and it is a hard gate: **gincana
+participation is derived from `EquipeMembros`**, not from the escola vinculo (see
+`getGincanaIdsDoUsuario` in `server/src/gincanas/gincanaHelpers.js`). So a
+freshly approved non-admin has a valid escola *and* a selected gincana and still
+gets 403 `SEM_EQUIPE_NA_GINCANA` on every strict-`resolverGincana` route
+(provas, resultados, notificacoes, penalidades, feedbacks, configuracoes) until
+they join a team. Only three routes use `resolverGincanaParaInscricao` and stay
+reachable: `GET /equipes/meu-vinculo`, `GET /equipes/para-inscricao` and
+`POST /equipes/:id/register`.
+
+Because *every* other screen 403s, the frontend doesn't let such a user in at
+all. `hooks/useEquipe.jsx` asks `GET /equipes/meu-vinculo` (200 with
+`tem_equipe: false` — reachable precisely because it isn't strict) right after
+the gincana resolves, and `precisaSelecionarEquipe` pins the user to
+`/selecionar-equipe` until they have a team. That page deliberately does **not**
+use `MainLayout`: the sidebar links and the 30s notification poll would each
+403, and `api.js`'s `SEM_EQUIPE_NA_GINCANA` handler would reload the page in a
+loop. Its only exits are joining a team, switching gincana/escola, and logging
+out.
+
+Two invariants keep that from becoming a redirect loop, and both are easy to
+break by "simplifying" the conditions:
+
+1. `/selecionar-equipe` renders on `podeVerSelecaoEquipe` (non-admin *without a
+   confirmed team*), **not** on `precisaSelecionarEquipe`. The two differ when
+   the vinculo lookup itself fails: nobody is force-gated (a network blip must
+   not lock the app), but every strict route still 403s and `api.js` still sends
+   everyone here — so if this page redirected to `/` in that state, the browser
+   would bounce between the two, reloading each time. In that "unknown" state
+   the page shows a retry, plus a way back in when `/equipes/para-inscricao`
+   marks the user's team (`isMinhaEquipe`).
+2. `useGincana` only discards the persisted `gincanaAtivaId` when it *knows* the
+   choice is invalid. A failed `gincanasService.disponiveis()` keeps it — a
+   request cancelled by a navigation used to erase the gincana the user had just
+   picked, which is what landed them back on `/selecionar-gincana`.
+
+`ADMIN`/`SUPER_ADMIN` skip the gate entirely — `resolverGincana` exempts them
+from the participation check, so they run the gincana without any team.
+Self-enrollment (`POST /equipes/:id/register`) is `autorizar('ALUNO')`, so
+`PROFESSOR`/`COORDENADOR`/`PAI-MÃE` see the same screen read-only and wait for
+an ADMIN to put them in a team. `/inscricao-equipes` stays for alunos who
+already have one (it's the "trocar de equipe" view) and is NOT in
+`ROTAS_SEM_EQUIPE`.
 
 ### Roles: per-escola, not global
 `Usuario.tipo` is only the **base** role (marks `SUPER_ADMIN`, and is the
@@ -144,13 +206,35 @@ instead — kept alive by external pings to `/health` (see comments there and in
 `jestSetupAfterEnv.js`, so backend tests never touch Redis.
 
 ### Migrating an existing DB to multi-escola
-All idempotent, run in order (see README for full detail): `seedAdmin.js` →
-`seedGincanaPrincipal.js` → `npm run seed:escola` (creates `ESCOLA_PRINCIPAL`,
+All idempotent, run in order (see README for full detail): `seedAdmin.js` (skip
+it if the DB already has an ADMIN) → `seedGincanaPrincipal.js` →
+`npm run migrar:gincana` → `npm run seed:escola` (creates `ESCOLA_PRINCIPAL`,
 links existing users, promotes the first admin to `SUPER_ADMIN`) →
 `npm run migrar:papeis` (converts legacy `Usuario.escolas` into
-`Usuario.vinculos`). Step 4 is not optional — without it, everyone but
-`SUPER_ADMIN` gets 403 `SEM_VINCULO_ESCOLA` and loops on the escola-selection
-screen.
+`Usuario.vinculos`). Take a backup first and verify it by restoring.
+
+Neither of the last two steps is optional:
+
+- **`migrar:gincana`** (`migrarDadosParaGincana.js`, no argument) materializes
+  `gincana_id` on the 14 scoped collections. Several models gained the field
+  after the DB was already in use (`Notificacao`, `ProvaUsuario`,
+  `ProvaEquipeParticipacao`, `MigracaoEquipe`, `OfertaEmprestimo`), and the
+  schema's `default: 'GINCANA_PRINCIPAL'` only applies on write — so those
+  documents have **no field at all** and drop out of every gincana-filtered
+  query. Nothing errors; the data just vanishes from the UI while sitting intact
+  in the DB.
+- **`migrar:papeis`** — without it `Usuario.vinculos` stays empty and everyone
+  but `SUPER_ADMIN` gets 403 `SEM_VINCULO_ESCOLA`, looping on the
+  escola-selection screen. On a DB that never used the legacy `Usuario.escolas`
+  array it is a no-op, because `seed:escola` already created the vinculos.
+
+**Indexes are the real risk, not the documents.** Mongoose's `autoIndex` creates
+the new indexes on boot but *never drops obsolete ones* — only the
+`syncIndexes()` calls inside the seeds do. Until `seedGincanaPrincipal` runs,
+production still carries the old global uniques (`Equipes.nome_1`,
+`Equipes_Gincana.equipe_id_1`) alongside the new composite ones, so a second
+team with the same name in another gincana fails with E11000. Diff
+`npm run inventario` before and after to confirm the old ones are gone.
 
 ### Legacy fallback IDs
 `GINCANA_FALLBACK_ID = 'GINCANA_PRINCIPAL'` and

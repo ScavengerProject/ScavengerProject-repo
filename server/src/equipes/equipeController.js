@@ -4,6 +4,7 @@ import EquipeMembros from '../models/EquipeMembros.js';
 import Usuario from '../models/Usuario.js';
 import ConfiguracaoGincana from '../models/ConfiguracaoGincana.js';
 import { getEquipeGincanaDoCoordenador } from './coordenadorEquipe.js';
+import { usuarioParticipaDaGincana } from '../gincanas/gincanaHelpers.js';
 import {
     filtroEscola,
     filtroEscolaComPerfil,
@@ -1082,6 +1083,65 @@ export const buscarMinhaEquipeId = async (req, res) => {
     } catch (error) {
         console.error('Erro ao buscar ID da equipe do usuário:', error);
         res.status(500).json({ message: 'Erro interno ao buscar ID da equipe.' });
+    }
+};
+
+/**
+ * [GET] Diz se o usuário logado já faz parte de alguma equipe DA GINCANA ATIVA.
+ *
+ * Existe para o front decidir, ANTES de montar qualquer tela, se a pessoa
+ * precisa passar pela escolha de equipe (ver useEquipe.jsx / SelecionarEquipe).
+ * Como a participação na gincana é derivada de EquipeMembros, quem ainda não
+ * entrou numa equipe leva 403 `SEM_EQUIPE_NA_GINCANA` em TODA rota estrita —
+ * por isso esta rota usa `resolverGincanaParaInscricao`: ela precisa ser
+ * respondível justamente para quem ainda não participa.
+ *
+ * Duas diferenças deliberadas em relação a `buscarMinhaEquipeId`:
+ *  - responde sempre 200 (com `tem_equipe: false`), porque "não tenho equipe" é
+ *    a resposta esperada aqui, não um erro a ser tratado com try/catch;
+ *  - o booleano vem de `usuarioParticipaDaGincana`, a MESMA função que o
+ *    middleware usa para decidir o 403. Assim o gate do front e a autorização
+ *    da API não podem discordar.
+ */
+export const meuVinculoNaGincana = async (req, res) => {
+    try {
+        const gincanaId = escopoGincana(req);
+        const temEquipe = await usuarioParticipaDaGincana(req.usuario.id, gincanaId);
+
+        if (!temEquipe) {
+            return res.status(200).json({
+                tem_equipe: false,
+                equipe_id: null,
+                equipe_nome: null,
+                is_coordenador: false,
+            });
+        }
+
+        // Só para exibição (nome da equipe na tela). O filtro por equipes DESTA
+        // gincana evita pegar o vínculo de uma edição anterior — cada edição tem
+        // sua própria Equipe/EquipeGincana e a linha antiga nunca é removida.
+        const equipeIdsDaGincana = await EquipeGincana.find({ gincana_id: gincanaId }).distinct('equipe_id');
+        const membro = await EquipeMembros
+            .findOne({ usuario_id: req.usuario.id, equipe_id: { $in: equipeIdsDaGincana } })
+            .select('equipe_id is_coordenador');
+
+        // Busca explícita em vez de `.populate('equipe_id')`: o schema de
+        // EquipeMembros declara `ref: 'EquipeGincana'` nesse campo, mas o valor
+        // gravado é o _id da Equipe MESTRA (é assim que a membresia atravessa as
+        // edições). Um populate ali resolve na coleção errada e devolve null.
+        const equipe = membro?.equipe_id
+            ? await Equipe.findById(membro.equipe_id).select('nome cor')
+            : null;
+
+        res.status(200).json({
+            tem_equipe: true,
+            equipe_id: membro?.equipe_id || null,
+            equipe_nome: equipe?.nome || null,
+            is_coordenador: Boolean(membro?.is_coordenador),
+        });
+    } catch (error) {
+        console.error('Erro ao buscar o vínculo de equipe do usuário:', error);
+        res.status(500).json({ message: 'Erro interno ao buscar o vínculo de equipe.' });
     }
 };
 

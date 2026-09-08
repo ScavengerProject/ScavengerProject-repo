@@ -21,7 +21,8 @@ import {
   atualizarMaxCoordenadores,
   listarUsuariosElegiveisCoordenador,
   visualizarRankingEquipes,
-  buscarMinhaEquipeId
+  buscarMinhaEquipeId,
+  meuVinculoNaGincana
 } from './equipeController.js';
 import {
   proteger,
@@ -41,6 +42,13 @@ const router = express.Router();
 
 // ✅ rota "pública" para QUALQUER usuário autenticado (inclui aluno)
 router.get('/publicas', proteger, resolverEscola, resolverGincana, listarEquipesPublicas);
+
+// Vínculo de equipe do próprio usuário na gincana ativa. Permissiva de
+// propósito (resolverGincanaParaInscricao): é a rota que o front consulta para
+// saber se precisa obrigar a pessoa a escolher uma equipe, então ela tem de
+// responder justamente para quem ainda não participa da gincana. Sem
+// `autorizar`: cada um só lê o próprio vínculo.
+router.get('/meu-vinculo', proteger, resolverEscola, resolverGincanaParaInscricao, meuVinculoNaGincana);
 
 // ✅ Lista equipes para inscrição, indicando qual é a equipe atual do aluno
 router.get('/para-inscricao', proteger, resolverEscola, resolverGincanaParaInscricao, autorizar('ALUNO', 'PROFESSOR', 'PAI/MÃE', 'COORDENADOR'), listarEquipesParaInscricao);

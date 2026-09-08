@@ -302,7 +302,17 @@ const construirResolverGincana = ({ exigirParticipacao }) => async (req, res, ne
     if (exigirParticipacao && req.usuario.tipo !== 'ADMIN' && req.usuario.tipo !== 'SUPER_ADMIN') {
       const participa = await usuarioParticipaDaGincana(req.usuario.id, gincana._id);
       if (!participa) {
-        return res.status(403).json({ message: 'Você não participa desta gincana.' });
+        // Participação é derivada de EquipeMembros (ver getGincanaIdsDoUsuario),
+        // então quem acabou de ser aprovado na escola cai aqui em TODA tela até
+        // entrar numa equipe. Não é perda de acesso nem escopo inválido: é um
+        // passo de onboarding que falta. O `codigo` existe para o front mandar
+        // essa pessoa para a inscrição em equipe em vez de mostrar um erro
+        // genérico em cada página (ver services/api.js).
+        return res.status(403).json({
+          message: 'Você ainda não faz parte de nenhuma equipe desta gincana. '
+            + 'Inscreva-se em uma equipe para acessar esta área.',
+          codigo: 'SEM_EQUIPE_NA_GINCANA',
+        });
       }
     }
 
