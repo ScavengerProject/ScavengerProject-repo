@@ -10,6 +10,7 @@ import {
   removerMembroEquipe,
   listarEquipesParaInscricao,
   buscarMinhaEquipeId,
+  meuVinculoNaGincana,
   atualizarEquipe,
   adicionarCoordenador,
   listarEquipesPublicas,
@@ -198,6 +199,57 @@ describe('equipeController - EquipeMembros de gincana anterior não deve "vazar"
     await buscarMinhaEquipeId(req, res);
 
     expect(res.status).toHaveBeenCalledWith(404);
+  });
+
+  // Rota que sustenta o gate de "escolher equipe" no front (useEquipe.jsx).
+  // Diferente de buscarMinhaEquipeId, "não tenho equipe" é resposta 200 — é o
+  // caso NORMAL de quem acabou de ser aprovado na escola.
+  it('meuVinculoNaGincana responde 200 com tem_equipe=false quando não há equipe', async () => {
+    const aluno = await Usuario.create({ nome: 'Aluno', email: 'vinculo1@x.com', senha: '123', tipo: 'ALUNO', turma: 'EF - 6º Ano' });
+
+    const req = { usuario: { id: aluno._id.toString() }, gincanaId: 'GINCANA_ATUAL' };
+    const res = mockRes();
+
+    await meuVinculoNaGincana(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ tem_equipe: false, equipe_id: null }));
+  });
+
+  it('meuVinculoNaGincana devolve a equipe e o papel de coordenador da gincana ativa', async () => {
+    const coord = await Usuario.create({ nome: 'Coord', email: 'vinculo2@x.com', senha: '123', tipo: 'COORDENADOR' });
+    const equipe = await Equipe.create({ nome: 'Equipe Atual', cor: '#222' });
+    await EquipeGincana.create({ equipe_id: equipe._id, gincana_id: 'GINCANA_ATUAL' });
+    await EquipeMembros.create({ equipe_id: equipe._id, usuario_id: coord._id, is_coordenador: true });
+
+    const req = { usuario: { id: coord._id.toString() }, gincanaId: 'GINCANA_ATUAL' };
+    const res = mockRes();
+
+    await meuVinculoNaGincana(req, res);
+
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+      tem_equipe: true,
+      equipe_nome: 'Equipe Atual',
+      is_coordenador: true,
+    }));
+  });
+
+  // O gate tem de concordar com o 403 do resolverGincana: um vínculo de edição
+  // ANTERIOR não libera a gincana atual (a linha de EquipeMembros nunca é
+  // removida, então sem o filtro por gincana o front liberaria o sistema para
+  // quem a API vai barrar em toda tela).
+  it('meuVinculoNaGincana ignora vínculo de outra gincana', async () => {
+    const aluno = await Usuario.create({ nome: 'Aluno', email: 'vinculo3@x.com', senha: '123', tipo: 'ALUNO', turma: 'EF - 6º Ano' });
+    const equipeAntiga = await Equipe.create({ nome: 'Equipe Antiga', cor: '#111' });
+    await EquipeGincana.create({ equipe_id: equipeAntiga._id, gincana_id: 'GINCANA_ANTIGA' });
+    await EquipeMembros.create({ equipe_id: equipeAntiga._id, usuario_id: aluno._id, is_coordenador: false });
+
+    const req = { usuario: { id: aluno._id.toString() }, gincanaId: 'GINCANA_ATUAL' };
+    const res = mockRes();
+
+    await meuVinculoNaGincana(req, res);
+
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ tem_equipe: false }));
   });
 
   it('atualizarEquipe permite atribuir um coordenador que só tem membresia numa gincana anterior', async () => {
