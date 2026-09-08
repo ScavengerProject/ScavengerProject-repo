@@ -7,7 +7,7 @@ vi.mock('react-router-dom', () => ({
 }));
 
 vi.mock('../services/api', () => ({
-  gincanasService: { minhas: vi.fn() },
+  gincanasService: { minhas: vi.fn(), disponiveis: vi.fn() },
 }));
 
 let isAuthenticated = true;
@@ -30,6 +30,8 @@ beforeEach(() => {
   localStorage.clear();
   isAuthenticated = true;
   escolaAtivaId = 'ESC_1';
+  // Padrão dos testes que não exercitam o ramo de "disponíveis".
+  gincanasService.disponiveis.mockResolvedValue([]);
 });
 
 describe('useGincana', () => {
@@ -83,6 +85,55 @@ describe('useGincana', () => {
 
     expect(result.current.gincanaAtivaId).toBeNull();
     expect(result.current.precisaSelecionarGincana).toBe(true);
+  });
+
+  // Regressão: `minhas` só traz gincanas em que a pessoa JÁ tem equipe, então
+  // para um aluno recém-aprovado ela vem sempre vazia. Antes, a gincana que ele
+  // tinha acabado de escolher era apagada no primeiro reload e ele voltava para
+  // /selecionar-gincana — sem nunca alcançar a inscrição em equipe.
+  it('mantém a gincana escolhida por quem ainda não tem equipe (está nas disponíveis)', async () => {
+    localStorage.setItem('gincanaAtivaId', 'GINC_NOVA');
+    gincanasService.minhas.mockResolvedValueOnce([]);
+    gincanasService.disponiveis.mockResolvedValueOnce([{ _id: 'GINC_NOVA', nome: 'Gincana 2026', ano: 2026 }]);
+
+    const { result } = renderHook(() => useGincana(), { wrapper });
+    await waitFor(() => expect(result.current.carregado).toBe(true));
+
+    expect(result.current.gincanaAtivaId).toBe('GINC_NOVA');
+    expect(result.current.precisaSelecionarGincana).toBe(false);
+    expect(localStorage.getItem('gincanaAtivaId')).toBe('GINC_NOVA');
+    // Entra na lista para o seletor da navbar conseguir mostrar o nome do escopo.
+    expect(result.current.gincanasAcessiveis.map((g) => g._id)).toEqual(['GINC_NOVA']);
+  });
+
+  it('descarta a gincana persistida que não está nem nas minhas nem nas disponíveis', async () => {
+    localStorage.setItem('gincanaAtivaId', 'GINC_DE_OUTRA_ESCOLA');
+    gincanasService.minhas.mockResolvedValueOnce([]);
+    gincanasService.disponiveis.mockResolvedValueOnce([{ _id: 'GINC_DAQUI', nome: 'Daqui' }]);
+
+    const { result } = renderHook(() => useGincana(), { wrapper });
+    await waitFor(() => expect(result.current.carregado).toBe(true));
+
+    expect(result.current.gincanaAtivaId).toBeNull();
+    expect(result.current.precisaSelecionarGincana).toBe(true);
+    expect(localStorage.getItem('gincanaAtivaId')).toBeNull();
+  });
+
+  // Uma falha na consulta não prova que a escolha é inválida. Descartá-la aqui
+  // era o outro elo do laço "volta para /selecionar-gincana": bastava uma
+  // requisição cancelada por navegação (ou um soluço de rede) para apagar a
+  // gincana que a pessoa tinha acabado de escolher.
+  it('mantém a gincana persistida quando a consulta de disponíveis falha', async () => {
+    localStorage.setItem('gincanaAtivaId', 'GINC_NOVA');
+    gincanasService.minhas.mockResolvedValueOnce([]);
+    gincanasService.disponiveis.mockRejectedValueOnce(new Error('rede'));
+
+    const { result } = renderHook(() => useGincana(), { wrapper });
+    await waitFor(() => expect(result.current.carregado).toBe(true));
+
+    expect(result.current.gincanaAtivaId).toBe('GINC_NOVA');
+    expect(result.current.precisaSelecionarGincana).toBe(false);
+    expect(localStorage.getItem('gincanaAtivaId')).toBe('GINC_NOVA');
   });
 
   it('separa gincanasAcessiveis e gincanasEncerradas', async () => {
