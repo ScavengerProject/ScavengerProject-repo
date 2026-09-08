@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Trophy, Lock, ChevronRight, ArrowLeft, Plus, CalendarDays } from 'lucide-react';
+import { Trophy, Lock, ChevronRight, ArrowLeft, Plus, CalendarDays, LogOut } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useEscola } from '../hooks/useEscola';
 import { useGincana } from '../hooks/useGincana';
@@ -31,7 +31,7 @@ const periodo = (gincana) => {
  * Quem tem uma única gincana em andamento nunca vê esta tela.
  */
 export default function SelecionarGincana() {
-  const { usuario } = useAuth();
+  const { usuario, logout } = useAuth();
   const { escolaAtiva, minhasEscolas, limparEscolaAtiva } = useEscola();
   const {
     gincanasAcessiveis,
@@ -122,15 +122,27 @@ export default function SelecionarGincana() {
             </h1>
             <p className="text-white/80 text-sm sm:text-base">Escolha a gincana que deseja acessar.</p>
           </div>
-          {podeTrocarEscola && (
+          <div className="flex items-center gap-2 shrink-0">
+            {podeTrocarEscola && (
+              <Button
+                onClick={limparEscolaAtiva}
+                className="bg-white/15 hover:bg-white/25 text-white flex items-center gap-2 shrink-0"
+              >
+                <ArrowLeft size={18} />
+                <span className="hidden sm:inline">Trocar de escola</span>
+              </Button>
+            )}
+            {/* Mesma saída da tela de escolha de escola: quem chega aqui e não
+                quer entrar em nenhuma edição precisa poder voltar ao login sem
+                depender de escolher uma gincana primeiro. */}
             <Button
-              onClick={limparEscolaAtiva}
+              onClick={logout}
               className="bg-white/15 hover:bg-white/25 text-white flex items-center gap-2 shrink-0"
             >
-              <ArrowLeft size={18} />
-              <span className="hidden sm:inline">Trocar de escola</span>
+              <LogOut size={18} />
+              <span className="hidden sm:inline">Sair</span>
             </Button>
-          )}
+          </div>
         </div>
 
         <div className="bg-white rounded-2xl shadow-xl p-4 sm:p-6">
