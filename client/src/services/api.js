@@ -75,10 +75,14 @@ const request = async (endpoint, options = {}) => {
       // tenta parsear JSON; se vier HTML (erro do Express padrão), evita quebrar com "<!DOCTYPE"
       let errorMessage = 'Erro na requisição';
       let codigo = null;
+      // Algumas rotas (o auto-cadastro, por exemplo) apuram TODOS os motivos de
+      // recusa e devolvem a lista; quem chama decide se mostra uma ou todas.
+      let erros = null;
       try {
         const errorData = await response.json();
         errorMessage = errorData.message || errorMessage;
         codigo = errorData.codigo || null;
+        erros = Array.isArray(errorData.erros) && errorData.erros.length > 0 ? errorData.erros : null;
       } catch (_) {
         // Se não conseguir fazer parse de JSON, tentar ler como texto
         // Mas só tenta se houver body ainda disponível
@@ -132,6 +136,7 @@ const request = async (endpoint, options = {}) => {
 
       const erro = new Error(errorMessage);
       erro.codigo = codigo;
+      erro.erros = erros;
       throw erro;
     }
 

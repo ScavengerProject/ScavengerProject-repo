@@ -312,6 +312,47 @@ describe('usuarioController - registrarUsuario (auto-cadastro por código de con
     // Mensagem não pode confirmar que a conta já existe.
     expect(res.json.mock.calls[0][0].message).not.toMatch(/já está cadastrado/i);
   });
+
+  // A tela de cadastro não pré-valida mais o código, então o envio é a única
+  // chance de crítica: precisa vir a lista COMPLETA de motivos, senão a pessoa
+  // reenvia o formulário uma vez por erro para descobrir o resto.
+  it('acumula os erros: código inválido E email já usado voltam juntos em `erros`', async () => {
+    await criarNoBanco({ nome: 'A', email: 'dois@x.com', senha: '123', tipo: 'ALUNO', turma: 'EF - 6º Ano' });
+    const req = { body: { nome: 'B', email: 'dois@x.com', senha: '123456', codigo: 'NAOEXISTE' } };
+    const res = mockRes();
+
+    await registrarUsuario(req, res);
+
+    const corpo = res.json.mock.calls[0][0];
+    expect(corpo.erros).toHaveLength(2);
+    expect(corpo.erros[0]).toMatch(/inválido ou expirado/i);
+    expect(corpo.erros[1]).toMatch(/não foi possível concluir o cadastro/i);
+    // Mesmo com dois erros, o status segue a ordem original das checagens.
+    expect(res.status).toHaveBeenCalledWith(404);
+  });
+
+  it('um único erro também vem em `erros` (lista de um), com o mesmo status de antes', async () => {
+    const req = { body: { nome: 'X', email: 'so-codigo@x.com', senha: '123456', codigo: 'NAOEXISTE' } };
+    const res = mockRes();
+
+    await registrarUsuario(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(res.json.mock.calls[0][0].erros).toEqual(['Código de convite inválido ou expirado.']);
+  });
+
+  it('não cria a conta quando o email já existe, mesmo com código válido', async () => {
+    await criarNoBanco({ nome: 'A', email: 'unico@x.com', senha: '123', tipo: 'ALUNO', turma: 'EF - 6º Ano' });
+    const convite = await criarConvite({ codigo: 'DUPLIC123' });
+    const req = { body: { nome: 'B', email: 'unico@x.com', senha: '123456', codigo: convite.codigo } };
+    const res = mockRes();
+
+    await registrarUsuario(req, res);
+
+    expect(await Usuario.countDocuments({ email: 'unico@x.com' })).toBe(1);
+    // E o código não pode ter sido consumido por uma tentativa recusada.
+    expect((await CodigoConvite.findById(convite._id)).usos).toBe(0);
+  });
 });
 
 describe('usuarioController - atualizarUsuario', () => {

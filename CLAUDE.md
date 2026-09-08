@@ -101,6 +101,15 @@ a generic error banner):
 | `ESCOLA_NAO_SELECIONADA` | no `X-Escola-Id` sent on an already-migrated DB | go to `/selecionar-escola` |
 | `SEM_EQUIPE_NA_GINCANA` | scope is fine, but the user isn't in any team of it yet | go to `/selecionar-equipe` (any non-admin role) |
 
+An error body may also carry `erros: [...]` — every reason the request was
+refused, not just the first. `request()` re-exposes it as `error.erros`
+(`error.message` stays the first one, so callers that only show a message keep
+working). `POST /usuarios/registrar` uses it: the sign-up screen has no
+per-field code check (the invite field is a plain input — telling the visitor
+whether a code exists as they type is an oracle for guessing codes), so submit
+is the only chance to criticize the form, and a wrong code plus an unusable
+email must come back together.
+
 Post-login flow is **escola → gincana → equipe → app** (`client/src/App.jsx`):
 a user can't reach any page until `useEscola`/`useGincana`/`useEquipe` report
 loaded, because pages fire requests on mount that need the headers set
