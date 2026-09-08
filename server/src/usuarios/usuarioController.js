@@ -275,6 +275,18 @@ export const atualizarUsuario = async (req, res) => {
       }
     }
 
+    // Mesmo motivo do bloqueio em alternarStatusUsuario: promover/rebaixar um
+    // vínculo PENDENTE por aqui pula a fila de aprovação (turma obrigatória +
+    // remoção do vínculo de origem). Corrigir nome/email/turma do pendente
+    // continua liberado — só o `status` é que pertence ao decidirPendencia.
+    if (status && getVinculo(usuario, req.escolaId)?.status === 'PENDENTE') {
+      return res.status(409).json({
+        message: 'Este usuário tem uma solicitação de vínculo aguardando aprovação. '
+          + 'Aprove ou rejeite pela fila de vínculos pendentes — é lá que a turma é definida.',
+        codigo: 'APROVACAO_PELA_FILA',
+      });
+    }
+
     // Dados da PESSOA (valem em qualquer escola).
     if (nome) usuario.nome = nome;
     if (email) usuario.email = email.toLowerCase();
@@ -393,6 +405,23 @@ export const alternarStatusUsuario = async (req, res) => {
     // outra escola em que ele atua.
     const vinculo = getVinculo(usuario, req.escolaId);
     const statusAtual = vinculo?.status || usuario.status;
+
+    // Um vínculo PENDENTE não é "usuário desativado": é uma SOLICITAÇÃO, e ela
+    // só pode ser resolvida por decidirPendencia (convites/conviteController).
+    // `filtroEscola` não filtra por status, então o pendente aparece na lista
+    // de Gerenciar Usuários e o toggle o promoveria a ATIVO aqui, pulando as
+    // duas coisas que só a fila de aprovação faz: exigir a turma (sem ela o
+    // aluno cai em GRUPO_INDETERMINADO na inscrição em prova) e remover o
+    // vínculo ATIVO da escola de origem numa transferência (sem isso um ALUNO
+    // fica ATIVO em duas escolas, furando a regra de escola única).
+    if (statusAtual === 'PENDENTE') {
+      return res.status(409).json({
+        message: 'Este usuário tem uma solicitação de vínculo aguardando aprovação. '
+          + 'Aprove ou rejeite pela fila de vínculos pendentes — é lá que a turma é definida.',
+        codigo: 'APROVACAO_PELA_FILA',
+      });
+    }
+
     const statusFinal = novoStatus || (statusAtual === 'ATIVO' ? 'INATIVO' : 'ATIVO');
 
     aplicarVinculo(usuario, req.escolaId, { status: statusFinal });
