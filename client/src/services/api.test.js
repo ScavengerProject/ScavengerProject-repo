@@ -157,6 +157,67 @@ describe('request helper (via services)', () => {
     vi.unstubAllGlobals();
   });
 
+  // Escola e gincana estão certas — falta a equipe. Participação na gincana vem
+  // de EquipeMembros, então quem foi recém-aprovado leva 403 em toda tela até
+  // entrar numa equipe. O escopo salvo continua válido e NÃO pode ser limpo.
+  it('o codigo SEM_EQUIPE_NA_GINCANA manda para /selecionar-equipe sem limpar o escopo', async () => {
+    const assign = vi.fn();
+    vi.stubGlobal('location', { pathname: '/provas', assign });
+
+    localStorage.setItem('escolaAtivaId', 'ESCOLA_A');
+    localStorage.setItem('gincanaAtivaId', 'GINCANA_A');
+    localStorage.setItem('usuario', JSON.stringify({ id: '1', tipo: 'ALUNO' }));
+    global.fetch.mockResolvedValueOnce(
+      okJson({ message: 'Sem equipe', codigo: 'SEM_EQUIPE_NA_GINCANA' }, 403)
+    );
+
+    await expect(provasService.listar()).rejects.toThrow('Sem equipe');
+
+    expect(assign).toHaveBeenCalledWith('/selecionar-equipe');
+    expect(localStorage.getItem('escolaAtivaId')).toBe('ESCOLA_A');
+    expect(localStorage.getItem('gincanaAtivaId')).toBe('GINCANA_A');
+
+    vi.unstubAllGlobals();
+  });
+
+  // O gate /selecionar-equipe atende todos os perfis não-admin (PROFESSOR,
+  // COORDENADOR e PAI/MÃE dependem do admin para entrar numa equipe, mas levam
+  // o mesmo 403 em toda tela). Antes só o ALUNO era redirecionado e os demais
+  // ficavam vendo um erro solto em cada página.
+  it('redireciona qualquer perfil no SEM_EQUIPE_NA_GINCANA, não só o ALUNO', async () => {
+    const assign = vi.fn();
+    vi.stubGlobal('location', { pathname: '/provas', assign });
+
+    localStorage.setItem('usuario', JSON.stringify({ id: '1', tipo: 'PROFESSOR' }));
+    global.fetch.mockResolvedValueOnce(
+      okJson({ message: 'Sem equipe', codigo: 'SEM_EQUIPE_NA_GINCANA' }, 403)
+    );
+
+    await expect(provasService.listar()).rejects.toThrow('Sem equipe');
+
+    expect(assign).toHaveBeenCalledWith('/selecionar-equipe');
+
+    vi.unstubAllGlobals();
+  });
+
+  // Guarda do `redirecionarPara`: já estando na tela do gate, um 403 de alguma
+  // requisição pendente não pode recarregar a página (laço de recargas).
+  it('não redireciona quando já está em /selecionar-equipe', async () => {
+    const assign = vi.fn();
+    vi.stubGlobal('location', { pathname: '/selecionar-equipe', assign });
+
+    localStorage.setItem('usuario', JSON.stringify({ id: '1', tipo: 'ALUNO' }));
+    global.fetch.mockResolvedValueOnce(
+      okJson({ message: 'Sem equipe', codigo: 'SEM_EQUIPE_NA_GINCANA' }, 403)
+    );
+
+    await expect(provasService.listar()).rejects.toThrow('Sem equipe');
+
+    expect(assign).not.toHaveBeenCalled();
+
+    vi.unstubAllGlobals();
+  });
+
   it('retorna null em respostas 204 (sem conteúdo)', async () => {
     global.fetch.mockResolvedValueOnce({ ok: true, status: 204, json: async () => ({}), text: async () => '' });
 

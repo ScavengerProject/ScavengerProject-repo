@@ -3,6 +3,7 @@ import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth.jsx';
 import { useEscola } from './hooks/useEscola.jsx';
 import { useGincana } from './hooks/useGincana.jsx';
+import { useEquipe } from './hooks/useEquipe.jsx';
 import Login from './pages/Login';
 import CadastroUsuario from './pages/CadastroUsuario';
 import Dashboard from './pages/Dashboard';
@@ -19,6 +20,7 @@ import ResgatarConvite from './pages/ResgatarConvite.jsx';
 import AguardandoAprovacao from './pages/AguardandoAprovacao.jsx';
 import SelecionarEscola from './pages/SelecionarEscola.jsx';
 import SelecionarGincana from './pages/SelecionarGincana.jsx';
+import SelecionarEquipe from './pages/SelecionarEquipe.jsx';
 import GerenciarEquipe from './pages/GerenciarEquipes.jsx';
 import InscricaoEquipes from './pages/InscricaoEquipes.jsx';
 import SolicitarMigracao from './pages/solicitarMigracao.jsx';
@@ -63,6 +65,18 @@ const ROTAS_SEM_GINCANA = [
   '/convites/resgatar',
 ];
 
+// Rotas que funcionam sem uma EQUIPE escolhida. Participar de uma gincana vem de
+// EquipeMembros, então quem não está em nenhuma equipe leva 403
+// SEM_EQUIPE_NA_GINCANA em qualquer outra rota — inclusive '/' — e não tem o que
+// fazer no sistema até resolver isso. Tudo que dispensa gincana também dispensa
+// equipe, mais a própria tela de escolha.
+//
+// '/inscricao-equipes' NÃO entra aqui de propósito: ela monta o MainLayout
+// (sidebar + notificações a cada 30s) e cada um desses pedidos volta 403,
+// recarregando a página em laço. Quem está sem equipe usa /selecionar-equipe, que
+// oferece a mesma inscrição sem o layout.
+const ROTAS_SEM_EQUIPE = [...ROTAS_SEM_GINCANA, '/selecionar-equipe'];
+
 // Tela de espera usada tanto na inicialização da sessão quanto enquanto o
 // escopo (escola/gincana) ainda está sendo resolvido.
 const TelaCarregando = () => (
@@ -81,7 +95,16 @@ function App() {
     escolaAtivaId,
     carregado: escolaCarregada,
   } = useEscola();
-  const { precisaSelecionarGincana, carregado: gincanaCarregada } = useGincana();
+  const {
+    precisaSelecionarGincana,
+    gincanaAtivaId,
+    carregado: gincanaCarregada,
+  } = useGincana();
+  const {
+    precisaSelecionarEquipe,
+    podeVerSelecaoEquipe,
+    carregado: equipeCarregada,
+  } = useEquipe();
   const location = useLocation();
   const { toasts } = useToast();
 
@@ -101,7 +124,12 @@ function App() {
   // Nenhuma tela pode montar antes de o escopo estar resolvido: as páginas
   // disparam requisições no mount, e sem os headers X-Escola-Id/X-Gincana-Id
   // corretos elas levariam 400/404 e jogariam o usuário para fora da rota.
-  if (isAuthenticated && (!escolaCarregada || (escolaAtivaId && !gincanaCarregada))) {
+  if (
+    isAuthenticated
+    && (!escolaCarregada
+      || (escolaAtivaId && !gincanaCarregada)
+      || (gincanaAtivaId && !equipeCarregada))
+  ) {
     return <TelaCarregando />;
   }
 
@@ -119,6 +147,20 @@ function App() {
     && !ROTAS_SEM_GINCANA.includes(location.pathname)
   ) {
     return <Navigate to="/selecionar-gincana" replace />;
+  }
+
+  // Terceira etapa do escopo: a equipe. Sem ela, um perfil não-admin não
+  // consegue abrir NENHUMA tela da gincana (403 em todas), então ele fica preso
+  // em /selecionar-equipe — com a opção de sair — em vez de entrar no dashboard
+  // e ser expulso de volta pela primeira requisição que falha.
+  if (
+    isAuthenticated
+    && !precisaSelecionarEscola
+    && !precisaSelecionarGincana
+    && precisaSelecionarEquipe
+    && !ROTAS_SEM_EQUIPE.includes(location.pathname)
+  ) {
+    return <Navigate to="/selecionar-equipe" replace />;
   }
 
   return (
@@ -173,6 +215,21 @@ function App() {
         <Route
           path="/selecionar-gincana"
           element={isAuthenticated ? <SelecionarGincana /> : <Navigate to="/login" replace />}
+        />
+
+        {/* Escolha obrigatória da equipe dentro da gincana ativa. Só devolve
+            para o app quem SABIDAMENTE tem equipe (ou é ADMIN) — e não
+            `!precisaSelecionarEquipe`, que também é falso quando a consulta do
+            vínculo falhou. Nesse estado as telas normais respondem 403 e o
+            api.js manda todo mundo para cá: se aqui devolvêssemos para '/', a
+            página rebateria entre as duas recarregando sem parar. */}
+        <Route
+          path="/selecionar-equipe"
+          element={
+            isAuthenticated
+              ? (podeVerSelecaoEquipe ? <SelecionarEquipe /> : <Navigate to="/" replace />)
+              : <Navigate to="/login" replace />
+          }
         />
 
         {/* Gerenciamento de Escolas (apenas SUPER_ADMIN) */}

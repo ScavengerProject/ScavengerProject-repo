@@ -54,6 +54,10 @@ export default function SelecionarGincana() {
   // Sem equipe ainda, `gincanasAcessiveis` vem vazio pra quem não é admin (só
   // lista gincanas onde já se participa). Sem isso o aluno nunca via a gincana
   // pra poder escolher uma equipe e se inscrever nela.
+  //
+  // Escolher uma dessas leva direto ao gate /selecionar-equipe (e não à
+  // inscrição com MainLayout): é lá que a escolha da equipe é obrigatória, e a
+  // gincana só passa a "existir" para a API depois que a equipe existe.
   const [gincanasDisponiveis, setGincanasDisponiveis] = useState([]);
   const [carregandoDisponiveis, setCarregandoDisponiveis] = useState(false);
 
@@ -149,7 +153,7 @@ export default function SelecionarGincana() {
                   <li key={gincana._id}>
                     <button
                       type="button"
-                      onClick={() => setGincanaAtiva(gincana._id, '/inscricao-equipes')}
+                      onClick={() => setGincanaAtiva(gincana._id, '/selecionar-equipe')}
                       className="w-full text-left border border-gray-200 rounded-xl p-4 hover:border-blue-500 hover:bg-blue-50 transition flex items-start gap-3 group"
                     >
                       <span className="bg-blue-100 text-blue-700 rounded-lg p-2 shrink-0">
