@@ -40,7 +40,7 @@ afterEach(async () => {
 });
 
 // Cria uma prova já CONCLUIDA (término no passado) com regras de pontuação.
-async function criarProvaConcluida(pontuacao, quesitos = []) {
+async function criarProvaConcluida(pontuacao, bonusCategorias = []) {
   return Prova.create({
     titulo: 'Prova Resultado',
     descricao: 'd',
@@ -48,7 +48,7 @@ async function criarProvaConcluida(pontuacao, quesitos = []) {
     data_inicio: new Date(Date.now() - 10 * umDia),
     data_fim: new Date(Date.now() - 2 * umDia),
     pontuacao,
-    quesitos_de_avaliacao: quesitos,
+    bonus_categorias: bonusCategorias,
     criado_por_usuario_id: avaliadorId,
   });
 }
@@ -138,6 +138,69 @@ describe('resultadoController - lancarResultados (cálculo de pontos)', () => {
     const resultado = await Resultado.findOne({ prova_id: prova._id, equipe_id: equipe._id });
     expect(resultado.pontuacao_obtida).toBe(50); // 40*2=80, mas teto=50
     expect(resultado.detalhes_pontuacao).toMatch(/teto atingido: 50/i);
+  });
+
+  it('LIMIAR: concede a pontuação fixa quando atinge o mínimo', async () => {
+    const prova = await criarProvaConcluida({ quantidade_minima: 30, pontuacao_fixa: 300, nome_unidade: 'alunos' });
+    const equipe = await criarEquipeComGincana('Caminhada');
+
+    const res = mockRes();
+    await lancarResultados(
+      { query: { provaId: prova._id.toString() }, body: { tipo: 'LIMIAR', resultados: [{ equipe_id: equipe._id.toString(), valor: '32' }] }, usuario: { id: avaliadorId } },
+      res
+    );
+
+    expect(res.status).toHaveBeenCalledWith(201);
+    const resultado = await Resultado.findOne({ prova_id: prova._id, equipe_id: equipe._id });
+    expect(resultado.pontuacao_obtida).toBe(300);
+    expect(resultado.detalhes_pontuacao).toMatch(/mínimo atingido/i);
+  });
+
+  it('LIMIAR: dá 0 pontos quando NÃO atinge o mínimo', async () => {
+    const prova = await criarProvaConcluida({ quantidade_minima: 30, pontuacao_fixa: 300, nome_unidade: 'alunos' });
+    const equipe = await criarEquipeComGincana('Caminhada2');
+
+    const res = mockRes();
+    await lancarResultados(
+      { query: { provaId: prova._id.toString() }, body: { tipo: 'LIMIAR', resultados: [{ equipe_id: equipe._id.toString(), valor: '25' }] }, usuario: { id: avaliadorId } },
+      res
+    );
+
+    expect(res.status).toHaveBeenCalledWith(201);
+    const resultado = await Resultado.findOne({ prova_id: prova._id, equipe_id: equipe._id });
+    expect(resultado.pontuacao_obtida).toBe(0);
+    expect(resultado.detalhes_pontuacao).toMatch(/NÃO atingido/i);
+  });
+
+  it('bonus_categorias: soma pontos por unidade de cada categoria, respeitando o teto', async () => {
+    const prova = await criarProvaConcluida(
+      { quantidade_minima: 30, pontuacao_fixa: 300, nome_unidade: 'alunos' },
+      [
+        { chave: 'EX_ALUNOS', nome: 'Ex-alunos', pontos_por_unidade: 20, teto_unidades: 5 },
+        { chave: 'PAIS_MAES', nome: 'Pais/Mães', pontos_por_unidade: 20, teto_unidades: 5 },
+      ]
+    );
+    const equipe = await criarEquipeComGincana('Caminhada3');
+
+    const res = mockRes();
+    await lancarResultados(
+      {
+        query: { provaId: prova._id.toString() },
+        body: {
+          tipo: 'LIMIAR',
+          resultados: [{ equipe_id: equipe._id.toString(), valor: '32', quesitos: { EX_ALUNOS: 7, PAIS_MAES: 3 } }],
+        },
+        usuario: { id: avaliadorId },
+      },
+      res
+    );
+
+    expect(res.status).toHaveBeenCalledWith(201);
+    const resultado = await Resultado.findOne({ prova_id: prova._id, equipe_id: equipe._id });
+    // Base: 300 (mínimo atingido). Ex-alunos: min(7,5)*20=100. Pais/Mães: min(3,5)*20=60.
+    expect(resultado.pontuacao_obtida).toBe(460);
+    expect(resultado.detalhes_pontuacao).toMatch(/Ex-alunos \(7 × 20pts = 100pts \(teto aplicado\)\)/);
+    expect(resultado.detalhes_pontuacao).toMatch(/Pais\/Mães \(3 × 20pts = 60pts\)/);
   });
 
   it('relançar resultados reverte os pontos anteriores (sem dobrar)', async () => {

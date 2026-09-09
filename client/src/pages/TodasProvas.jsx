@@ -146,6 +146,14 @@ const TodasProvas = () => {
       }
     }
 
+    // Tipo Limiar (tudo ou nada)
+    if (pontuacao.hasOwnProperty('quantidade_minima')) {
+      if (podeMostrarPontos) {
+        return `${pontuacao.pontuacao_fixa || 0} pts ao atingir ${pontuacao.quantidade_minima} ${pontuacao.nome_unidade || 'unidades'}`;
+      }
+      return `Mínimo de ${pontuacao.quantidade_minima} ${pontuacao.nome_unidade || 'unidades'}`;
+    }
+
     // Tipo Ranking (1º, 2º, 3º)
     const posicoes = [];
     if (pontuacao["1"]) {

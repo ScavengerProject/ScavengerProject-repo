@@ -30,23 +30,15 @@ const SequenciamentoSchema = new mongoose.Schema({
   exigir_ordem: { type: Boolean, default: false } // Se as etapas devem ser feitas na ordem
 }, { _id: false });
 
-// Schema para configuração de quesitos de avaliação
-const QuesitoTempoSchema = new mongoose.Schema({
-  tempo_limite_minutos: { type: Number, min: 1, required: true },
-  pontuacao_bonus: { type: Number, min: 0, required: true },
-  descricao_bonus: { type: String, default: 'Pontuação extra por completar dentro do tempo limite' }
-}, { _id: false });
-
-const QuesitoProdutividadeSchema = new mongoose.Schema({
-  unidade_medida: { type: String, required: true }, // Ex: "itens", "litros", "quilômetros"
-  quantidade_minima: { type: Number, min: 1, required: true },
-  pontuacao_bonus: { type: Number, min: 0, required: true },
-  descricao_bonus: { type: String, default: 'Pontuação extra por atingir a meta de produtividade' }
-}, { _id: false });
-
-const ConfiguracaoQuesitosSchema = new mongoose.Schema({
-  TEMPO: QuesitoTempoSchema,
-  PRODUTIVIDADE: QuesitoProdutividadeSchema
+// Categoria de bônus configurável por prova: pontos por unidade informada por
+// equipe no lançamento de resultado, com teto opcional de unidades (ex: "até 5
+// ex-alunos, 20 pts cada"). Generaliza o antigo par fixo TEMPO/PRODUTIVIDADE
+// para qualquer número de categorias nomeadas pelo admin.
+const BonusCategoriaSchema = new mongoose.Schema({
+  chave: { type: String, required: true }, // slug estável, ex: "EX_ALUNOS"
+  nome: { type: String, required: true }, // rótulo exibido, ex: "Ex-alunos"
+  pontos_por_unidade: { type: Number, min: 0, required: true },
+  teto_unidades: { type: Number, min: 0, default: null }, // null = sem teto
 }, { _id: false });
 
 const ProvaSchema = new mongoose.Schema({
@@ -71,19 +63,14 @@ const ProvaSchema = new mongoose.Schema({
     default: 'NAO_INICIADA'
   },
   ocultar_pontos: { type: Boolean, default: false },
-  quesitos_de_avaliacao: {
-    type: [String],
-    enum: ['TEMPO', 'PRODUTIVIDADE'],
-    default: []
-  },
+  bonus_categorias: { type: [BonusCategoriaSchema], default: [] },
   requisito_usuario: { type: RequisitoUsuarioSchema, default: () => ({}) },
 
   // ✅ US14: Novos campos de configuração
   restricao_participacao: { type: RestricaoParticipacaoSchema, default: () => ({}) },
   criterio_elegibilidade: { type: CriterioElegibilidadeSchema, default: () => ({}) },
   sequenciamento: { type: SequenciamentoSchema, default: () => ({}) },
-  configuracao_quesitos: { type: ConfiguracaoQuesitosSchema, default: () => ({}) },
-  
+
   proibir_membros_consecutivos: { type: Boolean, default: false },
 
   // Controle interno: garante que as notificações de publicação sejam

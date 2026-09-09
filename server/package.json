@@ -9,6 +9,7 @@
     "seed:escola": "node src/scripts/seedEscolaPrincipal.js",
     "migrar:papeis": "node src/scripts/migrarPapeisPorEscola.js",
     "migrar:gincana": "node src/scripts/migrarDadosParaGincana.js",
+    "migrar:quesitos": "node src/scripts/migrarQuesitosParaBonusCategorias.js",
     "inventario": "node src/scripts/inventarioBanco.js",
     "test": "jest",
     "test:watch": "jest --watch",
