@@ -80,13 +80,12 @@ export const criarProva = async (req, res) => {
       data_inicio,
       data_fim,
       data_publicacao,
-      quesitos_de_avaliacao,
+      bonus_categorias,
       requisito_usuario,
       pontuacao,
       restricao_participacao,
       criterio_elegibilidade,
       sequenciamento,
-      configuracao_quesitos
     } = req.body;
 
     if (!titulo || !descricao || !formato) {
@@ -105,13 +104,12 @@ export const criarProva = async (req, res) => {
       data_publicacao: data_publicacao || null,
       // Status sempre derivado das datas (não é mais definido manualmente).
       status: calcularStatusProva(dataInicioProva, dataFimProva),
-      quesitos_de_avaliacao: quesitos_de_avaliacao || [],
+      bonus_categorias: bonus_categorias || [],
       requisito_usuario: requisito_usuario || {},
       pontuacao: pontuacao || {},
       restricao_participacao: restricao_participacao || {},
       criterio_elegibilidade: criterio_elegibilidade || {},
       sequenciamento: sequenciamento || {},
-      configuracao_quesitos: configuracao_quesitos || {},
       gincana_id: escopoGincana(req),
       criado_por_usuario_id: req.usuario.id,
     });

@@ -33,7 +33,9 @@ const LancarResultadoModal = ({ prova, isOpen, onClose }) => {
     if (isOpen && prova) {
       // 1. Define o tipo de pontuação
       const regras = prova.pontuacao || {};
-      const tipoDetectado = regras.pontos_por_unidade ? 'PROPORCIONAL' : 'RANKING';
+      const tipoDetectado = regras.pontos_por_unidade
+        ? 'PROPORCIONAL'
+        : regras.hasOwnProperty('quantidade_minima') ? 'LIMIAR' : 'RANKING';
       setTipoPontuacao(tipoDetectado);
 
       // 2. Reseta o formulário
@@ -163,30 +165,42 @@ const LancarResultadoModal = ({ prova, isOpen, onClose }) => {
   if (!prova) return null;
 
   const idsEquipesSelecionadas = resultados.map(r => r.equipe_id).filter(Boolean);
-  const nomeTipoPontuacao = tipoPontuacao === 'RANKING' 
-    ? 'Por Posição' 
-    : 'Por Unidade';
+  const nomeTipoPontuacao = tipoPontuacao === 'RANKING'
+    ? 'Por Posição'
+    : tipoPontuacao === 'LIMIAR' ? 'Tudo ou Nada' : 'Por Unidade';
 
   const regrasPontuacao = prova.pontuacao || {};
   const pontosPorUnidade = Number(regrasPontuacao.pontos_por_unidade) || 0;
   const nomeUnidade = regrasPontuacao.nome_unidade || 'unidade';
+  const quantidadeMinima = Number(regrasPontuacao.quantidade_minima) || 0;
+  const pontuacaoFixa = Number(regrasPontuacao.pontuacao_fixa) || 0;
 
-  // Verificar quesitos marcados
-  const quesitosMarcados = prova.quesitos_de_avaliacao || [];
-  const temQuesitoTempo = quesitosMarcados.includes('TEMPO');
-  const temQuesitoProdutividade = quesitosMarcados.includes('PRODUTIVIDADE');
-  const configuracaoQuesitos = prova.configuracao_quesitos || {};
+  // Categorias de bônus configuradas na prova (ex-alunos, pais/mães, ...)
+  const bonusCategorias = prova.bonus_categorias || [];
 
   const limitePorcoes = Number(regrasPontuacao.limite_pontuacao_porcoes) || 0;
 
-  // Função para calcular pontos totais incluindo quesitos e teto de porções
+  // Calcula os pontos de bônus de uma linha, já com o teto de cada categoria aplicado.
+  const calcularPontosBonus = (resultado) => {
+    return bonusCategorias.reduce((total, categoria) => {
+      const quantidadeInformada = Number(resultado.quesitos?.[categoria.chave]) || 0;
+      const teto = categoria.teto_unidades;
+      const unidadesValidas = (teto != null) ? Math.min(quantidadeInformada, teto) : quantidadeInformada;
+      return total + unidadesValidas * (Number(categoria.pontos_por_unidade) || 0);
+    }, 0);
+  };
+
+  // Função para calcular pontos totais incluindo bônus e teto de porções
   const calcularPontosTotais = (resultado) => {
     let pontosBase = 0;
 
-    // Pontos base (posição ou proporcional)
+    // Pontos base (posição, proporcional ou limiar)
     if (tipoPontuacao === 'RANKING') {
       const posicao = Number(resultado.valor);
       pontosBase = Number(regrasPontuacao[posicao]) || 0;
+    } else if (tipoPontuacao === 'LIMIAR') {
+      const quantidade = Number(resultado.valor) || 0;
+      pontosBase = quantidade >= quantidadeMinima ? pontuacaoFixa : 0;
     } else {
       const quantidade = Number(resultado.valor) || 0;
       pontosBase = quantidade * pontosPorUnidade;
@@ -195,18 +209,37 @@ const LancarResultadoModal = ({ prova, isOpen, onClose }) => {
       }
     }
 
-    // Pontos dos quesitos
-    let pontosQuesitos = 0;
+    return pontosBase + calcularPontosBonus(resultado);
+  };
 
-    if (temQuesitoTempo && resultado.quesitos?.TEMPO) {
-      pontosQuesitos += Number(resultado.quesitos.TEMPO) || 0;
-    }
-
-    if (temQuesitoProdutividade && resultado.quesitos?.PRODUTIVIDADE) {
-      pontosQuesitos += Number(resultado.quesitos.PRODUTIVIDADE) || 0;
-    }
-
-    return pontosBase + pontosQuesitos;
+  // Inputs de quantidade por categoria de bônus configurada, reaproveitado nos
+  // três tipos de lançamento (RANKING/PROPORCIONAL/LIMIAR).
+  const renderCategoriasBonus = (index, quesitosDaLinha) => {
+    if (bonusCategorias.length === 0) return null;
+    return (
+      <div className="grid grid-cols-2 gap-3 p-3 bg-white border border-gray-300 rounded-md">
+        {bonusCategorias.map((categoria) => (
+          <div key={categoria.chave} className="grid gap-1.5">
+            <Label htmlFor={`bonus-${categoria.chave}-${index}`} className="text-xs">
+              {categoria.nome}
+              <span className="text-gray-500 ml-1">
+                ({categoria.pontos_por_unidade}pts/un{categoria.teto_unidades != null ? `, máx ${categoria.teto_unidades}` : ''})
+              </span>
+            </Label>
+            <Input
+              id={`bonus-${categoria.chave}-${index}`}
+              type="number"
+              min="0"
+              value={quesitosDaLinha?.[categoria.chave] || ''}
+              onChange={(e) => handleQuesitoChange(index, categoria.chave, e.target.value)}
+              placeholder="Quantidade"
+              className="bg-white border-gray-300 text-sm"
+              disabled={submitting}
+            />
+          </div>
+        ))}
+      </div>
+    );
   };
 
   return (
@@ -319,65 +352,20 @@ const LancarResultadoModal = ({ prova, isOpen, onClose }) => {
                       </Button>
                     </div>
 
-                    {/* QUESITOS - se houver */}
-                    {(temQuesitoTempo || temQuesitoProdutividade) && (
-                      <div className="grid grid-cols-2 gap-3 p-3 bg-white border border-gray-300 rounded-md">
-                        <div className="text-xs text-gray-600 font-medium">Pontuação Base: {pontosBase} pts</div>
-                        <div className="text-xs text-gray-600 font-medium">Quesitos: {(pontosTotais - pontosBase)} pts</div>
-
-                        {/* Quesito TEMPO */}
-                        {temQuesitoTempo && (
-                          <div className="grid gap-1.5">
-                            <Label htmlFor={`tempo-${index}`} className="text-xs">
-                              Quesito Tempo
-                              {configuracaoQuesitos.TEMPO && (
-                                <span className="text-gray-500 ml-1">
-                                  (máx {configuracaoQuesitos.TEMPO.tempo_limite_minutos}min = {configuracaoQuesitos.TEMPO.pontuacao_bonus}pts)
-                                </span>
-                              )}
-                            </Label>
-                            <Input
-                              id={`tempo-${index}`}
-                              type="number"
-                              min="0"
-                              value={res.quesitos?.TEMPO || ''}
-                              onChange={(e) => handleQuesitoChange(index, 'TEMPO', e.target.value)}
-                              placeholder="Pontos extra"
-                              className="bg-white border-gray-300 text-sm"
-                              disabled={submitting}
-                            />
-                          </div>
-                        )}
-
-                        {/* Quesito PRODUTIVIDADE */}
-                        {temQuesitoProdutividade && (
-                          <div className="grid gap-1.5">
-                            <Label htmlFor={`produtividade-${index}`} className="text-xs">
-                              Quesito Produtividade
-                              {configuracaoQuesitos.PRODUTIVIDADE && (
-                                <span className="text-gray-500 ml-1">
-                                  (mín {configuracaoQuesitos.PRODUTIVIDADE.quantidade_minima} = {configuracaoQuesitos.PRODUTIVIDADE.pontuacao_bonus}pts)
-                                </span>
-                              )}
-                            </Label>
-                            <Input
-                              id={`produtividade-${index}`}
-                              type="number"
-                              min="0"
-                              value={res.quesitos?.PRODUTIVIDADE || ''}
-                              onChange={(e) => handleQuesitoChange(index, 'PRODUTIVIDADE', e.target.value)}
-                              placeholder="Pontos extra"
-                              className="bg-white border-gray-300 text-sm"
-                              disabled={submitting}
-                            />
-                          </div>
-                        )}
-                      </div>
+                    {/* CATEGORIAS DE BÔNUS - se houver */}
+                    {bonusCategorias.length > 0 && (
+                      <>
+                        <div className="grid grid-cols-2 gap-3 px-1">
+                          <div className="text-xs text-gray-600 font-medium">Pontuação Base: {pontosBase} pts</div>
+                          <div className="text-xs text-gray-600 font-medium">Bônus: {(pontosTotais - pontosBase)} pts</div>
+                        </div>
+                        {renderCategoriasBonus(index, res.quesitos)}
+                      </>
                     )}
                   </div>
                 )
               })}
-              
+
               {tipoPontuacao === 'PROPORCIONAL' && resultados.map((res, index) => {
                 const equipesDisponiveis = equipes.filter(
                   (eq) => eq._id === res.equipe_id || !idsEquipesSelecionadas.includes(eq._id)
@@ -447,62 +435,15 @@ const LancarResultadoModal = ({ prova, isOpen, onClose }) => {
                       </div>
                     </div>
 
-                    {/* QUESITOS - se houver */}
-                    {(temQuesitoTempo || temQuesitoProdutividade) && (
-                      <div className="grid grid-cols-2 gap-3 p-3 bg-white border border-gray-300 rounded-md">
-                        <div className="text-xs text-gray-600 font-medium">Pontuação Base: {pontosBase} pts</div>
-                        <div className="text-xs text-gray-600 font-medium">Quesitos: {(pontosTotais - pontosBase)} pts</div>
-
-                        {/* Quesito TEMPO */}
-                        {temQuesitoTempo && (
-                          <div className="grid gap-1.5">
-                            <Label htmlFor={`tempo-${index}`} className="text-xs">
-                              Quesito Tempo
-                              {configuracaoQuesitos.TEMPO && (
-                                <span className="text-gray-500 ml-1">
-                                  (máx {configuracaoQuesitos.TEMPO.tempo_limite_minutos}min = {configuracaoQuesitos.TEMPO.pontuacao_bonus}pts)
-                                </span>
-                              )}
-                            </Label>
-                            <Input
-                              id={`tempo-${index}`}
-                              type="number"
-                              min="0"
-                              value={res.quesitos?.TEMPO || ''}
-                              onChange={(e) => handleQuesitoChange(index, 'TEMPO', e.target.value)}
-                              placeholder="Pontos extra"
-                              className="bg-white border-gray-300 text-sm"
-                              disabled={submitting}
-                            />
-                          </div>
-                        )}
-
-                        {/* Quesito PRODUTIVIDADE */}
-                        {temQuesitoProdutividade && (
-                          <div className="grid gap-1.5">
-                            <Label htmlFor={`produtividade-${index}`} className="text-xs">
-                              Quesito Produtividade
-                              {configuracaoQuesitos.PRODUTIVIDADE && (
-                                <span className="text-gray-500 ml-1">
-                                  (mín {configuracaoQuesitos.PRODUTIVIDADE.quantidade_minima} = {configuracaoQuesitos.PRODUTIVIDADE.pontuacao_bonus}pts)
-                                </span>
-                              )}
-                            </Label>
-                            <Input
-                              id={`produtividade-${index}`}
-                              type="number"
-                              min="0"
-                              value={res.quesitos?.PRODUTIVIDADE || ''}
-                              onChange={(e) => handleQuesitoChange(index, 'PRODUTIVIDADE', e.target.value)}
-                              placeholder="Pontos extra"
-                              className="bg-white border-gray-300 text-sm"
-                              disabled={submitting}
-                            />
-                          </div>
-                        )}
-
-                        {/* Botão de Remover */}
-                        <div className="col-span-2 flex justify-end">
+                    {/* CATEGORIAS DE BÔNUS - se houver */}
+                    {bonusCategorias.length > 0 && (
+                      <>
+                        <div className="grid grid-cols-2 gap-3 px-1">
+                          <div className="text-xs text-gray-600 font-medium">Pontuação Base: {pontosBase} pts</div>
+                          <div className="text-xs text-gray-600 font-medium">Bônus: {(pontosTotais - pontosBase)} pts</div>
+                        </div>
+                        {renderCategoriasBonus(index, res.quesitos)}
+                        <div className="flex justify-end">
                           <Button
                             type="button"
                             variant="outline"
@@ -515,11 +456,11 @@ const LancarResultadoModal = ({ prova, isOpen, onClose }) => {
                             Remover
                           </Button>
                         </div>
-                      </div>
+                      </>
                     )}
 
-                    {/* Botão de Remover (se não há quesitos) */}
-                    {(!temQuesitoTempo && !temQuesitoProdutividade) && (
+                    {/* Botão de Remover (se não há categorias de bônus) */}
+                    {bonusCategorias.length === 0 && (
                       <div className="flex justify-end">
                         <Button
                           type="button"
@@ -534,6 +475,100 @@ const LancarResultadoModal = ({ prova, isOpen, onClose }) => {
                         </Button>
                       </div>
                     )}
+                  </div>
+                )
+              })}
+
+              {tipoPontuacao === 'LIMIAR' && resultados.map((res, index) => {
+                const equipesDisponiveis = equipes.filter(
+                  (eq) => eq._id === res.equipe_id || !idsEquipesSelecionadas.includes(eq._id)
+                );
+
+                const quantidade = Number(res.valor) || 0;
+                const atingiuMinimo = quantidade >= quantidadeMinima;
+                const pontosBase = atingiuMinimo ? pontuacaoFixa : 0;
+                const pontosTotais = calcularPontosTotais(res);
+
+                return (
+                  <div key={index} className="space-y-3 p-3 bg-gray-50 border border-gray-200 rounded-md">
+
+                    {/* LINHA PRINCIPAL */}
+                    <div className="grid grid-cols-3 gap-x-4 gap-y-3">
+
+                      {/* Seletor de Equipe */}
+                      <div className="col-span-1 grid gap-1.5">
+                        <Label htmlFor={`equipe-${index}`} className="text-sm">Equipe</Label>
+                        <Select
+                          value={res.equipe_id}
+                          onValueChange={(valor) => handleResultadoChange(index, 'equipe_id', valor)}
+                          disabled={submitting}
+                        >
+                          <SelectTrigger id={`equipe-${index}`} className="bg-white border-gray-300">
+                            <SelectValue placeholder="Selecione uma equipe" />
+                          </SelectTrigger>
+                          <SelectContent className="bg-white border-gray-300">
+                            {equipesDisponiveis.map(eq => (
+                              <SelectItem key={eq._id} value={eq._id} style={{ color: eq.cor || 'black' }}>
+                                {eq.nome}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Input de Quantidade */}
+                      <div className="col-span-1 grid gap-1.5">
+                        <Label htmlFor={`valor-${index}`} className="text-sm">
+                          Quantidade de {nomeUnidade} (mínimo: {quantidadeMinima})
+                        </Label>
+                        <Input
+                          id={`valor-${index}`}
+                          type="number"
+                          min="0"
+                          value={res.valor}
+                          onChange={(e) => handleResultadoChange(index, 'valor', e.target.value)}
+                          placeholder={`Ex: ${quantidadeMinima}`}
+                          className="bg-white border-gray-300"
+                          disabled={submitting}
+                        />
+                      </div>
+
+                      {/* Total de Pontos */}
+                      <div className="col-span-1 grid gap-1.5">
+                        <Label className="text-sm">Total de Pontos</Label>
+                        <div className={`h-10 px-3 py-2 border rounded-md flex items-center justify-center ${atingiuMinimo ? 'border-gray-300 bg-blue-100' : 'border-red-300 bg-red-50'}`}>
+                          <span className={`font-bold text-base ${atingiuMinimo ? 'text-blue-800' : 'text-red-700'}`}>{pontosTotais} pts</span>
+                        </div>
+                        <p className={`text-xs ${atingiuMinimo ? 'text-green-700' : 'text-red-700'}`}>
+                          {atingiuMinimo ? 'Mínimo atingido' : 'Mínimo NÃO atingido'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* CATEGORIAS DE BÔNUS - se houver */}
+                    {bonusCategorias.length > 0 && (
+                      <>
+                        <div className="grid grid-cols-2 gap-3 px-1">
+                          <div className="text-xs text-gray-600 font-medium">Pontuação Base: {pontosBase} pts</div>
+                          <div className="text-xs text-gray-600 font-medium">Bônus: {(pontosTotais - pontosBase)} pts</div>
+                        </div>
+                        {renderCategoriasBonus(index, res.quesitos)}
+                      </>
+                    )}
+
+                    <div className="flex justify-end">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => removerLinha(index)}
+                        disabled={resultados.length <= 1 || submitting}
+                        className="border-gray-300 hover:bg-red-50 hover:text-red-600"
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Remover
+                      </Button>
+                    </div>
                   </div>
                 )
               })}

@@ -71,7 +71,11 @@ export const listarResultadosDaProva = async (req, res) => {
 
     // 2. Determina o tipo de pontuação (para saber como extrair o 'valor')
     const regras = prova.pontuacao || {};
-    const tipo = regras.pontos_por_unidade ? 'PROPORCIONAL' : 'RANKING';
+    const tipo = regras.pontos_por_unidade
+      ? 'PROPORCIONAL'
+      : Object.prototype.hasOwnProperty.call(regras, 'quantidade_minima')
+        ? 'LIMIAR'
+        : 'RANKING';
 
     // 3. Formata a resposta, incluindo o 'valor' original
     const resultadosFormatados = resultados.map((r, index) => {
@@ -153,8 +157,8 @@ export const lancarResultados = async (req, res) => {
     }
     const regrasPontuacao = prova.pontuacao || {};
 
-    // Extrair configuração dos quesitos da prova
-    const quesitosMarcados = prova.quesitos_de_avaliacao || [];
+    // Categorias de bônus configuradas na prova (ex-alunos, pais/mães, ...)
+    const bonusCategorias = prova.bonus_categorias || [];
 
     const resultadosAntigos = await Resultado.find({ prova_id: provaId }).session(session);
     if (resultadosAntigos.length > 0) {
@@ -266,16 +270,27 @@ export const lancarResultados = async (req, res) => {
           detalhes_pontuacao = `${quantidade} ${regrasPontuacao.nome_unidade || 'unidades'} (teto atingido: ${limitePorcoes} pts)`;
         }
       }
-
-      // Calcular pontuação dos quesitos
-      const quesitosEquipe = res.quesitos || {};
-      if (quesitosMarcados.includes('TEMPO') && quesitosEquipe.TEMPO) {
-        pontuacao_quesitos += Number(quesitosEquipe.TEMPO) || 0;
-        detalhes_pontuacao += ` + Quesito Tempo (${quesitosEquipe.TEMPO}pts)`;
+      else if (tipo === 'LIMIAR') {
+        const quantidade = Number(res.valor) || 0;
+        const minimo = Number(regrasPontuacao.quantidade_minima) || 0;
+        const atingiu = quantidade >= minimo;
+        pontuacao_base = atingiu ? (Number(regrasPontuacao.pontuacao_fixa) || 0) : 0;
+        detalhes_pontuacao = `${quantidade} ${regrasPontuacao.nome_unidade || 'unidades'} (mínimo ${atingiu ? 'atingido' : 'NÃO atingido'})`;
       }
-      if (quesitosMarcados.includes('PRODUTIVIDADE') && quesitosEquipe.PRODUTIVIDADE) {
-        pontuacao_quesitos += Number(quesitosEquipe.PRODUTIVIDADE) || 0;
-        detalhes_pontuacao += ` + Quesito Produtividade (${quesitosEquipe.PRODUTIVIDADE}pts)`;
+
+      // Calcular pontuação das categorias de bônus (ex-alunos, pais/mães, ...),
+      // cada uma com teto de unidades aplicado no servidor.
+      const quesitosEquipe = res.quesitos || {};
+      for (const categoria of bonusCategorias) {
+        const quantidadeInformada = Number(quesitosEquipe[categoria.chave]) || 0;
+        const teto = categoria.teto_unidades;
+        const unidadesValidas = (teto != null) ? Math.min(quantidadeInformada, teto) : quantidadeInformada;
+        const pontosCategoria = unidadesValidas * (Number(categoria.pontos_por_unidade) || 0);
+        if (pontosCategoria > 0 || quantidadeInformada > 0) {
+          pontuacao_quesitos += pontosCategoria;
+          const tetoAplicado = teto != null && quantidadeInformada > teto ? ' (teto aplicado)' : '';
+          detalhes_pontuacao += ` + ${categoria.nome} (${quantidadeInformada} × ${categoria.pontos_por_unidade}pts = ${pontosCategoria}pts${tetoAplicado})`;
+        }
       }
 
       const pontuacao_total = pontuacao_base + pontuacao_quesitos;
