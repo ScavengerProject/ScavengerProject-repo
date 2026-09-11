@@ -470,4 +470,58 @@ describe('provaController - inscreverUsuarioNaProva (grupo/ano escolar por vínc
 
     expect(res.status).toHaveBeenCalledWith(201);
   });
+
+  // Regressão: um ALUNO promovido a COORDENADOR (via gerenciamento de
+  // usuários) recebia "usuario_id é obrigatório" ao tentar se autoinscrever
+  // numa prova pela tela normal (que nunca envia usuario_id) — o controller
+  // tratava COORDENADOR igual ADMIN, exigindo o id de outra pessoa. Depois de
+  // corrigido isso, um segundo bug ficava exposto: determinarGrupo() não
+  // reconhecia COORDENADOR e retornava GRUPO_INDETERMINADO mesmo com a turma
+  // preenchida (alterarPapelUsuario já exige turma para coordenador).
+  it('coordenador se autoinscreve na prova sem informar usuario_id (bug da demo em escola)', async () => {
+    const escolaId = 'ESCOLA_X';
+    const prova = await criarProvaComCota();
+    const coordenador = await Usuario.create({
+      nome: 'Aluno Promovido a Coordenador', email: 'coord-promovido@x.com', senha: '123',
+      tipo: 'ALUNO', turma: null,
+      vinculos: [{ escola_id: escolaId, tipo: 'COORDENADOR', turma: 'EM - 1º Ano' }],
+    });
+    await EquipeMembros.create({ equipe_id: new mongoose.Types.ObjectId(), usuario_id: coordenador._id, is_coordenador: true });
+
+    const req = {
+      params: { id: prova._id.toString() },
+      body: {}, // a tela de inscrição nunca envia usuario_id — é sempre autoinscrição
+      usuario: { id: coordenador._id.toString(), tipo: 'COORDENADOR' },
+      escolaId,
+    };
+    const res = mockRes();
+
+    await inscreverUsuarioNaProva(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ ok: true }));
+  });
+
+  it('coordenador não consegue inscrever outra pessoa que não seja ele mesmo sem passar usuario_id, mas pode informar um usuario_id de um membro da equipe', async () => {
+    const escolaId = 'ESCOLA_X';
+    const prova = await criarProvaComCota();
+    const membro = await Usuario.create({
+      nome: 'Membro Da Equipe', email: 'membro-equipe@x.com', senha: '123',
+      tipo: 'ALUNO', turma: null,
+      vinculos: [{ escola_id: escolaId, tipo: 'ALUNO', turma: 'EF - 9º Ano' }],
+    });
+    await EquipeMembros.create({ equipe_id: new mongoose.Types.ObjectId(), usuario_id: membro._id, is_coordenador: false });
+
+    const req = {
+      params: { id: prova._id.toString() },
+      body: { usuario_id: membro._id.toString() },
+      usuario: { id: adminId, tipo: 'COORDENADOR' },
+      escolaId,
+    };
+    const res = mockRes();
+
+    await inscreverUsuarioNaProva(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(201);
+  });
 });

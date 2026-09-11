@@ -22,13 +22,19 @@ const GRUPO_LABEL = {
  * só tem a turma real no vínculo, nunca no campo legado `Usuario.turma`, que
  * fica null (ver `registrarUsuario`). Ler o campo de topo aqui deixava
  * "ano escolar indeterminável" para todo mundo que se cadastrou por convite.
+ *
+ * COORDENADOR conta na mesma cota de ano escolar (EF/EM) que ALUNO: não existe
+ * cota própria de coordenador em `requisito_usuario`, e `alterarPapelUsuario`
+ * já exige turma para COORDENADOR do mesmo jeito que exige para ALUNO — um
+ * aluno promovido a coordenador continua sendo, para fins de cota, um aluno
+ * daquele ano escolar.
  */
 const determinarGrupo = (usuario, escolaId) => {
   const vinculo = getVinculo(usuario, escolaId);
   const tipo = vinculo?.tipo || usuario.tipo;
   const turma = vinculo ? vinculo.turma : usuario.turma;
 
-  if (tipo === 'ALUNO') {
+  if (tipo === 'ALUNO' || tipo === 'COORDENADOR') {
     if (turma?.startsWith('EF')) return 'ALUNOS_FUNDAMENTAL';
     if (turma?.startsWith('EM')) return 'ALUNOS_MEDIO';
     return null;
@@ -376,8 +382,14 @@ export const inscreverUsuarioNaProva = async (req, res) => {
         });
       }
       usuario_id = solicitanteId;
-    }else {
-      // ADMIN/COORDENADOR precisam informar "usuario_id"
+    } else if (solicitanteTipo === 'COORDENADOR') {
+      // Coordenador pode se autoinscrever (sem usuario_id, como qualquer
+      // outro participante) ou inscrever um membro da própria equipe
+      // (usuario_id explícito) — ao contrário de ALUNO/PROFESSOR/PAI-MÃE,
+      // não é travado a "si mesmo".
+      if (!usuario_id) usuario_id = solicitanteId;
+    } else {
+      // ADMIN precisa informar "usuario_id"
       if (!usuario_id) return res.status(400).json({ message: 'usuario_id é obrigatório.' });
     }
 
