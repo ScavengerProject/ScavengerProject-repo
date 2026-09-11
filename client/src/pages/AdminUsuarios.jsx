@@ -681,11 +681,22 @@ const AdminUsuarios = () => {
                     <SelectValue placeholder="Selecione o tipo" />
                   </SelectTrigger>
                   <SelectContent>
-                    {TIPOS_USUARIO.map(tipo => (
-                      <SelectItem key={tipo.value} value={tipo.value}>
-                        {tipo.label}
-                      </SelectItem>
-                    ))}
+                    {/*
+                      COORDENADOR não se atribui por aqui: o papel é concedido ao
+                      definir a pessoa como coordenadora de uma equipe (Gerenciar
+                      Equipes), junto com a relação — dar só o papel deixava a
+                      pessoa com o menu de coordenador e todas as telas vazias.
+                      A API recusa igual (COORDENADOR_VIA_EQUIPE). Continua na
+                      lista quando a pessoa JÁ é coordenadora, senão o campo
+                      apareceria vazio ao editá-la.
+                    */}
+                    {TIPOS_USUARIO
+                      .filter(tipo => tipo.value !== 'COORDENADOR' || formData.tipo === 'COORDENADOR')
+                      .map(tipo => (
+                        <SelectItem key={tipo.value} value={tipo.value}>
+                          {tipo.label}
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
               </div>

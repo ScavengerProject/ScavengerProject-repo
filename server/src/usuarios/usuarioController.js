@@ -12,6 +12,7 @@ import {
   conflitoMultiEscola,
 } from '../escolas/escolaHelpers.js';
 import { normalizarCodigo } from '../convites/codigoConviteHelpers.js';
+import { recusaMudancaDePapelCoordenador } from '../equipes/coordenadorEquipe.js';
 import bcrypt from 'bcryptjs';
 
 // Mensagem única para QUALQUER motivo de código inválido (inexistente,
@@ -126,6 +127,13 @@ export const criarUsuario = async (req, res) => {
     // Valida turma para alunos e coordenadores
     if ((tipo === 'ALUNO' || tipo === 'COORDENADOR') && !turma) {
       return res.status(400).json({ message: 'Turma é obrigatória para alunos e coordenadores.' });
+    }
+
+    // Ninguém nasce COORDENADOR: o papel vem junto com a equipe que a pessoa
+    // coordena (ver recusaMudancaDePapelCoordenador).
+    const recusaCoordenador = await recusaMudancaDePapelCoordenador(tipo, null);
+    if (recusaCoordenador) {
+      return res.status(400).json({ message: recusaCoordenador, codigo: 'COORDENADOR_VIA_EQUIPE' });
     }
 
     // Só o SUPER_ADMIN pode criar outro SUPER_ADMIN.
@@ -308,6 +316,17 @@ export const atualizarUsuario = async (req, res) => {
           + 'Aprove ou rejeite pela fila de vínculos pendentes — é lá que a turma é definida.',
         codigo: 'APROVACAO_PELA_FILA',
       });
+    }
+
+    // Promover a COORDENADOR sai daqui e passa a ser feito ao atribuir a equipe;
+    // rebaixar quem realmente coordena também (ver recusaMudancaDePapelCoordenador).
+    const recusaCoordenador = await recusaMudancaDePapelCoordenador(
+      tipo,
+      getVinculo(usuario, req.escolaId)?.tipo,
+      usuario._id,
+    );
+    if (recusaCoordenador) {
+      return res.status(400).json({ message: recusaCoordenador, codigo: 'COORDENADOR_VIA_EQUIPE' });
     }
 
     // Dados da PESSOA (valem em qualquer escola).

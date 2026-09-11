@@ -55,18 +55,11 @@ const AdminEquipes = () => {
 
     
     // --- FUNÇÕES DE BUSCA ---
-    const fetchCoordenadores = async () => {
-        try {
-            const usuarios = await equipesService.listarCoordenadoresDisponiveis(); 
-            setCoordenadoresDisponiveis(usuarios.map(u => ({ 
-                _id: u._id, 
-                nome: `${u.nome}`
-            })));
-        } catch (error) {
-            console.error('Erro ao carregar Coordenadores disponíveis:', error);
-            setCoordenadoresDisponiveis([]);
-        } 
-    };
+    // `coordenadoresDisponiveis` é populado só por carregarElegiveis(), que lê
+    // os elegíveis DA EQUIPE (alunos e coordenadores sem equipe nesta gincana).
+    // A listagem antiga (/coordenadores-disponiveis) trazia apenas quem já
+    // tinha o papel COORDENADOR e sobrescrevia esse mesmo estado, escondendo do
+    // dropdown justamente os alunos que se quer promover.
 
     const fetchMembros = async () => {
         try {
@@ -99,7 +92,6 @@ const AdminEquipes = () => {
             await Promise.allSettled([
                 fetchEquipes(),
                 fetchMembros(),
-                fetchCoordenadores(),
             ]);
             setIsLoading(false); 
         };
@@ -242,7 +234,6 @@ const AdminEquipes = () => {
             setEquipes(prev => prev.filter(e => e.id !== equipeId && e._id !== equipeId));
             toast.success(`Equipe "${equipeToDelete.nome}" excluída com sucesso!`);
             fetchMembros();
-            fetchCoordenadores();
         } catch (error) {
             toast.error(error.message || 'Erro ao excluir a equipe.');
         } finally {
@@ -294,7 +285,6 @@ const AdminEquipes = () => {
             toast.success('Coordenador adicionado com sucesso.');
             setSelectedNewCoordId('');
             await carregarElegiveis(equipeId);
-            fetchCoordenadores();
             fetchMembros();
         } catch (error) {
             toast.error(error.message || 'Erro ao adicionar coordenador.');
@@ -310,7 +300,6 @@ const AdminEquipes = () => {
             aplicarEquipeAtualizada(equipeId, response.equipe);
             toast.success('Coordenador removido com sucesso.');
             await carregarElegiveis(equipeId);
-            fetchCoordenadores();
             fetchMembros();
         } catch (error) {
             toast.error(error.message || 'Erro ao remover coordenador.');

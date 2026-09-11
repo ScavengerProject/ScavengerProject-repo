@@ -10,6 +10,9 @@ import {
     filtroEscolaComPerfil,
     projecaoUsuarioNaEscola,
     comVinculoDaEscola,
+    getVinculo,
+    aplicarVinculo,
+    conflitoMultiEscola,
 } from '../escolas/escolaHelpers.js';
 
 // Resolve o escopo da gincana ativa a partir da requisição (injetado pelo
@@ -1212,18 +1215,56 @@ export const adicionarCoordenador = async (req, res) => {
             return res.status(409).json({ message: 'Usuário já pertence a outra equipe.' });
         }
 
-        // Promove a COORDENADOR (caso ainda não seja).
-        if (usuario.tipo !== 'COORDENADOR') {
-            usuario.tipo = 'COORDENADOR';
-            await usuario.save();
+        // Atribuir a equipe e conceder o papel são UMA coisa só: quem coordena
+        // uma equipe é coordenador, ponto. Antes isto escrevia `Usuario.tipo`
+        // (papel BASE), que `resolverEscola` ignora — o papel efetivo vem de
+        // `Usuario.vinculos[]` (ver papelNaEscola). Resultado: a pessoa ficava
+        // com is_coordenador=true e sem passar em nenhum autorizar('COORDENADOR'),
+        // e só virava coordenador de verdade se um admin também trocasse o papel
+        // dela na tela de usuários. É esse segundo passo que deixa de existir.
+        if (usuario.tipo === 'SUPER_ADMIN') {
+            return res.status(400).json({
+                message: 'O SUPER_ADMIN é um perfil global e não assume o papel de coordenador de equipe.',
+            });
         }
 
-        // Cria/atualiza o vínculo como coordenador.
+        const vinculoEscola = getVinculo(usuario, req.escolaId);
+
+        // COORDENADOR é perfil de escola única — a mesma checagem que a troca de
+        // papel faz, para não prender alguém em duas escolas por este caminho.
+        // Vem antes da turma: não faz sentido cobrar um campo de quem não pode
+        // assumir o perfil de jeito nenhum.
+        const conflito = conflitoMultiEscola(usuario, req.escolaId, 'COORDENADOR');
+        if (conflito) {
+            return res.status(409).json({ message: conflito, codigo: 'PERFIL_ESCOLA_UNICA' });
+        }
+
+        // Coordenador tem turma obrigatória, igual ao aluno (mesma regra de
+        // criarUsuario/alterarPapelUsuario). Sem ela a pessoa vira coordenador
+        // mas não consegue se inscrever em prova nenhuma: determinarGrupo()
+        // usa a turma para achar a cota e devolveria GRUPO_INDETERMINADO.
+        const turmaEfetiva = vinculoEscola?.turma ?? usuario.turma;
+        if (!turmaEfetiva) {
+            return res.status(400).json({
+                message: 'Turma é obrigatória para coordenadores. '
+                    + 'Defina a turma deste usuário antes de atribuí-lo como coordenador.',
+            });
+        }
+
+        // A relação vem ANTES do papel de propósito: não há transação aqui, e se
+        // a segunda escrita falhar é melhor sobrar alguém numa equipe sem
+        // permissão a mais do que alguém com permissão de coordenador e sem
+        // equipe — que é justamente o estado quebrado que se quer eliminar.
         await EquipeMembros.findOneAndUpdate(
             { equipe_id: equipeId, usuario_id },
             { $set: { is_coordenador: true, equipe_gincana_id: equipeContexto._id } },
             { upsert: true, new: true }
         );
+
+        if (vinculoEscola?.tipo !== 'COORDENADOR') {
+            aplicarVinculo(usuario, req.escolaId, { tipo: 'COORDENADOR' });
+            await usuario.save();
+        }
 
         // Se a equipe ainda não tinha coordenador principal, define este.
         if (!equipeContexto.coordenador_usuario_id) {
@@ -1255,11 +1296,23 @@ export const removerCoordenador = async (req, res) => {
         const vinculo = await EquipeMembros.findOne({ equipe_id: equipeId, usuario_id: usuarioId, is_coordenador: true });
         if (!vinculo) return res.status(404).json({ message: 'Coordenador não encontrado nesta equipe.' });
 
-        // Remove o vínculo e reverte o tipo para ALUNO (deixa de ser coordenador).
-        await Promise.all([
-            EquipeMembros.deleteOne({ _id: vinculo._id }),
-            Usuario.findByIdAndUpdate(usuarioId, { $set: { tipo: 'ALUNO' } }),
-        ]);
+        // Remove da equipe e devolve o papel de ALUNO na ESCOLA ATIVA — o papel
+        // acompanha a relação com a equipe nos dois sentidos, senão a pessoa
+        // continuaria vendo as telas de coordenador sem equipe nenhuma (o
+        // mesmo estado quebrado que adicionarCoordenador passou a evitar).
+        //
+        // Antes isto era `$set: { tipo: 'ALUNO' }` no papel BASE: depois do
+        // multi-escola não rebaixava ninguém, e num install legado (onde o
+        // papel base ainda decide) rebaixava a ALUNO até quem era PROFESSOR.
+        await EquipeMembros.deleteOne({ _id: vinculo._id });
+
+        const usuario = await Usuario.findById(usuarioId);
+        if (usuario
+            && usuario.tipo !== 'SUPER_ADMIN'
+            && getVinculo(usuario, req.escolaId)?.tipo === 'COORDENADOR') {
+            aplicarVinculo(usuario, req.escolaId, { tipo: 'ALUNO' });
+            await usuario.save();
+        }
 
         // Se era o coordenador principal, reatribui a outro coordenador restante (ou null).
         if (String(equipeContexto.coordenador_usuario_id) === String(usuarioId)) {

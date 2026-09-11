@@ -425,7 +425,13 @@ describe('escolaController - escola única para perfis de participante', () => {
     expect(atualizado.vinculos.map((v) => String(v.escola_id))).toEqual([ESCOLA_B]);
   });
 
-  it('recusa vincular como COORDENADOR alguém que já atua em outra escola', async () => {
+  // Antes este caso caía na regra de escola única (409 PERFIL_ESCOLA_UNICA).
+  // Agora a recusa acontece antes e por um motivo mais forte: COORDENADOR não é
+  // um perfil que se atribui por aqui — ele é concedido ao definir a pessoa como
+  // coordenadora de uma equipe, para papel e equipe não saírem de sincronia.
+  // A regra de escola única segue coberta pelo caso ALUNO logo acima, e agora
+  // também em adicionarCoordenador (equipe.controller.test.js).
+  it('recusa vincular como COORDENADOR: o papel não se atribui por esta tela', async () => {
     await Usuario.create({
       nome: 'Prof', email: 'prof@x.com', senha: '123', tipo: 'PROFESSOR',
       vinculos: [{ escola_id: ESCOLA_B, tipo: 'PROFESSOR' }],
@@ -437,7 +443,8 @@ describe('escolaController - escola única para perfis de participante', () => {
       res
     );
 
-    expect(res.status).toHaveBeenCalledWith(409);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json.mock.calls[0][0].codigo).toBe('COORDENADOR_VIA_EQUIPE');
   });
 
   it('permite vincular um perfil de participante quando ele ainda não tem escola', async () => {

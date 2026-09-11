@@ -93,6 +93,45 @@ export async function getCoordenadoresIdsDaEquipe(equipeOuGincana) {
 }
 
 /**
+ * Guarda do papel COORDENADOR nas telas de usuário/vínculo.
+ *
+ * COORDENADOR não é um papel que se atribui à pessoa: ele é concedido por
+ * `adicionarCoordenador` (Gerenciar Equipes) JUNTO com a relação
+ * EquipeMembros.is_coordenador, e revogado por `removerCoordenador`. Conceder
+ * só o papel deixava alguém com o menu de coordenador e todas as telas vazias
+ * (era preciso um segundo passo que nada anunciava); revogar só o papel deixa o
+ * inverso — coordenador de uma equipe sem permissão para abri-la.
+ *
+ * O rebaixamento de quem tem o papel mas NÃO coordena equipe alguma continua
+ * liberado de propósito: esse é o estado órfão que o fluxo antigo produzia, e é
+ * por aqui que ele se limpa (em Gerenciar Equipes não há o que remover).
+ *
+ * @param {string|undefined|null} tipoAlvo papel pretendido
+ * @param {string|undefined|null} tipoAtual papel atual na escola
+ * @param {string|null} [usuarioId] necessário só para avaliar o rebaixamento
+ * @returns {Promise<string|null>} mensagem de recusa, ou null quando pode seguir
+ */
+export async function recusaMudancaDePapelCoordenador(tipoAlvo, tipoAtual, usuarioId = null) {
+    if (!tipoAlvo || tipoAlvo === tipoAtual) return null;
+
+    if (tipoAlvo === 'COORDENADOR') {
+        return 'O perfil COORDENADOR não é atribuído por aqui: ele é concedido ao definir a pessoa '
+            + 'como coordenadora de uma equipe, em Gerenciar Equipes > gerenciar coordenadores. '
+            + 'Assim o papel e a equipe nunca ficam fora de sincronia.';
+    }
+
+    if (tipoAtual === 'COORDENADOR' && usuarioId) {
+        const equipes = await getEquipesGincanaDoCoordenador(usuarioId);
+        if (equipes.length > 0) {
+            return 'Esta pessoa coordena uma equipe. Remova-a como coordenadora em Gerenciar Equipes '
+                + '> gerenciar coordenadores — de lá o papel volta para ALUNO automaticamente.';
+        }
+    }
+
+    return null;
+}
+
+/**
  * Indica se o usuário é coordenador da equipe informada.
  * Aceita tanto o Equipe._id mestre quanto um documento EquipeGincana.
  * @param {string} usuarioId

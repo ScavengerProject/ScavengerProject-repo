@@ -5,6 +5,9 @@ import bcrypt from 'bcryptjs';
 import Usuario from '../../../src/models/Usuario.js';
 import Escola from '../../../src/models/Escola.js';
 import CodigoConvite from '../../../src/models/CodigoConvite.js';
+import Equipe from '../../../src/models/Equipe.js';
+import EquipeGincana from '../../../src/models/EquipeGincana.js';
+import EquipeMembros from '../../../src/models/EquipeMembros.js';
 import {
   criarUsuario,
   registrarUsuario,
@@ -87,6 +90,9 @@ afterEach(async () => {
   await Usuario.deleteMany({});
   await Escola.deleteMany({});
   await CodigoConvite.deleteMany({});
+  await Promise.all([
+    Equipe.deleteMany({}), EquipeGincana.deleteMany({}), EquipeMembros.deleteMany({}),
+  ]);
 });
 
 // Helper: cria um código de convite válido para os testes de registrarUsuario.
@@ -646,5 +652,98 @@ describe('usuarioController - leitura (listar/obter/estatísticas)', () => {
     expect(stats.inativos).toBe(1);
     expect(stats.porTipo.ALUNO).toBe(2);
     expect(stats.porTipo.PROFESSOR).toBe(1);
+  });
+});
+
+// COORDENADOR deixou de ser um papel atribuível nestas telas: ele é concedido
+// ao definir a pessoa como coordenadora de uma equipe (adicionarCoordenador) e
+// revogado ao removê-la de lá. Antes dava para conceder só o papel por aqui — e
+// quem parava nisso ficava com o menu de coordenador e todas as telas vazias,
+// porque nenhuma rota de coordenador acha equipe sem EquipeMembros.is_coordenador.
+describe('usuarioController - COORDENADOR só se define em Gerenciar Equipes', () => {
+  const criarCoordenador = () => criarNoBanco({
+    nome: 'Coord', email: 'coord@x.com', senha: '123', tipo: 'COORDENADOR', turma: 'EM - 1º Ano',
+  });
+
+  // Coordenação de verdade: papel + relação com uma equipe desta gincana.
+  const darEquipeParaCoordenar = async (usuario) => {
+    const equipe = await Equipe.create({ nome: 'Time', cor: '#111' });
+    await EquipeGincana.create({ equipe_id: equipe._id, gincana_id: 'GINCANA_PRINCIPAL' });
+    await EquipeMembros.create({ equipe_id: equipe._id, usuario_id: usuario._id, is_coordenador: true });
+  };
+
+  it('criarUsuario recusa nascer COORDENADOR', async () => {
+    const req = reqBase({
+      body: { nome: 'Novo', email: 'novo@x.com', senha: '123456', tipo: 'COORDENADOR', turma: 'EM - 1º Ano' },
+    });
+    const res = mockRes();
+
+    await criarUsuario(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ codigo: 'COORDENADOR_VIA_EQUIPE' }));
+    expect(await Usuario.findOne({ email: 'novo@x.com' })).toBeNull();
+  });
+
+  it('atualizarUsuario recusa promover um aluno a COORDENADOR', async () => {
+    const aluno = await criarNoBanco({
+      nome: 'Aluno', email: 'aluno@x.com', senha: '123', tipo: 'ALUNO', turma: 'EM - 1º Ano',
+    });
+    const req = reqBase({ params: { id: aluno._id.toString() }, body: { tipo: 'COORDENADOR' } });
+    const res = mockRes();
+
+    await atualizarUsuario(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ codigo: 'COORDENADOR_VIA_EQUIPE' }));
+
+    const salvo = await Usuario.findById(aluno._id);
+    expect(salvo.vinculos.find((v) => v.escola_id === escolaId).tipo).toBe('ALUNO');
+  });
+
+  // O formulário manda `tipo` em TODA edição: sem esta permissão, corrigir o
+  // nome de quem já é coordenador passaria a dar erro.
+  it('atualizarUsuario permite editar quem já é COORDENADOR sem trocar o papel', async () => {
+    const coord = await criarCoordenador();
+    await darEquipeParaCoordenar(coord);
+
+    const req = reqBase({
+      params: { id: coord._id.toString() },
+      body: { nome: 'Coord Corrigido', tipo: 'COORDENADOR' },
+    });
+    const res = mockRes();
+
+    await atualizarUsuario(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect((await Usuario.findById(coord._id)).nome).toBe('Coord Corrigido');
+  });
+
+  it('atualizarUsuario recusa rebaixar quem realmente coordena uma equipe', async () => {
+    const coord = await criarCoordenador();
+    await darEquipeParaCoordenar(coord);
+
+    const req = reqBase({ params: { id: coord._id.toString() }, body: { tipo: 'ALUNO' } });
+    const res = mockRes();
+
+    await atualizarUsuario(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ codigo: 'COORDENADOR_VIA_EQUIPE' }));
+    expect((await Usuario.findById(coord._id)).vinculos[0].tipo).toBe('COORDENADOR');
+  });
+
+  // Saída para o estado órfão que o fluxo antigo produzia (papel sem equipe):
+  // em Gerenciar Equipes não há o que remover, então tem que dar para limpar aqui.
+  it('atualizarUsuario permite rebaixar quem tem o papel mas não coordena equipe alguma', async () => {
+    const coord = await criarCoordenador();
+
+    const req = reqBase({ params: { id: coord._id.toString() }, body: { tipo: 'ALUNO' } });
+    const res = mockRes();
+
+    await atualizarUsuario(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect((await Usuario.findById(coord._id)).vinculos[0].tipo).toBe('ALUNO');
   });
 });

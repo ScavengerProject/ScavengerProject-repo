@@ -10,6 +10,7 @@ import {
     conflitoMultiEscola,
 } from './escolaHelpers.js';
 import { notificarCoordenadoresDeOrigem } from '../notificacoes/notificarTransferenciaEscola.js';
+import { recusaMudancaDePapelCoordenador } from '../equipes/coordenadorEquipe.js';
 
 /**
  * [GET] Lista todas as escolas (apenas SUPER_ADMIN).
@@ -276,6 +277,14 @@ export const vincularUsuario = async (req, res) => {
         // O papel efetivo é o informado ou, na falta dele, o papel base herdado
         // (mesma regra de aplicarVinculo) — a checagem precisa usar esse valor.
         const tipoEfetivo = tipo || (usuario.tipo === 'SUPER_ADMIN' ? 'ADMIN' : usuario.tipo);
+
+        // Vale também para o papel HERDADO: um `tipo` base COORDENADOR (resquício
+        // do fluxo antigo) criaria aqui um vínculo de coordenador sem equipe.
+        const recusaCoordenador = await recusaMudancaDePapelCoordenador(tipoEfetivo, null);
+        if (recusaCoordenador) {
+            return res.status(400).json({ message: recusaCoordenador, codigo: 'COORDENADOR_VIA_EQUIPE' });
+        }
+
         const conflito = conflitoMultiEscola(usuario, id, tipoEfetivo);
 
         let vinculoOrigem = null;
@@ -356,6 +365,12 @@ export const alterarPapelUsuario = async (req, res) => {
 
         if ((tipo === 'ALUNO' || tipo === 'COORDENADOR') && !(turma ?? vinculo.turma)) {
             return res.status(400).json({ message: 'Turma é obrigatória para alunos e coordenadores.' });
+        }
+
+        // COORDENADOR se concede/revoga em Gerenciar Equipes, junto com a equipe.
+        const recusaCoordenador = await recusaMudancaDePapelCoordenador(tipo, vinculo.tipo, usuario._id);
+        if (recusaCoordenador) {
+            return res.status(400).json({ message: recusaCoordenador, codigo: 'COORDENADOR_VIA_EQUIPE' });
         }
 
         // Rebaixar um ADMIN multi-escola para um perfil de participante deixaria
