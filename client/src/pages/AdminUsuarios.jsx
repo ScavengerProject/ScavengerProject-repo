@@ -278,7 +278,7 @@ const AdminUsuarios = () => {
     setDropdownStatusAberto(null);
     try {
       await usuariosService.definirStatus(usuario._id, novoStatus);
-      const labels = { ATIVO: 'ativado', INATIVO: 'desativado', BANIDO: 'banido', SUSPENSO: 'suspenso' };
+      const labels = { ATIVO: 'ativado', INATIVO: 'desativado', BANIDO: 'banido' };
       toast.success(`Usuário ${labels[novoStatus] || 'atualizado'} com sucesso!`);
       carregarDados();
     } catch (error) {
@@ -319,7 +319,6 @@ const AdminUsuarios = () => {
       'ATIVO': 'bg-green-100 text-green-800',
       'INATIVO': 'bg-gray-100 text-gray-700',
       'BANIDO': 'bg-red-200 text-red-900',
-      'SUSPENSO': 'bg-orange-100 text-orange-800',
       // Solicitação de vínculo na fila de aprovação, não um usuário desativado.
       'PENDENTE': 'bg-yellow-100 text-yellow-800',
     };
@@ -327,7 +326,7 @@ const AdminUsuarios = () => {
   };
 
   const getStatusLabel = (status) => {
-    const labels = { ATIVO: 'Ativo', INATIVO: 'Inativo', BANIDO: 'Banido', SUSPENSO: 'Suspenso', PENDENTE: 'Aguardando aprovação' };
+    const labels = { ATIVO: 'Ativo', INATIVO: 'Inativo', BANIDO: 'Banido', PENDENTE: 'Aguardando aprovação' };
     return labels[status] || status;
   };
 
@@ -349,7 +348,7 @@ const AdminUsuarios = () => {
       <div className="container mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-6 md:py-8">
         {/* Estatísticas */}
         {estatisticas && (
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
             <Card className="bg-white border-gray-200">
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
@@ -377,9 +376,23 @@ const AdminUsuarios = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-gray-600">Inativos</p>
-                    <p className="text-2xl font-bold text-red-600">{estatisticas.inativos}</p>
+                    <p className="text-2xl font-bold text-gray-600">{estatisticas.inativos}</p>
                   </div>
-                  <UserX className="h-8 w-8 text-red-400" />
+                  <UserX className="h-8 w-8 text-gray-400" />
+                </div>
+              </CardContent>
+            </Card>
+            {/* Banido é separado de inativo de propósito: o primeiro é uma
+                decisão disciplinar, o segundo uma desativação reversível.
+                Somados num número só, não dava para ver a diferença. */}
+            <Card className="bg-white border-gray-200">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">Banidos</p>
+                    <p className="text-2xl font-bold text-red-600">{estatisticas.banidos || 0}</p>
+                  </div>
+                  <Ban className="h-8 w-8 text-red-400" />
                 </div>
               </CardContent>
             </Card>
@@ -457,7 +470,6 @@ const AdminUsuarios = () => {
                   <option value="ATIVO">Ativo</option>
                   <option value="INATIVO">Inativo</option>
                   <option value="BANIDO">Banido</option>
-                  <option value="SUSPENSO">Suspenso</option>
                 </select>
               </div>
               <div>
@@ -551,7 +563,6 @@ const AdminUsuarios = () => {
                             {[
                               { value: 'ATIVO', label: 'Ativar', color: 'text-green-700 hover:bg-green-50' },
                               { value: 'INATIVO', label: 'Desativar', color: 'text-gray-700 hover:bg-gray-50' },
-                              { value: 'SUSPENSO', label: 'Suspender', color: 'text-orange-700 hover:bg-orange-50' },
                               { value: 'BANIDO', label: 'Banir', color: 'text-red-700 hover:bg-red-50' },
                             ].map((opcao) => (
                               <button
@@ -713,7 +724,6 @@ const AdminUsuarios = () => {
                   <SelectContent>
                     <SelectItem value="ATIVO">Ativo</SelectItem>
                     <SelectItem value="INATIVO">Inativo</SelectItem>
-                    <SelectItem value="SUSPENSO">Suspenso</SelectItem>
                     <SelectItem value="BANIDO">Banido</SelectItem>
                   </SelectContent>
                 </Select>

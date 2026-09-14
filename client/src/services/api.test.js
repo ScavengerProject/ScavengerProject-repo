@@ -114,10 +114,14 @@ describe('request helper (via services)', () => {
   // usuário de volta à seleção, em vez de deixar a tela com um erro genérico.
   it.each([
     ['SEM_VINCULO_ESCOLA', '/selecionar-escola'],
-    ['VINCULO_INATIVO', '/selecionar-escola'],
     ['ESCOLA_NAO_SELECIONADA', '/selecionar-escola'],
     ['GINCANA_NAO_SELECIONADA', '/selecionar-gincana'],
     ['GINCANA_ENCERRADA', '/selecionar-gincana'],
+    // Vínculo bloqueado NÃO volta para a seleção de escola: a escola recusada
+    // continuaria sendo a única da lista e o ciclo recomeçaria (403 -> limpar
+    // escopo -> selecionar a mesma escola -> 403). O destino é a tela terminal.
+    ['VINCULO_INATIVO', '/acesso-bloqueado'],
+    ['VINCULO_BANIDO', '/acesso-bloqueado'],
   ])('o codigo %s manda o usuário para %s', async (codigo, rota) => {
     const assign = vi.fn();
     vi.stubGlobal('location', { pathname: '/provas', assign });
@@ -130,7 +134,7 @@ describe('request helper (via services)', () => {
 
     expect(assign).toHaveBeenCalledWith(rota);
     expect(localStorage.getItem('gincanaAtivaId')).toBeNull();
-    if (rota === '/selecionar-escola') {
+    if (rota !== '/selecionar-gincana') {
       expect(localStorage.getItem('escolaAtivaId')).toBeNull();
     }
 

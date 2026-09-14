@@ -419,15 +419,23 @@ export const deletarUsuario = async (req, res) => {
 };
 
 /**
- * Definir status do usuário (ATIVO/INATIVO/BANIDO/SUSPENSO)
- * Se body.status for informado, define diretamente; caso contrário, alterna ATIVO↔INATIVO.
+ * Definir o status do vínculo do usuário com a escola ativa.
+ *
+ * Com `body.status` define diretamente; sem ele, alterna ATIVO↔INATIVO — o
+ * atalho do "desativar/reativar" do dia a dia.
+ *
+ * INATIVO x BANIDO: os dois tiram o acesso, mas INATIVO é uma desativação
+ * administrativa e reversível, enquanto BANIDO é uma decisão disciplinar. Por
+ * isso o atalho implícito NÃO desfaz um banimento: sem essa trava, o mesmo
+ * botão que desativa alguém reativaria um banido por engano. Reativar quem foi
+ * banido exige mandar `status: 'ATIVO'` explicitamente.
  */
 export const alternarStatusUsuario = async (req, res) => {
   try {
     const { id } = req.params;
     const { status: novoStatus } = req.body || {};
 
-    const STATUS_VALIDOS = ['ATIVO', 'INATIVO', 'BANIDO', 'SUSPENSO'];
+    const STATUS_VALIDOS = ['ATIVO', 'INATIVO', 'BANIDO'];
 
     if (novoStatus && !STATUS_VALIDOS.includes(novoStatus)) {
       return res.status(400).json({ message: `Status inválido. Valores aceitos: ${STATUS_VALIDOS.join(', ')}.` });
@@ -464,12 +472,22 @@ export const alternarStatusUsuario = async (req, res) => {
       });
     }
 
+    // Desfazer um banimento é um ato deliberado, não o efeito colateral de um
+    // toggle: o atalho sem corpo para aqui e pede o status explícito.
+    if (statusAtual === 'BANIDO' && !novoStatus) {
+      return res.status(409).json({
+        message: 'Este usuário está banido desta escola. Para devolver o acesso, '
+          + 'escolha explicitamente a opção "Ativar".',
+        codigo: 'REATIVACAO_EXPLICITA',
+      });
+    }
+
     const statusFinal = novoStatus || (statusAtual === 'ATIVO' ? 'INATIVO' : 'ATIVO');
 
     aplicarVinculo(usuario, req.escolaId, { status: statusFinal });
     await usuario.save();
 
-    const labels = { ATIVO: 'ativado', INATIVO: 'desativado', BANIDO: 'banido', SUSPENSO: 'suspenso' };
+    const labels = { ATIVO: 'ativado', INATIVO: 'desativado', BANIDO: 'banido' };
 
     res.status(200).json({
       message: `Usuário ${labels[statusFinal] || 'atualizado'} com sucesso!`,
@@ -505,6 +523,7 @@ export const obterEstatisticas = async (req, res) => {
     const totalUsuarios = await Usuario.countDocuments(escopo);
     const totalAtivos = await Usuario.countDocuments(porStatus('ATIVO'));
     const totalInativos = await Usuario.countDocuments(porStatus('INATIVO'));
+    const totalBanidos = await Usuario.countDocuments(porStatus('BANIDO'));
 
     const porTipo = await Usuario.aggregate([
       ...porVinculoDaEscola,
@@ -522,6 +541,7 @@ export const obterEstatisticas = async (req, res) => {
       total: totalUsuarios,
       ativos: totalAtivos,
       inativos: totalInativos,
+      banidos: totalBanidos,
       porTipo: porTipo.reduce((acc, item) => {
         acc[item._id] = item.total;
         return acc;

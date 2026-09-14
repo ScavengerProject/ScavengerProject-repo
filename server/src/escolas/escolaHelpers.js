@@ -59,6 +59,24 @@ export function papelNaEscola(usuario, escolaId) {
 }
 
 /**
+ * Situação efetiva do usuário DENTRO de uma escola (ATIVO / INATIVO / BANIDO /
+ * PENDENTE).
+ *
+ * Mesma lógica do papel: o status que vale é o do vínculo, não o campo base.
+ * O fallback para `usuario.status` só existe para as instalações anteriores ao
+ * multi-escola, cujos usuários não têm nenhum vínculo registrado — uma pessoa
+ * COM vínculos nunca cai nele, para que desativar alguém na escola A não o
+ * desative na escola B.
+ *
+ * @returns {string} sempre uma das constantes de STATUS_VINCULO
+ */
+export function statusNaEscola(usuario, escolaId) {
+    if (!usuario) return 'ATIVO';
+    if ((usuario.vinculos || []).length === 0) return usuario.status || 'ATIVO';
+    return getVinculo(usuario, escolaId)?.status || 'ATIVO';
+}
+
+/**
  * Resolve os escola_id (String) aos quais o usuário está vinculado.
  *
  * Diferente do vínculo de gincana (que é derivado de EquipeMembros), o vínculo

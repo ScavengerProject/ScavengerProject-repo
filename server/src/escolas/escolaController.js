@@ -1,7 +1,7 @@
 import Escola from '../models/Escola.js';
 import Usuario from '../models/Usuario.js';
 import Gincana from '../models/Gincana.js';
-import { PERFIS_ESCOLA, podeMultiEscola } from '../models/Usuario.js';
+import { PERFIS_ESCOLA, podeMultiEscola, vinculoBloqueado } from '../models/Usuario.js';
 import {
     filtroEscola,
     getVinculo,
@@ -33,6 +33,19 @@ export const listarEscolas = async (req, res) => {
  * Cada item vem com `meu_tipo`: o papel do usuário NAQUELA escola. É o que a
  * tela de seleção usa para saber com que perfil ele vai entrar — e o que o
  * front aplica no lugar do papel do token depois de escolher a escola.
+ *
+ * Escola de vínculo bloqueado (INATIVO/BANIDO) continua na lista, mas marcada
+ * com `meu_vinculo_bloqueado: true`. Ela NÃO pode ser escolhida — quem tenta
+ * leva 403 em `resolverEscola` — e o front precisa saber disso ANTES de
+ * selecionar: esta rota não passa por `resolverEscola` (só `resolverPapelBase`),
+ * então era ela que devolvia a escola bloqueada como se fosse utilizável, o
+ * front auto-selecionava a única da lista, a primeira chamada com escopo
+ * respondia 403 e o usuário voltava para cá — o laço escola <-> gincana.
+ *
+ * Devolver a escola marcada, em vez de omiti-la, é o que permite explicar o
+ * bloqueio ("você foi banido desta escola") em vez de mostrar uma lista vazia.
+ * PENDENTE fica fora do bloqueio de propósito: ele PRECISA ser selecionável
+ * para o usuário chegar na tela de espera (ver codigo VINCULO_PENDENTE).
  */
 export const minhasEscolas = async (req, res) => {
     try {
@@ -56,10 +69,12 @@ export const minhasEscolas = async (req, res) => {
         res.status(200).json(
             escolas.map((e) => {
                 const vinculo = getVinculo(usuario, e._id);
+                const status = vinculo?.status || 'ATIVO';
                 return {
                     ...e.toObject(),
                     meu_tipo: vinculo?.tipo || null,
-                    meu_vinculo_status: vinculo?.status || 'ATIVO',
+                    meu_vinculo_status: status,
+                    meu_vinculo_bloqueado: vinculoBloqueado(status),
                 };
             })
         );

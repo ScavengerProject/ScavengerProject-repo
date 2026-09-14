@@ -562,6 +562,66 @@ describe('usuarioController - alternarStatusUsuario', () => {
     expect(res.status).toHaveBeenCalledWith(409);
     expect(await statusNaEscola(u._id)).toBe('PENDENTE');
   });
+
+  it('recusa SUSPENSO, que deixou de existir (só ATIVO/INATIVO/BANIDO)', async () => {
+    const u = await criarNoBanco({ nome: 'V', email: 'v@x.com', senha: '123', tipo: 'ALUNO', turma: 'EF - 6º Ano' });
+    const req = reqBase({ params: { id: u._id.toString() }, body: { status: 'SUSPENSO' } });
+    const res = mockRes();
+
+    await alternarStatusUsuario(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+  });
+
+  // É a diferença prática entre INATIVO e BANIDO: o primeiro é uma desativação
+  // administrativa e o mesmo atalho a desfaz; o segundo é disciplinar, e o
+  // toggle (que não diz qual status quer) não pode devolver o acesso sem querer.
+  describe('BANIDO só é desfeito explicitamente', () => {
+    const criarBanido = async (email) => {
+      const u = await criarNoBanco({ nome: 'Ban', email, senha: '123', tipo: 'ALUNO', turma: 'EF - 6º Ano' });
+      await alternarStatusUsuario(
+        reqBase({ params: { id: u._id.toString() }, body: { status: 'BANIDO' } }),
+        mockRes()
+      );
+      return u;
+    };
+
+    it('o toggle sem status não reativa um banido', async () => {
+      const u = await criarBanido('ban1@x.com');
+      const res = mockRes();
+
+      await alternarStatusUsuario(reqBase({ params: { id: u._id.toString() }, body: {} }), res);
+
+      expect(res.status).toHaveBeenCalledWith(409);
+      expect(res.json.mock.calls[0][0].codigo).toBe('REATIVACAO_EXPLICITA');
+      expect(await statusNaEscola(u._id)).toBe('BANIDO');
+    });
+
+    it('um ATIVO explícito reativa', async () => {
+      const u = await criarBanido('ban2@x.com');
+      const res = mockRes();
+
+      await alternarStatusUsuario(
+        reqBase({ params: { id: u._id.toString() }, body: { status: 'ATIVO' } }),
+        res
+      );
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(await statusNaEscola(u._id)).toBe('ATIVO');
+    });
+
+    it('o toggle continua desfazendo um INATIVO normalmente', async () => {
+      const u = await criarNoBanco({ nome: 'Ina', email: 'ina@x.com', senha: '123', tipo: 'ALUNO', turma: 'EF - 6º Ano' });
+      await alternarStatusUsuario(
+        reqBase({ params: { id: u._id.toString() }, body: { status: 'INATIVO' } }),
+        mockRes()
+      );
+
+      await alternarStatusUsuario(reqBase({ params: { id: u._id.toString() }, body: {} }), mockRes());
+
+      expect(await statusNaEscola(u._id)).toBe('ATIVO');
+    });
+  });
 });
 
 describe('usuarioController - leitura (listar/obter/estatísticas)', () => {

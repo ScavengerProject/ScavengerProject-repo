@@ -134,6 +134,89 @@ describe('useEscola', () => {
     expect(localStorage.getItem('escolaAtivaId')).toBeNull();
   });
 
+  // O laço que estes testes travam: a escola de vínculo bloqueado vinha na lista
+  // (a rota /escolas/minhas não passa por resolverEscola, então ela responde
+  // 200 mesmo para quem foi banido), era a ÚNICA da lista, o ramo de
+  // auto-seleção a escolhia sozinho, /selecionar-gincana levava 403 e o api.js
+  // recarregava de volta para a seleção de escola — indefinidamente.
+  describe('vínculo bloqueado (INATIVO/BANIDO)', () => {
+    it.each(['INATIVO', 'BANIDO'])(
+      'não auto-seleciona a única escola quando o vínculo está %s',
+      async (meu_vinculo_status) => {
+        escolasService.minhas.mockResolvedValueOnce([
+          { _id: 'ESC_BLOQ', nome: 'Bloqueada', meu_vinculo_status, meu_vinculo_bloqueado: true },
+        ]);
+
+        const { result } = renderHook(() => useEscola(), { wrapper });
+        await waitFor(() => expect(result.current.carregado).toBe(true));
+
+        expect(result.current.escolaAtivaId).toBeNull();
+        expect(localStorage.getItem('escolaAtivaId')).toBeNull();
+        expect(result.current.escolasDisponiveis).toEqual([]);
+        expect(result.current.escolasBloqueadas).toHaveLength(1);
+        // Sem escola aberta e com uma bloqueada: fim de linha, e o App leva
+        // para /acesso-bloqueado em vez da tela de seleção.
+        expect(result.current.acessoBloqueado).toBe(true);
+      }
+    );
+
+    it('descarta a escola persistida quando o vínculo com ela foi bloqueado no meio da sessão', async () => {
+      localStorage.setItem('escolaAtivaId', 'ESC_1');
+      localStorage.setItem('gincanaAtivaId', 'GINC_1');
+      escolasService.minhas.mockResolvedValueOnce([
+        { _id: 'ESC_1', nome: 'Escola 1', meu_vinculo_status: 'BANIDO', meu_vinculo_bloqueado: true },
+      ]);
+
+      const { result } = renderHook(() => useEscola(), { wrapper });
+      await waitFor(() => expect(result.current.carregado).toBe(true));
+
+      expect(result.current.escolaAtivaId).toBeNull();
+      expect(localStorage.getItem('gincanaAtivaId')).toBeNull();
+    });
+
+    it('entra direto na escola que sobrou quando só uma das duas está bloqueada', async () => {
+      escolasService.minhas.mockResolvedValueOnce([
+        { _id: 'ESC_BLOQ', nome: 'Bloqueada', meu_vinculo_status: 'INATIVO', meu_vinculo_bloqueado: true },
+        { _id: 'ESC_OK', nome: 'Aberta', meu_tipo: 'PROFESSOR' },
+      ]);
+
+      const { result } = renderHook(() => useEscola(), { wrapper });
+      await waitFor(() => expect(result.current.carregado).toBe(true));
+
+      expect(result.current.escolaAtivaId).toBe('ESC_OK');
+      expect(result.current.acessoBloqueado).toBe(false);
+    });
+
+    it('setEscolaAtiva ignora uma escola bloqueada em vez de persistir o escopo inválido', async () => {
+      escolasService.minhas.mockResolvedValueOnce([
+        { _id: 'ESC_BLOQ', nome: 'Bloqueada', meu_vinculo_status: 'BANIDO', meu_vinculo_bloqueado: true },
+        { _id: 'ESC_OK', nome: 'Aberta' },
+      ]);
+
+      const { result } = renderHook(() => useEscola(), { wrapper });
+      await waitFor(() => expect(result.current.carregado).toBe(true));
+
+      act(() => result.current.setEscolaAtiva('ESC_BLOQ'));
+
+      expect(localStorage.getItem('escolaAtivaId')).not.toBe('ESC_BLOQ');
+      expect(navigateMock).not.toHaveBeenCalled();
+    });
+
+    // PENDENTE tem fluxo próprio (/aguardando-aprovacao) e PRECISA continuar
+    // selecionável: sem isso, quem espera aprovação nunca chega na tela de espera.
+    it('vínculo PENDENTE continua selecionável', async () => {
+      escolasService.minhas.mockResolvedValueOnce([
+        { _id: 'ESC_PEND', nome: 'Pendente', meu_vinculo_status: 'PENDENTE' },
+      ]);
+
+      const { result } = renderHook(() => useEscola(), { wrapper });
+      await waitFor(() => expect(result.current.carregado).toBe(true));
+
+      expect(result.current.escolaAtivaId).toBe('ESC_PEND');
+      expect(result.current.acessoBloqueado).toBe(false);
+    });
+  });
+
   it('erro ao buscar escolas não deixa o provider travado em loading', async () => {
     escolasService.minhas.mockRejectedValueOnce(new Error('falha de rede'));
 

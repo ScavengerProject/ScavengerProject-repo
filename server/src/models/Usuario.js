@@ -30,6 +30,52 @@ export const PERFIS_MULTI_ESCOLA = ['ADMIN', 'PROFESSOR'];
 export const podeMultiEscola = (tipo) =>
   tipo === 'SUPER_ADMIN' || PERFIS_MULTI_ESCOLA.includes(tipo);
 
+/**
+ * Situação de um vínculo usuário <-> escola.
+ *
+ *  - ATIVO    — usa o sistema normalmente.
+ *  - PENDENTE — solicitação de vínculo aguardando um ADMIN da escola de
+ *               destino (ver conviteController.decidirPendencia). Não é acesso,
+ *               mas também não é bloqueio: quem está aqui espera uma decisão.
+ *  - INATIVO  — acesso DESATIVADO, e reversível. É o estado administrativo do
+ *               dia a dia: aluno que saiu no meio do ano, professor afastado,
+ *               conta criada por engano. Reativar é só voltar para ATIVO.
+ *  - BANIDO   — acesso ENCERRADO por decisão disciplinar, e definitivo por
+ *               padrão. A diferença prática para INATIVO está em três pontos:
+ *               a mensagem que a pessoa vê (`VINCULO_BANIDO` vs
+ *               `VINCULO_INATIVO`, ver auth/authPermissions.js), o fato de o
+ *               alternador implícito de status se recusar a desfazê-lo (só um
+ *               `status: 'ATIVO'` explícito reativa — ver
+ *               usuarioController.alternarStatusUsuario) e a tela terminal que
+ *               o front mostra em cada caso.
+ *
+ * INATIVO e BANIDO são os dois estados BLOQUEADOS: nenhum passa por
+ * `resolverEscola`, e nenhum aparece como escola selecionável no front.
+ */
+export const STATUS_VINCULO = ['ATIVO', 'INATIVO', 'BANIDO', 'PENDENTE'];
+
+/**
+ * Estados em que o vínculo existe mas não dá acesso nenhum à escola.
+ * PENDENTE fica DE FORA de propósito: ele tem fluxo próprio (tela de espera) e
+ * precisa continuar selecionável, senão quem aguarda aprovação nunca chega lá.
+ */
+export const STATUS_VINCULO_BLOQUEADO = ['INATIVO', 'BANIDO'];
+
+/**
+ * Indica se o vínculo está bloqueado.
+ *
+ * A checagem é por EXCLUSÃO (tudo que não é ATIVO nem PENDENTE) e não pela
+ * lista acima, de propósito: um status desconhecido precisa contar como
+ * bloqueio, não como acesso. O caso concreto é o `SUSPENSO` legado — ele saiu
+ * do enum, mas segue nos documentos de qualquer banco onde ainda não se rodou
+ * `npm run migrar:suspenso`, e um valor desses lido como "não bloqueado"
+ * reabriria exatamente o laço escola <-> gincana: a escola seria dada como
+ * selecionável, `resolverEscola` responderia 403 assim mesmo (lá a regra já é
+ * `!== 'ATIVO'`) e o ciclo recomeçaria. Errar para o lado do bloqueio deixa a
+ * migração ser uma limpeza, e não um pré-requisito para o sistema funcionar.
+ */
+export const vinculoBloqueado = (status) => status !== 'ATIVO' && status !== 'PENDENTE';
+
 export const TURMAS = [
   "EF - 1º Ano", "EF - 2º Ano", "EF - 3º Ano", "EF - 4º Ano", "EF - 5º Ano",
   "EF - 6º Ano", "EF - 7º Ano", "EF - 8º Ano", "EF - 9º Ano", "EM - 1º Ano",
@@ -69,7 +115,7 @@ const VinculoEscolaSchema = new mongoose.Schema({
   // outra escola até ser decidida (é assim que a transferência funciona).
   status: {
     type: String,
-    enum: ['ATIVO', 'INATIVO', 'BANIDO', 'SUSPENSO', 'PENDENTE'],
+    enum: STATUS_VINCULO,
     default: 'ATIVO',
   },
 
@@ -117,7 +163,11 @@ const UsuarioSchema = new mongoose.Schema({
     default: null
   },
 
-  status: { type: String, enum: ['ATIVO', 'INATIVO', 'BANIDO', 'SUSPENSO'], default: 'ATIVO' },
+  // Status BASE / legado. Como o papel, ele NÃO é a fonte da verdade dentro de
+  // uma escola — quem manda é `vinculos[].status`, e é só nele que a tela de
+  // Gerenciar Usuários escreve. Fica aqui para as instalações anteriores ao
+  // multi-escola, cujos usuários não têm nenhum vínculo para consultar.
+  status: { type: String, enum: ['ATIVO', 'INATIVO', 'BANIDO'], default: 'ATIVO' },
   criado_em: { type: Date, default: Date.now },
 });
 

@@ -4,9 +4,9 @@ import EquipeMembros from '../models/EquipeMembros.js';
 import ProvaUsuario from '../models/ProvaUsuario.js';
 import ProvaEquipeParticipacao from '../models/ProvaEquipeParticipacao.js';
 import EmprestimoEquipe from '../models/EmprestimoEquipe.js';
-import Usuario from '../models/Usuario.js';
+import Usuario, { vinculoBloqueado } from '../models/Usuario.js';
 import { getEquipeGincanaDoCoordenador } from '../equipes/coordenadorEquipe.js';
-import { getVinculo } from '../escolas/escolaHelpers.js';
+import { getVinculo, statusNaEscola } from '../escolas/escolaHelpers.js';
 
 // Escopo da gincana ativa (injetado por resolverGincana; fallback p/ gincana legada).
 const escopoGincana = (req) => req.gincanaId || 'GINCANA_PRINCIPAL';
@@ -52,7 +52,7 @@ async function carregarContextoCoordenadorParaProva(coordenadorId, provaId, esco
     const [entrada, saida] = await Promise.all([
       // Alunos emprestados PARA esta equipe nesta prova
       EmprestimoEquipe.find({ prova_id: provaId, equipe_destino_id: equipeGincana._id, status: 'ATIVO' })
-        .populate('usuario_id', 'nome email tipo turma status')
+        .populate('usuario_id', 'nome email tipo turma status vinculos')
         .populate({ path: 'equipe_origem_id', populate: { path: 'equipe_id', model: 'Equipe', select: 'nome cor' } }),
       // Alunos desta equipe emprestados PARA FORA nesta prova (não devem ser escaláveis por ela aqui)
       EmprestimoEquipe.find({ prova_id: provaId, equipe_origem_id: equipeGincana._id, status: 'ATIVO' }).select('usuario_id'),
@@ -82,7 +82,7 @@ async function carregarContextoCoordenadorParaProva(coordenadorId, provaId, esco
   const inscricoes = await ProvaUsuario.find({
     prova_id: provaId,
     usuario_id: { $in: membroIdsComCoordenador },
-  }).populate('usuario_id', 'nome email tipo turma status');
+  }).populate('usuario_id', 'nome email tipo turma status vinculos');
 
   const membrosInscritos = inscricoes
     .filter((inscricao) => inscricao.usuario_id)
@@ -92,7 +92,9 @@ async function carregarContextoCoordenadorParaProva(coordenadorId, provaId, esco
       email: inscricao.usuario_id.email,
       tipo: inscricao.usuario_id.tipo,
       turma: inscricao.usuario_id.turma,
-      status: inscricao.usuario_id.status,
+      // Status do VÍNCULO com esta escola (ver statusNaEscola): desativar
+      // alguém na escola A não pode aparecer como desativado na escola B.
+      status: statusNaEscola(inscricao.usuario_id, escolaId),
       inscricao_id: inscricao._id,
       emprestado: false,
       equipe_origem_nome: null,
@@ -110,7 +112,7 @@ async function carregarContextoCoordenadorParaProva(coordenadorId, provaId, esco
       email: u.email,
       tipo: u.tipo,
       turma: u.turma,
-      status: u.status,
+      status: statusNaEscola(u, escolaId),
       inscricao_id: null,
       emprestado: true,
       equipe_origem_nome: emp.equipe_origem_id?.equipe_id?.nome || null,
@@ -277,14 +279,21 @@ export const salvarEquipeParticipanteDaProva = async (req, res) => {
       });
     }
 
-    // Validação: membros BANIDO ou SUSPENSO não podem participar
-    const membrosBanidosSuspensos = membrosInscritos.filter(
-      (m) => idsEnviados.includes(String(m.id)) && (m.status === 'BANIDO' || m.status === 'SUSPENSO')
+    // Rede de segurança: quem não tem vínculo ATIVO com a escola não é
+    // escalável. Na prática o próprio `membrosInscritos` já filtra por isso
+    // (ver carregarContextoCoordenadorParaProva), mas o coordenador entra na
+    // lista sem passar por aquele filtro — e usuários de instalação legada, sem
+    // nenhum vínculo, caem no status base.
+    const membrosBloqueados = membrosInscritos.filter(
+      (m) => idsEnviados.includes(String(m.id)) && vinculoBloqueado(m.status)
     );
-    if (membrosBanidosSuspensos.length > 0) {
-      const nomes = membrosBanidosSuspensos.map((m) => `${m.nome} (${m.status})`).join(', ');
+    if (membrosBloqueados.length > 0) {
+      const rotulo = { INATIVO: 'desativado', BANIDO: 'banido' };
+      const nomes = membrosBloqueados
+        .map((m) => `${m.nome} (${rotulo[m.status] || m.status})`)
+        .join(', ');
       return res.status(400).json({
-        message: `Os seguintes membros não podem participar pois estão banidos ou suspensos: ${nomes}.`,
+        message: `Os seguintes membros não podem participar pois não têm acesso ativo à escola: ${nomes}.`,
       });
     }
 

@@ -97,9 +97,34 @@ a generic error banner):
 |---|---|---|
 | `GINCANA_NAO_SELECIONADA` | switched escola, no gincana chosen yet | go to `/selecionar-gincana` |
 | `GINCANA_ENCERRADA` | active edition ended (or year rolled over) | go to `/selecionar-gincana` |
-| `SEM_VINCULO_ESCOLA` / `VINCULO_INATIVO` | lost access to active escola | go to `/selecionar-escola` |
+| `SEM_VINCULO_ESCOLA` | lost the vinculo with the active escola entirely | go to `/selecionar-escola` |
 | `ESCOLA_NAO_SELECIONADA` | no `X-Escola-Id` sent on an already-migrated DB | go to `/selecionar-escola` |
+| `VINCULO_INATIVO` | vinculo exists but was **deactivated** (reversible) | go to `/acesso-bloqueado` |
+| `VINCULO_BANIDO` | vinculo exists but the user was **banned** (disciplinary) | go to `/acesso-bloqueado` |
+| `VINCULO_PENDENTE` | vinculo requested, waiting for an ADMIN's decision | go to `/aguardando-aprovacao` |
 | `SEM_EQUIPE_NA_GINCANA` | scope is fine, but the user isn't in any team of it yet | go to `/selecionar-equipe` (any non-admin role) |
+
+The three "vinculo exists but doesn't grant access" codes are deliberately
+**not** `/selecionar-escola`: sending them there is a redirect loop, because the
+refused escola is still the only one the user has. `/escolas/minhas` is chained
+`proteger, resolverPapelBase` only (no `resolverEscola`), so it answers 200 even
+for a banned user — it marks the escola `meu_vinculo_bloqueado` instead, and
+`useEscola` keeps blocked escolas out of the auto-select. Without both halves,
+one escola + a blocked vinculo = the app auto-selects it, `/selecionar-gincana`
+403s, `api.js` clears the scope and reloads back into the same selection,
+forever.
+
+**Vinculo statuses** (`Usuario.vinculos[].status`, and only there — the
+top-level `Usuario.status` is legacy and only read for users with no vinculos at
+all): `ATIVO`, `PENDENTE`, `INATIVO` (deactivated, reversible), `BANIDO`
+(disciplinary, and the implicit ATIVO↔INATIVO toggle in
+`alternarStatusUsuario` refuses to undo it — 409 `REATIVACAO_EXPLICITA`).
+`SUSPENSO` was removed: it never had behaviour of its own. `vinculoBloqueado()`
+tests by exclusion (anything that is neither `ATIVO` nor `PENDENTE` blocks), so
+a leftover `SUSPENSO` document is treated as blocked rather than as access — the
+app keeps working on an unmigrated DB. Run `npm run migrar:suspenso` anyway: the
+value is no longer in the enum, so the next `save()` of such a user throws a
+`ValidationError` that says nothing about status.
 
 An error body may also carry `erros: [...]` — every reason the request was
 refused, not just the first. `request()` re-exposes it as `error.erros`

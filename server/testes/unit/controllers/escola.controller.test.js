@@ -404,6 +404,71 @@ describe('escolaController - papel por escola', () => {
     expect(porId[ESCOLA_A]).toBe('ADMIN');
     expect(porId[ESCOLA_B]).toBe('PROFESSOR');
   });
+
+  // Esta rota não passa por `resolverEscola` — ela responde 200 mesmo para quem
+  // teve o vínculo bloqueado. Sem a marcação, o front tratava a escola
+  // bloqueada como utilizável, auto-selecionava a única da lista, levava 403 na
+  // primeira chamada com escopo e voltava para a seleção: o laço
+  // escola <-> gincana. A escola vem marcada (e não omitida) para o front poder
+  // dizer POR QUE ela não abre.
+  it.each(['INATIVO', 'BANIDO'])(
+    'minhasEscolas marca como bloqueada a escola de vínculo %s',
+    async (status) => {
+      await Escola.updateOne({ _id: ESCOLA_B }, { status: 'ATIVA' });
+      const usuario = await Usuario.create({
+        nome: `Bloq ${status}`, email: `bloq-${status.toLowerCase()}@x.com`, senha: '123', tipo: 'PROFESSOR',
+        vinculos: [
+          { escola_id: ESCOLA_A, tipo: 'PROFESSOR', status },
+          { escola_id: ESCOLA_B, tipo: 'PROFESSOR', status: 'ATIVO' },
+        ],
+      });
+      const res = mockRes();
+
+      await minhasEscolas({ usuario: { id: usuario._id.toString(), tipo: 'PROFESSOR' } }, res);
+
+      const porId = Object.fromEntries(res.json.mock.calls[0][0].map((e) => [e._id, e]));
+      expect(porId[ESCOLA_A].meu_vinculo_bloqueado).toBe(true);
+      expect(porId[ESCOLA_A].meu_vinculo_status).toBe(status);
+      expect(porId[ESCOLA_B].meu_vinculo_bloqueado).toBe(false);
+    }
+  );
+
+  // Banco ainda não migrado (`npm run migrar:suspenso` pendente): o SUSPENSO
+  // legado não está mais no enum, mas continua nos documentos. Ele precisa
+  // contar como bloqueio — dado como selecionável, a escola seria escolhida, o
+  // resolverEscola responderia 403 do mesmo jeito (`!== 'ATIVO'`) e o laço
+  // escola <-> gincana voltaria.
+  it('minhasEscolas marca como bloqueado um status legado fora do enum (SUSPENSO)', async () => {
+    const usuario = await Usuario.create({
+      nome: 'Legado', email: 'legado-susp@x.com', senha: '123', tipo: 'PROFESSOR',
+      vinculos: [{ escola_id: ESCOLA_A, tipo: 'PROFESSOR', status: 'ATIVO' }],
+    });
+    // Escrita crua: o enum do schema recusaria SUSPENSO num save normal — é
+    // exatamente a situação de um documento antigo que ficou no banco.
+    await Usuario.collection.updateOne(
+      { _id: usuario._id },
+      { $set: { 'vinculos.0.status': 'SUSPENSO' } }
+    );
+    const res = mockRes();
+
+    await minhasEscolas({ usuario: { id: usuario._id.toString(), tipo: 'PROFESSOR' } }, res);
+
+    expect(res.json.mock.calls[0][0][0].meu_vinculo_bloqueado).toBe(true);
+  });
+
+  // PENDENTE fica de fora do bloqueio: ele PRECISA ser selecionável para o
+  // usuário chegar na tela de espera (ver codigo VINCULO_PENDENTE).
+  it('minhasEscolas não marca o vínculo PENDENTE como bloqueado', async () => {
+    const usuario = await Usuario.create({
+      nome: 'Pend', email: 'pend-bloq@x.com', senha: '123', tipo: 'ALUNO',
+      vinculos: [{ escola_id: ESCOLA_A, tipo: 'ALUNO', status: 'PENDENTE' }],
+    });
+    const res = mockRes();
+
+    await minhasEscolas({ usuario: { id: usuario._id.toString(), tipo: 'ALUNO' } }, res);
+
+    expect(res.json.mock.calls[0][0][0].meu_vinculo_bloqueado).toBe(false);
+  });
 });
 
 // A escola é o mundo do aluno: quem compete (ALUNO, COORDENADOR, PAI/MÃE) fica

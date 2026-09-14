@@ -18,6 +18,7 @@ import GerenciarConvites from './pages/GerenciarConvites.jsx';
 import AprovarVinculosEscola from './pages/AprovarVinculosEscola.jsx';
 import ResgatarConvite from './pages/ResgatarConvite.jsx';
 import AguardandoAprovacao from './pages/AguardandoAprovacao.jsx';
+import AcessoBloqueado from './pages/AcessoBloqueado.jsx';
 import SelecionarEscola from './pages/SelecionarEscola.jsx';
 import SelecionarGincana from './pages/SelecionarGincana.jsx';
 import SelecionarEquipe from './pages/SelecionarEquipe.jsx';
@@ -58,6 +59,9 @@ const ROTAS_SEM_GINCANA = [
   // Vínculo PENDENTE: sem acesso à escola ainda, então não há gincana para
   // escolher (ver codigo VINCULO_PENDENTE em services/api.js).
   '/aguardando-aprovacao',
+  // Vínculo bloqueado (INATIVO/BANIDO): fim de linha, sem escola e sem gincana
+  // (ver codigos VINCULO_INATIVO/VINCULO_BANIDO em services/api.js).
+  '/acesso-bloqueado',
   // Resgatar convite não depende da gincana ativa — e exigir uma trancaria
   // justamente quem mais precisa da tela: o aluno que troca de escola na virada
   // do ano, quando a única gincana da escola de origem já está ENCERRADA e não
@@ -92,6 +96,8 @@ function App() {
   const { usuario, isAuthenticated, loading, logout } = useAuth();
   const {
     precisaSelecionarEscola,
+    acessoBloqueado,
+    escolasBloqueadas,
     escolaAtivaId,
     carregado: escolaCarregada,
   } = useEscola();
@@ -136,7 +142,23 @@ function App() {
   // Escopo obrigatório antes de qualquer tela: primeiro a escola (que define o
   // papel do usuário), depois a gincana. Só entra em ação quando o provider já
   // carregou a lista e concluiu que falta escolher.
-  if (isAuthenticated && precisaSelecionarEscola && location.pathname !== '/selecionar-escola') {
+  // Vínculo bloqueado em TODAS as escolas do usuário: não há o que selecionar,
+  // e a tela de seleção não explicaria o motivo. Vem ANTES do gate de escola
+  // porque `precisaSelecionarEscola` também é true aqui — mandar para
+  // /selecionar-escola nesse estado é o primeiro passo do laço antigo.
+  if (isAuthenticated && acessoBloqueado && location.pathname !== '/acesso-bloqueado') {
+    return <Navigate to="/acesso-bloqueado" replace />;
+  }
+
+  if (
+    isAuthenticated
+    && precisaSelecionarEscola
+    && location.pathname !== '/selecionar-escola'
+    // Sem esta exceção, o redirecionamento do api.js para a tela terminal seria
+    // desfeito no mesmo render: ele limpa a escola ativa, o que torna
+    // `precisaSelecionarEscola` true.
+    && location.pathname !== '/acesso-bloqueado'
+  ) {
     return <Navigate to="/selecionar-escola" replace />;
   }
 
@@ -258,6 +280,18 @@ function App() {
           element={
             isAuthenticated
               ? (isAdmin ? <AprovarVinculosEscola /> : <Navigate to="/" replace />)
+              : <Navigate to="/login" replace />
+          }
+        />
+
+        {/* Fim de linha do vínculo bloqueado (codigos VINCULO_INATIVO /
+            VINCULO_BANIDO). Quem chega aqui sem nenhuma escola bloqueada
+            (URL digitada à mão) volta para o fluxo normal. */}
+        <Route
+          path="/acesso-bloqueado"
+          element={
+            isAuthenticated
+              ? (escolasBloqueadas.length > 0 ? <AcessoBloqueado /> : <Navigate to="/" replace />)
               : <Navigate to="/login" replace />
           }
         />

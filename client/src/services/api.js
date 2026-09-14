@@ -104,9 +104,20 @@ const request = async (endpoint, options = {}) => {
       if (codigo === 'GINCANA_NAO_SELECIONADA' || codigo === 'GINCANA_ENCERRADA') {
         localStorage.removeItem('gincanaAtivaId');
         redirecionarPara('/selecionar-gincana');
+      } else if (codigo === 'VINCULO_INATIVO' || codigo === 'VINCULO_BANIDO') {
+        // O vínculo existe, mas está bloqueado (desativado ou banido). NÃO é um
+        // caso de "escolha outra escola": a escola continua sendo a dele, e
+        // mandá-lo para /selecionar-escola era o laço — a escola recusada era a
+        // única da lista, o EscolaProvider a selecionava sozinho de novo e a
+        // primeira chamada com escopo trazia o mesmo 403.
+        //
+        // O escopo é limpo (nada mais pode ser carregado nele) e o destino é a
+        // tela terminal, que não dispara nenhuma requisição com escopo.
+        localStorage.removeItem('escolaAtivaId');
+        localStorage.removeItem('gincanaAtivaId');
+        redirecionarPara('/acesso-bloqueado');
       } else if (
         codigo === 'SEM_VINCULO_ESCOLA'
-        || codigo === 'VINCULO_INATIVO'
         || codigo === 'ESCOLA_NAO_SELECIONADA'
       ) {
         localStorage.removeItem('escolaAtivaId');
@@ -640,7 +651,7 @@ export const usuariosService = {
   alternarStatus: (id) =>
     request(`/usuarios/${id}/status`, { method: 'PATCH' }),
 
-  // Definir status diretamente (ATIVO, INATIVO, BANIDO, SUSPENSO)
+  // Definir status diretamente (ATIVO, INATIVO, BANIDO)
   definirStatus: (id, status) =>
     request(`/usuarios/${id}/status`, {
       method: 'PATCH',

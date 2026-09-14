@@ -16,9 +16,20 @@ const STATUS_LABEL = {
   CONCLUIDA: 'Concluída',
 };
 
+// Status do VÍNCULO do membro com a escola (o backend já manda o da escola
+// ativa, não o campo base). Os dois bloqueiam a escalação; o texto muda porque
+// INATIVO é reversível por um admin e BANIDO é decisão da administração.
 const STATUS_USUARIO_CONFIG = {
-  BANIDO: { label: 'Banido', className: 'bg-red-200 text-red-900 text-xs' },
-  SUSPENSO: { label: 'Suspenso', className: 'bg-orange-100 text-orange-800 text-xs' },
+  BANIDO: {
+    label: 'Banido',
+    className: 'bg-red-200 text-red-900 text-xs',
+    aviso: 'Este membro foi banido da escola e não pode participar de provas.',
+  },
+  INATIVO: {
+    label: 'Desativado',
+    className: 'bg-gray-200 text-gray-700 text-xs',
+    aviso: 'Este membro está com o acesso desativado e não pode participar de provas.',
+  },
 };
 
 export default function CoordDefinirParticipacaoProva() {
@@ -86,8 +97,7 @@ export default function CoordDefinirParticipacaoProva() {
     [contextoProva]
   );
 
-  const isBloqueadoStatus = (membro) =>
-    membro.status === 'BANIDO' || membro.status === 'SUSPENSO';
+  const isBloqueadoStatus = (membro) => Boolean(STATUS_USUARIO_CONFIG[membro.status]);
 
   const isBloqueado = (membro) =>
     membrosBloquadosIds.has(String(membro.id)) || isBloqueadoStatus(membro);
@@ -329,7 +339,7 @@ export default function CoordDefinirParticipacaoProva() {
                               </p>
                               {bloqueadoStatus && (
                                 <p className="text-xs text-red-600 mt-1">
-                                  Este membro está {membro.status === 'BANIDO' ? 'banido' : 'suspenso'} e não pode participar de provas.
+                                  {STATUS_USUARIO_CONFIG[membro.status].aviso}
                                 </p>
                               )}
                             </div>

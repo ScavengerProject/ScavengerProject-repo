@@ -308,16 +308,27 @@ describe('SUPER_ADMIN é superconjunto do ADMIN', () => {
 });
 
 describe('bordas do vínculo e do escopo', () => {
-    it('ADMIN com vínculo SUSPENSO perde o acesso mesmo com token válido', async () => {
+    it.each([
+        ['INATIVO', 'VINCULO_INATIVO'],
+        ['BANIDO', 'VINCULO_BANIDO'],
+    ])('ADMIN com vínculo %s perde o acesso mesmo com token válido', async (status, codigo) => {
         await Usuario.updateOne(
             { _id: adminA._id, 'vinculos.escola_id': ESCOLA_A },
-            { $set: { 'vinculos.$.status': 'SUSPENSO' } },
+            { $set: { 'vinculos.$.status': status } },
         );
 
         const res = await como(adminA)('get', '/api/usuarios');
 
         expect(res.status).toBe(403);
-        expect(res.body.codigo).toBe('VINCULO_INATIVO');
+        // Códigos distintos: o front mostra textos diferentes (desativação
+        // reversível x banimento) e não pode tratar os dois como "escolha outra
+        // escola", que era o laço escola <-> gincana.
+        expect(res.body.codigo).toBe(codigo);
+
+        await Usuario.updateOne(
+            { _id: adminA._id, 'vinculos.escola_id': ESCOLA_A },
+            { $set: { 'vinculos.$.status': 'ATIVO' } },
+        );
     });
 
     it('perder o vínculo invalida o acesso sem precisar de novo login', async () => {

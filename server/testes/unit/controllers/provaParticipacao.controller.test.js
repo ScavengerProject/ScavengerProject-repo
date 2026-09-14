@@ -405,7 +405,7 @@ describe('provaParticipacaoController - salvarEquipeParticipanteDaProva', () => 
     expect(res.status).toHaveBeenCalledWith(422);
   });
 
-  it('retorna 400 quando um dos membros informados está BANIDO ou SUSPENSO', async () => {
+  it('retorna 400 quando um dos membros informados está sem acesso ativo à escola', async () => {
     const coordenador = await criarUsuario({ tipo: 'COORDENADOR' });
     const banido = await criarUsuario({ nome: 'Banido', status: 'BANIDO' });
     await criarEquipeComMembros({ coordenador, membros: [banido] });
@@ -422,7 +422,8 @@ describe('provaParticipacaoController - salvarEquipeParticipanteDaProva', () => 
     await salvarEquipeParticipanteDaProva(req, res);
 
     expect(res.status).toHaveBeenCalledWith(400);
-    expect(res.json.mock.calls[0][0].message).toMatch(/banidos ou suspensos/);
+    expect(res.json.mock.calls[0][0].message).toMatch(/não têm acesso ativo à escola/);
+    expect(res.json.mock.calls[0][0].message).toMatch(/banido/);
   });
 
   it('retorna 400 quando um membro participou da prova anterior (regra de membros consecutivos)', async () => {
