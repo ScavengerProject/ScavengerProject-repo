@@ -31,6 +31,48 @@ const contarMembrosValidos = async (equipeId) => {
 };
 
 /**
+ * Formata uma equipe (pelo Equipe._id mestre) no mesmo formato de listarEquipes,
+ * incluindo a lista de coordenadores e o limite máximo.
+ *
+ * É a ÚNICA forma de serializar uma equipe para o front: AdminEquipes troca o
+ * item da lista pelo objeto devolvido, então todo campo ausente vira `undefined`
+ * na tela. Montar o payload à mão (o que criar/atualizar/atribuirCoordenador
+ * faziam) omitia `coordenadores` e `max_coordenadores` e fazia uma equipe com 3
+ * coordenadores aparecer como "coordenador não definido (0/1)" — e o modal de
+ * limite, partindo desse 1, tomava 409 do servidor, que contava os 3 reais.
+ *
+ * Também filtra por `gincana_id`: sem isso, uma equipe presente em mais de uma
+ * edição podia devolver os pontos/coordenador da edição errada.
+ */
+const formatarEquipeComCoordenadores = async (equipeId, gincanaId) => {
+    const rec = await EquipeGincana.findOne({ equipe_id: equipeId, gincana_id: gincanaId })
+        .populate('equipe_id', 'nome cor')
+        .populate('coordenador_usuario_id', 'nome email');
+
+    if (!rec || !rec.equipe_id) return null;
+
+    const [total_membros, registrosCoord] = await Promise.all([
+        contarMembrosValidos(equipeId),
+        EquipeMembros.find({ equipe_id: equipeId, is_coordenador: true }).populate('usuario_id', 'nome email'),
+    ]);
+
+    const coordenadores = registrosCoord
+        .filter((m) => m.usuario_id)
+        .map((m) => ({ id: m.usuario_id._id, nome: m.usuario_id.nome, email: m.usuario_id.email }));
+
+    return {
+        id: rec.equipe_id._id,
+        nome: rec.equipe_id.nome,
+        cor: rec.equipe_id.cor,
+        pontos_acumulados: rec.pontos_acumulados,
+        coordenador: rec.coordenador_usuario_id,
+        coordenadores,
+        max_coordenadores: rec.max_coordenadores ?? 1,
+        total_membros,
+    };
+};
+
+/**
  * [POST] Cria uma nova equipe principal e o registro da Gincana.
  * Quem exerce: ADMIN. O Coordenador é atribuído posteriormente.
  */
@@ -60,20 +102,11 @@ export const criarEquipe = async (req, res) => {
             gincana_id: escopoGincana(req),
         });
 
-        // 5. Busca e Popula o objeto final para retorno
-        // (Ainda populamos o coordenador, que será null, para manter a consistência)
-        const equipeCriadaPop = await EquipeGincana.findOne({ equipe_id: equipeSalva._id })
-            .populate('equipe_id', 'nome cor')
-            .populate('coordenador_usuario_id', 'nome email');
-
-        const equipeFormatada = {
-            id: equipeCriadaPop.equipe_id._id,
-            nome: equipeCriadaPop.equipe_id.nome,
-            cor: equipeCriadaPop.equipe_id.cor,
-            pontos_acumulados: equipeCriadaPop.pontos_acumulados,
-            coordenador: equipeCriadaPop.coordenador_usuario_id, // (Será null)
-            total_membros: 0, // Inicia com 0 membros
-        };
+        // 5. Monta o objeto final no MESMO formato de listarEquipes. O front
+        // substitui o item da lista por este objeto, então um payload parcial
+        // (sem `coordenadores`/`max_coordenadores`) faz a tela mostrar a equipe
+        // como se não tivesse coordenador algum.
+        const equipeFormatada = await formatarEquipeComCoordenadores(equipeSalva._id, escopoGincana(req));
 
         res.status(201).json({
             message: 'Equipe criada com sucesso. Coordenador pendente.',
@@ -702,21 +735,12 @@ export const atualizarEquipe = async (req, res) => {
         updates.push(equipeContexto.save());
         await Promise.all(updates);
 
-        // 6. Busca a equipe atualizada e populada para o frontend
-        const equipeFinalPop = await EquipeGincana.findOne({ equipe_id: equipeId })
-            .populate('equipe_id', 'nome cor')
-            .populate('coordenador_usuario_id', 'nome email');
-        // Membros são vinculados pelo _id da Equipe mestra (Equipe._id), não pelo da EquipeGincana.
-        const total_membros = await contarMembrosValidos(equipeId);
-
-        const equipeFormatada = {
-            id: equipeId,
-            nome: equipeFinalPop.equipe_id.nome,
-            cor: equipeFinalPop.equipe_id.cor,
-            pontos_acumulados: equipeFinalPop.pontos_acumulados,
-            coordenador: equipeFinalPop.coordenador_usuario_id,
-            total_membros: total_membros,
-        };
+        // 6. Busca a equipe atualizada no MESMO formato de listarEquipes. Editar
+        // nome/cor não toca em coordenador algum, mas o front troca o item da
+        // lista por este objeto: devolver um payload parcial fazia a equipe
+        // aparecer sem coordenadores e com o limite zerado na tela (o banco
+        // seguia correto, e só o modal de limite denunciava a divergência).
+        const equipeFormatada = await formatarEquipeComCoordenadores(equipeId, escopoGincana(req));
 
         res.status(200).json({ message: 'Equipe atualizada com sucesso.', equipe: equipeFormatada });
 
@@ -828,21 +852,9 @@ export const atribuirCoordenador = async (req, res) => {
         // Executa todas as operações em paralelo
         await Promise.all(updates);
 
-        // 4) Monta resposta populada para o frontend (igual ao padrão que você já usa)
-        const equipeFinalPop = await EquipeGincana.findOne({ equipe_id: equipeId })
-            .populate('equipe_id', 'nome cor')
-            .populate('coordenador_usuario_id', 'nome email');
-        // Membros são vinculados pelo _id da Equipe mestra (Equipe._id), não pelo da EquipeGincana.
-        const total_membros = await contarMembrosValidos(equipeId);
-
-        const equipeFormatada = {
-            id: equipeId,
-            nome: equipeFinalPop.equipe_id.nome,
-            cor: equipeFinalPop.equipe_id.cor,
-            pontos_acumulados: equipeFinalPop.pontos_acumulados,
-            coordenador: equipeFinalPop.coordenador_usuario_id, // objeto populado ou null
-            total_membros: total_membros,
-        };
+        // 4) Monta resposta no MESMO formato de listarEquipes (o front substitui
+        // o item da lista por ela).
+        const equipeFormatada = await formatarEquipeComCoordenadores(equipeId, escopoGincana(req));
 
         return res.status(200).json({ message: 'Coordenador atribuído/atualizado com sucesso.', equipe: equipeFormatada });
 
@@ -1146,39 +1158,6 @@ export const meuVinculoNaGincana = async (req, res) => {
         console.error('Erro ao buscar o vínculo de equipe do usuário:', error);
         res.status(500).json({ message: 'Erro interno ao buscar o vínculo de equipe.' });
     }
-};
-
-/**
- * Formata uma equipe (pelo Equipe._id mestre) no mesmo formato de listarEquipes,
- * incluindo a lista de coordenadores e o limite máximo. Reutilizado pelos
- * endpoints de gestão de coordenadores.
- */
-const formatarEquipeComCoordenadores = async (equipeId, gincanaId) => {
-    const rec = await EquipeGincana.findOne({ equipe_id: equipeId, gincana_id: gincanaId })
-        .populate('equipe_id', 'nome cor')
-        .populate('coordenador_usuario_id', 'nome email');
-
-    if (!rec || !rec.equipe_id) return null;
-
-    const [total_membros, registrosCoord] = await Promise.all([
-        contarMembrosValidos(equipeId),
-        EquipeMembros.find({ equipe_id: equipeId, is_coordenador: true }).populate('usuario_id', 'nome email'),
-    ]);
-
-    const coordenadores = registrosCoord
-        .filter((m) => m.usuario_id)
-        .map((m) => ({ id: m.usuario_id._id, nome: m.usuario_id.nome, email: m.usuario_id.email }));
-
-    return {
-        id: rec.equipe_id._id,
-        nome: rec.equipe_id.nome,
-        cor: rec.equipe_id.cor,
-        pontos_acumulados: rec.pontos_acumulados,
-        coordenador: rec.coordenador_usuario_id,
-        coordenadores,
-        max_coordenadores: rec.max_coordenadores ?? 1,
-        total_membros,
-    };
 };
 
 /**

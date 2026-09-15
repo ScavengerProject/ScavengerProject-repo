@@ -12,6 +12,7 @@ import {
   buscarMinhaEquipeId,
   meuVinculoNaGincana,
   atualizarEquipe,
+  criarEquipe,
   adicionarCoordenador,
   removerCoordenador,
   listarEquipesPublicas,
@@ -558,5 +559,85 @@ describe('equipeController - listagens restritas à gincana ativa', () => {
 
     const nomes = res.json.mock.calls[0][0].map((u) => u.nome);
     expect(nomes).toContain('Aluno Livre');
+  });
+});
+
+describe('equipeController - o payload de uma equipe nunca é parcial', () => {
+  // AdminEquipes substitui o item da lista pelo objeto devolvido por estas
+  // rotas. Quando `coordenadores`/`max_coordenadores` faltavam, uma equipe com
+  // coordenadores passava a aparecer como "coordenador não definido (0/1)", e o
+  // modal de limite — partindo desse 1 — levava 409 do servidor, que contava os
+  // coordenadores reais.
+  it('atualizarEquipe devolve coordenadores e max_coordenadores ao editar só nome e cor', async () => {
+    const equipe = await Equipe.create({ nome: 'Time', cor: '#111' });
+    await EquipeGincana.create({
+      equipe_id: equipe._id, gincana_id: 'GINCANA_ATUAL', max_coordenadores: 3,
+    });
+    const coords = await Usuario.create([
+      { nome: 'C1', email: 'c1@x.com', senha: '123', tipo: 'COORDENADOR' },
+      { nome: 'C2', email: 'c2@x.com', senha: '123', tipo: 'COORDENADOR' },
+      { nome: 'C3', email: 'c3@x.com', senha: '123', tipo: 'COORDENADOR' },
+    ]);
+    await EquipeMembros.create(coords.map((c) => ({
+      equipe_id: equipe._id, usuario_id: c._id, is_coordenador: true,
+    })));
+
+    const req = {
+      params: { id: equipe._id.toString() },
+      body: { nome: 'Time Renomeado', cor: '#222' },
+      gincanaId: 'GINCANA_ATUAL',
+    };
+    const res = mockRes();
+
+    await atualizarEquipe(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    const { equipe: payload } = res.json.mock.calls[0][0];
+    expect(payload.nome).toBe('Time Renomeado');
+    expect(payload.cor).toBe('#222');
+    expect(payload.max_coordenadores).toBe(3);
+    expect(payload.coordenadores.map((c) => c.nome).sort()).toEqual(['C1', 'C2', 'C3']);
+  });
+
+  it('atualizarEquipe lê o contexto da gincana ATIVA, não o de outra edição', async () => {
+    const equipe = await Equipe.create({ nome: 'Time', cor: '#111' });
+    // A edição antiga é criada primeiro de propósito: um findOne sem filtro de
+    // gincana devolveria justamente esta.
+    await EquipeGincana.create({
+      equipe_id: equipe._id, gincana_id: 'GINCANA_ANTIGA',
+      pontos_acumulados: 999, max_coordenadores: 5,
+    });
+    await EquipeGincana.create({
+      equipe_id: equipe._id, gincana_id: 'GINCANA_ATUAL',
+      pontos_acumulados: 10, max_coordenadores: 2,
+    });
+
+    const req = {
+      params: { id: equipe._id.toString() },
+      body: { nome: 'Time', cor: '#333' },
+      gincanaId: 'GINCANA_ATUAL',
+    };
+    const res = mockRes();
+
+    await atualizarEquipe(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    const { equipe: payload } = res.json.mock.calls[0][0];
+    expect(payload.pontos_acumulados).toBe(10);
+    expect(payload.max_coordenadores).toBe(2);
+  });
+
+  it('criarEquipe devolve a lista de coordenadores vazia e o limite padrão', async () => {
+    const req = { body: { nome: 'Time Novo', cor: '#444' }, gincanaId: 'GINCANA_ATUAL' };
+    const res = mockRes();
+
+    await criarEquipe(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(201);
+    const { equipe: payload } = res.json.mock.calls[0][0];
+    expect(payload.nome).toBe('Time Novo');
+    expect(payload.coordenadores).toEqual([]);
+    expect(payload.max_coordenadores).toBe(1);
+    expect(payload.total_membros).toBe(0);
   });
 });
