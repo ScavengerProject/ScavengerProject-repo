@@ -57,9 +57,15 @@ const LancarResultadoModal = ({ prova, isOpen, onClose }) => {
             if (tipoDetectado === 'RANKING') {
               resultadosData.sort((a, b) => Number(a.valor) - Number(b.valor));
             }
-            const dadosFormatados = resultadosData.map(r => ({
+            const dadosFormatados = resultadosData.map((r, i) => ({
               equipe_id: r.equipe_id,
-              valor: r.valor.toString(),
+              // No ranking a posição é a ORDEM da linha: é isso que a tela
+              // mostra ("2º Lugar") e de onde sai a pontuação base exibida.
+              // Reaproveitar o valor salvo abria um buraco quando ele tinha
+              // furos — um lançamento de 1º/2º/3º cuja equipe do meio foi
+              // apagada some da listagem e reabre como duas linhas rotuladas
+              // 1º e 2º, mas pontuando como 1º e 3º.
+              valor: tipoDetectado === 'RANKING' ? String(i + 1) : r.valor.toString(),
               // Quantidades de bônus como foram lançadas. Antes isto nascia
               // vazio: reabrir o lançamento mostrava "Bônus: 0 pts" numa prova
               // lançada com bônus e, pior, salvar de novo apagava esses pontos.
