@@ -7,7 +7,7 @@ import EmprestimoEquipe from '../models/EmprestimoEquipe.js';
 import MigracaoEquipe from '../models/MigracaoEquipe.js';
 import Usuario, { vinculoBloqueado } from '../models/Usuario.js';
 import { getEquipeGincanaDoCoordenador } from '../equipes/coordenadorEquipe.js';
-import { getVinculo, statusNaEscola } from '../escolas/escolaHelpers.js';
+import { getVinculo, statusNaEscola, turmaNaEscola } from '../escolas/escolaHelpers.js';
 import { estaPublicada } from './provaPublicacao.js';
 import { calcularStatusProva } from './provaController.js';
 import {
@@ -102,7 +102,9 @@ async function carregarContextoCoordenadorParaProva(coordenadorId, provaId, esco
       nome: inscricao.usuario_id.nome,
       email: inscricao.usuario_id.email,
       tipo: inscricao.usuario_id.tipo,
-      turma: inscricao.usuario_id.turma,
+      // Turma do VÍNCULO com esta escola: o campo de topo é legado e fica null
+      // para quem entrou por convite (ver turmaNaEscola).
+      turma: turmaNaEscola(inscricao.usuario_id, escolaId),
       // Status do VÍNCULO com esta escola (ver statusNaEscola): desativar
       // alguém na escola A não pode aparecer como desativado na escola B.
       status: statusNaEscola(inscricao.usuario_id, escolaId),
@@ -122,7 +124,7 @@ async function carregarContextoCoordenadorParaProva(coordenadorId, provaId, esco
       nome: u.nome,
       email: u.email,
       tipo: u.tipo,
-      turma: u.turma,
+      turma: turmaNaEscola(u, escolaId),
       status: statusNaEscola(u, escolaId),
       inscricao_id: null,
       emprestado: true,
@@ -374,8 +376,8 @@ export const listarAssociacoesProvas = async (req, res) => {
       Prova.find({ gincana_id: gincanaId }).select('titulo data_inicio data_fim status').sort({ data_inicio: -1 }),
       ProvaEquipeParticipacao.find({ gincana_id: gincanaId })
         .populate('equipe_id', 'nome cor')
-        .populate('titulares_usuario_ids', 'nome email tipo turma status')
-        .populate('suplentes_usuario_ids', 'nome email tipo turma status'),
+        .populate('titulares_usuario_ids', 'nome email tipo turma status vinculos')
+        .populate('suplentes_usuario_ids', 'nome email tipo turma status vinculos'),
       EquipeGincana.find({ gincana_id: gincanaId }).select('_id equipe_id'),
       EmprestimoEquipe.find({ status: 'ATIVO', gincana_id: gincanaId })
         .select('usuario_id prova_id equipe_destino_id')
@@ -414,8 +416,10 @@ export const listarAssociacoesProvas = async (req, res) => {
         nome: u.nome,
         email: u.email,
         tipo: u.tipo,
-        turma: u.turma,
-        status: u.status,
+        // Turma e situação são POR ESCOLA (ver turmaNaEscola/statusNaEscola):
+        // os campos de topo são legado e não valem para quem tem vínculo.
+        turma: turmaNaEscola(u, req.escolaId),
+        status: statusNaEscola(u, req.escolaId),
         emprestado,
         equipe_origem_nome: emprestado ? emprestadosMap.get(String(u._id)) : null,
       };
@@ -536,7 +540,7 @@ async function carregarMembrosParaInscricao(coordenadorId, provaId, escolaId) {
       id: usuario._id,
       nome: usuario.nome,
       email: usuario.email,
-      turma: getVinculo(usuario, escolaId)?.turma || usuario.turma || null,
+      turma: turmaNaEscola(usuario, escolaId),
       status: statusNaEscola(usuario, escolaId),
       grupo: veredito.grupo,
       elegivel: veredito.ok,

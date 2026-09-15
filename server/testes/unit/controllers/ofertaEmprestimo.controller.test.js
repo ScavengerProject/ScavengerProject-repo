@@ -11,7 +11,13 @@ import EmprestimoEquipe from '../../../src/models/EmprestimoEquipe.js';
 import OfertaEmprestimo from '../../../src/models/OfertaEmprestimo.js';
 import SolicitacaoEmprestimo from '../../../src/models/SolicitacaoEmprestimo.js';
 import Notificacao from '../../../src/models/Notificacao.js';
+import ProvaEquipeParticipacao from '../../../src/models/ProvaEquipeParticipacao.js';
 import { listarMembrosOfertaveis, criarOferta } from '../../../src/equipes/ofertaEmprestimoController.js';
+import { listarEmprestimos } from '../../../src/equipes/emprestimoEquipeController.js';
+import {
+  listarEquipeParticipanteDaProva,
+  listarAssociacoesProvas,
+} from '../../../src/provas/provaParticipacaoController.js';
 import { visualizarEquipe } from '../../../src/equipes/equipeController.js';
 
 const mockRes = () => {
@@ -44,6 +50,7 @@ afterEach(async () => {
     Equipe.deleteMany({}), EquipeGincana.deleteMany({}), EquipeMembros.deleteMany({}),
     EmprestimoEquipe.deleteMany({}), OfertaEmprestimo.deleteMany({}),
     SolicitacaoEmprestimo.deleteMany({}), Notificacao.deleteMany({}),
+    ProvaEquipeParticipacao.deleteMany({}),
   ]);
 });
 
@@ -165,6 +172,56 @@ describe('turma na tela de ofertar membros', () => {
 
     const turmas = corpoDaResposta(res).membros.map((m) => m.usuario_id.turma);
     expect(turmas).toEqual(expect.arrayContaining(['EF - 7º Ano', 'EM - 1º Ano']));
+  });
+});
+
+describe('turma nas telas de empréstimo', () => {
+  // A tela "Gerenciar Empréstimos" mostrava "Sem turma" para o emprestado: o
+  // populate nem trazia o campo, e trazê-lo do topo do documento também não
+  // resolveria (é legado, e null para quem entrou por convite).
+  it('a lista de empréstimos ativos traz a turma do emprestado', async () => {
+    const { prova, euCoord, elisa, minha, outra } = await montarCenario();
+    await EmprestimoEquipe.create({
+      usuario_id: elisa._id, gincana_id: GINCANA,
+      equipe_origem_id: minha.equipeGincana._id, equipe_destino_id: outra.equipeGincana._id,
+      prova_id: prova._id, status: 'ATIVO', criado_por: euCoord._id,
+    });
+
+    const res = mockRes();
+    await listarEmprestimos({ ...reqDe(euCoord), query: {} }, res);
+
+    const [emprestimo] = corpoDaResposta(res);
+    expect(emprestimo.usuario_id).toMatchObject({ nome: 'Elisa', turma: 'EF - 7º Ano' });
+    // `vinculos` é detalhe interno: entra no populate só para a projeção.
+    expect(emprestimo.usuario_id.vinculos).toBeUndefined();
+  });
+
+  // Mesmo defeito nas telas de escalação: titulares/suplentes e o painel do
+  // admin liam `Usuario.turma` de topo.
+  it('titulares/suplentes e associações trazem a turma do vínculo', async () => {
+    const { prova, euCoord, elisa, minha } = await montarCenario();
+    await ProvaUsuario.create({ prova_id: prova._id, usuario_id: elisa._id, gincana_id: GINCANA });
+    await ProvaEquipeParticipacao.create({
+      prova_id: prova._id, equipe_id: minha.equipe._id, gincana_id: GINCANA,
+      titulares_usuario_ids: [elisa._id], suplentes_usuario_ids: [],
+      definido_por_usuario_id: euCoord._id,
+    });
+
+    const resEquipe = mockRes();
+    await listarEquipeParticipanteDaProva(
+      reqDe(euCoord, { params: { id: prova._id.toString() } }),
+      resEquipe
+    );
+    expect(corpoDaResposta(resEquipe).membros_inscritos).toEqual(
+      expect.arrayContaining([expect.objectContaining({ nome: 'Elisa', turma: 'EF - 7º Ano' })])
+    );
+
+    const resAdmin = mockRes();
+    await listarAssociacoesProvas({ ...reqDe(euCoord), query: {} }, resAdmin);
+    const titulares = corpoDaResposta(resAdmin)[0].equipes[0].titulares;
+    expect(titulares).toEqual(
+      expect.arrayContaining([expect.objectContaining({ nome: 'Elisa', turma: 'EF - 7º Ano' })])
+    );
   });
 });
 

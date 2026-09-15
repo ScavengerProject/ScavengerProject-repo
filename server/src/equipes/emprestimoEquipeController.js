@@ -5,13 +5,16 @@ import EquipeMembro from '../models/EquipeMembros.js';
 import Prova from '../models/Prova.js';
 import Usuario from '../models/Usuario.js';
 import { getEquipesGincanaDoCoordenador } from './coordenadorEquipe.js';
+import { usuarioDaEscola } from '../escolas/escolaHelpers.js';
 
 // Escopo da gincana ativa (injetado por resolverGincana; fallback p/ gincana legada).
 const escopoGincana = (req) => req.gincanaId || 'GINCANA_PRINCIPAL';
 
-// Campos de populate para devolver nomes úteis no front
+// Campos de populate para devolver nomes úteis no front.
+// `vinculos` entra no select do emprestado porque é de lá que saem papel e
+// turma da escola ativa (ver comTurmaDoEmprestado).
 const basePopulate = [
-  { path: 'usuario_id', select: 'nome email tipo' },
+  { path: 'usuario_id', select: 'nome email tipo turma vinculos' },
   {
     path: 'equipe_origem_id',
     populate: { path: 'equipe_id', model: 'Equipe', select: 'nome cor' },
@@ -24,6 +27,27 @@ const basePopulate = [
   { path: 'criado_por', select: 'nome email tipo' },
   { path: 'encerrado_por', select: 'nome email tipo' },
 ];
+
+/**
+ * Projeta o emprestado no papel/turma da ESCOLA ATIVA.
+ *
+ * O populate trazia só `nome email tipo`: a tela de empréstimos mostrava
+ * "Sem turma" para todo mundo porque o campo nem vinha. Acrescentar `turma` ao
+ * select não bastaria — o campo de topo é legado e fica null para quem entrou
+ * por convite; a turma real está no vínculo (ver usuarioDaEscola).
+ */
+const comTurmaDoEmprestado = (emprestimoOuLista, escolaId) => {
+  const achatar = (emprestimo) => {
+    if (!emprestimo) return emprestimo;
+    const obj = typeof emprestimo.toObject === 'function' ? emprestimo.toObject() : { ...emprestimo };
+    if (obj.usuario_id?.vinculos) obj.usuario_id = usuarioDaEscola(obj.usuario_id, escolaId);
+    return obj;
+  };
+
+  return Array.isArray(emprestimoOuLista)
+    ? emprestimoOuLista.map(achatar)
+    : achatar(emprestimoOuLista);
+};
 
 // [POST] /api/equipes/emprestimos
 // body: { usuario_id, equipe_destino_id, prova_id, inicio?, fim? }
@@ -79,7 +103,7 @@ export const criarEmprestimo = async (req, res) => {
     });
 
     const result = await EmprestimoEquipe.findById(doc._id).populate(basePopulate);
-    return res.status(201).json(result);
+    return res.status(201).json(comTurmaDoEmprestado(result, req.escolaId));
   } catch (error) {
     return res.status(500).json({ message: 'Erro ao criar empréstimo.', error: error.message });
   }
@@ -106,7 +130,7 @@ export const listarEmprestimos = async (req, res) => {
     }
 
     const items = await EmprestimoEquipe.find(filtro).sort({ criado_em: -1 }).populate(basePopulate);
-    return res.status(200).json(items);
+    return res.status(200).json(comTurmaDoEmprestado(items, req.escolaId));
   } catch (error) {
     return res.status(500).json({ message: 'Erro ao listar empréstimos.', error: error.message });
   }
@@ -131,7 +155,7 @@ export const encerrarEmprestimo = async (req, res) => {
     await emp.save();
 
     const result = await EmprestimoEquipe.findById(id).populate(basePopulate);
-    return res.status(200).json(result);
+    return res.status(200).json(comTurmaDoEmprestado(result, req.escolaId));
   } catch (error) {
     return res.status(500).json({ message: 'Erro ao encerrar empréstimo.', error: error.message });
   }
