@@ -1,5 +1,6 @@
 import ProvaUsuario from '../models/ProvaUsuario.js';
 import EquipeMembros from '../models/EquipeMembros.js';
+import Usuario from '../models/Usuario.js';
 import { getVinculo } from '../escolas/escolaHelpers.js';
 import { getEquipesGincanaDoCoordenador } from '../equipes/coordenadorEquipe.js';
 
@@ -233,4 +234,88 @@ export const coordenaMembro = async (coordenadorId, usuarioId, gincanaId) => {
     usuario_id: usuarioId,
   });
   return Boolean(membro);
+};
+
+/**
+ * Anexa a cada prova de uma lista as suas cotas e o veredito de elegibilidade
+ * DO PRÓPRIO usuário.
+ *
+ * Sem isso o participante não tinha como saber quem a prova aceita: a tela só
+ * calculava um booleano "tem alguma cota" e escondia o resto, então a única
+ * forma de descobrir que o seu ano escolar não entra era clicar em
+ * "Inscrever-se" e levar 422. As cotas vêm da mesma `resumirCotas` e o veredito
+ * da mesma `avaliarElegibilidade` usadas na inscrição — a tela não pode
+ * prometer nada diferente do que a rota vai decidir.
+ *
+ * Uma consulta só para a ocupação de todas as provas (e não uma por prova):
+ * a listagem é a tela de entrada e roda a cada visita.
+ *
+ * @param {Array} provas objetos de prova (documentos ou saída de aggregate)
+ * @param {{usuarioId?: string, escolaId?: string, isAdmin?: boolean}} contexto
+ * @returns {Promise<Array>} as mesmas provas, com `cotas` e `minha_elegibilidade`
+ */
+export const anexarCotasEElegibilidade = async (provas, contexto = {}) => {
+  const { usuarioId, escolaId, isAdmin = false } = contexto;
+  if (!Array.isArray(provas) || provas.length === 0) return provas;
+
+  const provaIds = provas.map((p) => p._id);
+
+  const inscricoes = await ProvaUsuario.find({ prova_id: { $in: provaIds } })
+    .populate('usuario_id', 'tipo turma vinculos');
+
+  // prova -> { grupo: quantidade }
+  const ocupacao = new Map();
+  const minhasInscricoes = new Set();
+  inscricoes.forEach((inscricao) => {
+    const u = inscricao.usuario_id;
+    if (!u) return;
+    if (usuarioId && String(u._id) === String(usuarioId)) {
+      minhasInscricoes.add(String(inscricao.prova_id));
+    }
+    const grupo = determinarGrupo(u, escolaId);
+    if (!grupo) return;
+    const chave = String(inscricao.prova_id);
+    const atual = ocupacao.get(chave) || {};
+    atual[grupo] = (atual[grupo] || 0) + 1;
+    ocupacao.set(chave, atual);
+  });
+
+  // Admin não participa de prova; e a listagem também é chamada em testes e
+  // rotas sem `req.usuario.id`, então a ausência do id não pode quebrar nada.
+  let usuario = null;
+  let temEquipe = false;
+  if (!isAdmin && usuarioId) {
+    [usuario, temEquipe] = await Promise.all([
+      Usuario.findById(usuarioId).select('tipo turma vinculos'),
+      EquipeMembros.exists({ usuario_id: usuarioId }).then(Boolean),
+    ]);
+  }
+
+  return provas.map((prova) => {
+    const inscritosPorGrupo = ocupacao.get(String(prova._id)) || {};
+    const cotas = resumirCotas(prova, inscritosPorGrupo);
+
+    let minhaElegibilidade = null;
+    if (usuario) {
+      const veredito = avaliarElegibilidade({
+        prova,
+        usuario,
+        escolaId,
+        temEquipe,
+        jaInscrito: minhasInscricoes.has(String(prova._id)),
+        inscritosPorGrupo,
+      });
+      minhaElegibilidade = {
+        ok: veredito.ok,
+        code: veredito.ok ? null : veredito.code,
+        message: veredito.ok ? null : veredito.message,
+        grupo: veredito.grupo,
+      };
+    }
+
+    // Documento do Mongoose vs objeto puro do aggregate: `toObject` só existe
+    // no primeiro, e a listagem usa aggregate.
+    const base = typeof prova.toObject === 'function' ? prova.toObject() : prova;
+    return { ...base, cotas, minha_elegibilidade: minhaElegibilidade };
+  });
 };

@@ -15,6 +15,7 @@ import {
   contarInscritosPorGrupo,
   resumirCotas,
   getEquipeIdsCoordenadas,
+  anexarCotasEElegibilidade,
 } from './elegibilidadeProva.js';
 
 // Escopo da gincana ativa (injetado por resolverGincana; fallback p/ gincana legada).
@@ -29,7 +30,8 @@ const provaJaEncerrou = (prova) => {
 const toUniqueStrings = (arr) => Array.from(new Set((arr || []).map((item) => String(item))));
 
 async function carregarContextoCoordenadorParaProva(coordenadorId, provaId, escolaId) {
-  const prova = await Prova.findById(provaId).select('_id titulo status data_inicio data_fim proibir_membros_consecutivos gincana_id');
+  const prova = await Prova.findById(provaId)
+    .select('_id titulo status data_inicio data_fim proibir_membros_consecutivos requisito_usuario gincana_id');
 
   if (!prova) {
     return { erro: { status: 404, message: 'Prova não encontrada.' } };
@@ -204,6 +206,11 @@ export const listarEquipeParticipanteDaProva = async (req, res) => {
 
     const { bloqueados, provaTitulo } = await buscarMemblosBloqueadosDaProvaAnterior(prova, equipeId);
 
+    // Mesmas cotas que a tela de inscrição mostra. O coordenador escala entre os
+    // já inscritos, então ele não esbarra nelas aqui — mas precisa saber por que
+    // meia equipe não aparece na lista, e é isto que responde.
+    const inscritosPorGrupo = await contarInscritosPorGrupo(provaId, req.escolaId);
+
     const membros = membrosInscritos.map((membro) => {
       const id = String(membro.id);
       const grupo = titularesIds.includes(id)
@@ -225,6 +232,7 @@ export const listarEquipeParticipanteDaProva = async (req, res) => {
         nome: equipeGincana.equipe_id?.nome || 'Equipe',
         cor: equipeGincana.equipe_id?.cor || null,
       },
+      cotas: resumirCotas(prova, inscritosPorGrupo),
       titulares_usuario_ids: titularesIds,
       suplentes_usuario_ids: suplentesIds,
       total_inscritos: membros.length,
@@ -744,8 +752,12 @@ export const listarMinhasInscricoes = async (req, res) => {
     // Filtra pela gincana da PROVA, e não por ProvaUsuario.gincana_id: esse
     // campo só existe em documentos criados depois de `migrar:gincana`, e um
     // inscrito antigo sumiria da lista sem erro nenhum.
+    // Sem `select`: o objeto `prova` daqui alimenta o mesmo ProvaDetalhesModal
+    // das outras telas, que lê pontuação, cotas e ocultar_pontos. Um payload
+    // recortado à mão fazia o modal calcular "nenhuma cota" e anunciar
+    // "Prova Indisponível" para uma prova em que a pessoa ESTÁ inscrita.
     const inscricoes = await ProvaUsuario.find({ usuario_id: meId })
-      .populate('prova_id', 'titulo descricao formato data_inicio data_fim data_publicacao gincana_id');
+      .populate('prova_id');
 
     const minhas = inscricoes.filter((inscricao) => {
       const prova = inscricao.prova_id;
@@ -789,6 +801,14 @@ export const listarMinhasInscricoes = async (req, res) => {
         .select('equipe_origem_id equipe_destino_id atualizado_em')
         .sort({ atualizado_em: 1 }),
     ]);
+
+    // Mesmas cotas/elegibilidade que a listagem de provas anexa, pelo mesmo
+    // caminho — a prova não pode se descrever de um jeito aqui e de outro lá.
+    const provasComCotas = await anexarCotasEElegibilidade(
+      minhas.map((i) => i.prova_id),
+      { usuarioId: meId, escolaId: req.escolaId, isAdmin }
+    );
+    const provaPorId = new Map(provasComCotas.map((p) => [String(p._id), p]));
 
     const equipeAtual = membresiaAtual
       ? porEquipeMestra.get(String(membresiaAtual.equipe_id)) || null
@@ -834,14 +854,11 @@ export const listarMinhasInscricoes = async (req, res) => {
         origem = String(noMomento) === String(equipeGincanaAtualId) ? 'ATUAL' : 'HISTORICO';
       }
 
+      const provaCompleta = provaPorId.get(String(prova._id));
+
       return {
         prova: {
-          _id: prova._id,
-          titulo: prova.titulo,
-          descricao: prova.descricao,
-          formato: prova.formato,
-          data_inicio: prova.data_inicio,
-          data_fim: prova.data_fim,
+          ...provaCompleta,
           status: calcularStatusProva(prova.data_inicio, prova.data_fim),
         },
         inscrito_em: inscricao.createdAt || null,

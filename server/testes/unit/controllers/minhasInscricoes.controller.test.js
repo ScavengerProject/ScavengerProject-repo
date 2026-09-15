@@ -95,6 +95,30 @@ describe('listarMinhasInscricoes', () => {
     expect(corpo(res).equipe_atual).toEqual(expect.objectContaining({ nome: 'Time Azul' }));
   });
 
+  it('devolve a prova COMPLETA, com cotas e pontuação', async () => {
+    // O objeto `prova` daqui alimenta o ProvaDetalhesModal. Recortado à mão,
+    // ele chegava sem requisito_usuario e o modal anunciava "Prova
+    // Indisponível - sem vagas" para uma prova em que a pessoa ESTÁ inscrita.
+    const aluno = await criarAluno();
+    const { equipe } = await criarEquipe('Time Azul');
+    await EquipeMembros.create({ equipe_id: equipe._id, usuario_id: aluno._id });
+    const prova = await criarProva('Completa');
+    await ProvaUsuario.create({ prova_id: prova._id, usuario_id: aluno._id, gincana_id: GINCANA });
+
+    const res = mockRes();
+    await listarMinhasInscricoes(reqDe(aluno), res);
+
+    const payload = corpo(res).inscricoes[0].prova;
+    expect(payload.cotas).toEqual([
+      expect.objectContaining({ grupo: 'ALUNOS_FUNDAMENTAL', limite: 5, inscritos: 1 }),
+    ]);
+    expect(payload.requisito_usuario).toBeDefined();
+    expect(payload.pontuacao).toBeDefined();
+    expect(payload.minha_elegibilidade).toEqual(
+      expect.objectContaining({ code: 'JA_INSCRITO' })
+    );
+  });
+
   it('devolve lista vazia sem erro quando não há inscrição', async () => {
     const aluno = await criarAluno();
 

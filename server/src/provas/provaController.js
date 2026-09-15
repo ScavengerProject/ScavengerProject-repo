@@ -10,6 +10,7 @@ import {
   avaliarElegibilidade,
   contarInscritosPorGrupo,
   coordenaMembro,
+  anexarCotasEElegibilidade,
 } from './elegibilidadeProva.js';
 
 // Escopo da gincana ativa (injetado por resolverGincana; fallback p/ gincana legada).
@@ -196,7 +197,17 @@ export const listarProvas = async (req, res) => {
       p.status = calcularStatusProva(p.data_inicio, p.data_fim);
     });
 
-    res.status(200).json(provas);
+    // Cada prova sai daqui dizendo quem ela aceita (`cotas`) e se ESTE usuário
+    // se encaixa (`minha_elegibilidade`). Antes a tela só sabia se havia
+    // "alguma cota > 0", e a única forma de descobrir que o seu ano escolar não
+    // entrava era clicar em Inscrever-se e levar 422.
+    const provasComCotas = await anexarCotasEElegibilidade(provas, {
+      usuarioId: req.usuario?.id,
+      escolaId: req.escolaId,
+      isAdmin,
+    });
+
+    res.status(200).json(provasComCotas);
   } catch (error) {
     console.error('Erro ao listar provas com resultados:', error);
     res.status(500).json({ message: 'Erro interno ao listar provas' });

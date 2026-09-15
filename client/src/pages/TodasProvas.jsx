@@ -3,13 +3,14 @@ import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
-import { ArrowLeft, Trophy, Calendar, Filter, CheckCircle2, Clock, XCircle, AlertCircle, Award } from "lucide-react";
+import { ArrowLeft, Trophy, Calendar, Filter, CheckCircle2, Clock, XCircle, AlertCircle, Award, Users, Ban } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { provasService, equipesService, resultadosService, configuracoesService } from "../services/api";
 import { toast } from "../components/ui/toast";
 import ProvaDetalhesModal from "../components/ProvaDetalhesModal";
 import MainLayout from "../components/MainLayout";
 import { ehAdmin } from '../lib/perfis';
+import { cotasDaProva, textoDaCota, motivoDaRecusa } from '../lib/cotasProva';
 
 const TodasProvas = () => {
   const navigate = useNavigate();
@@ -319,6 +320,49 @@ const TodasProvas = () => {
                           </Badge>
                         )}
                         </div>
+
+                        {/* Quem pode participar. Antes o card só sabia se havia
+                            "alguma cota > 0" e escondia o resto — a pessoa só
+                            descobria que não se encaixava ao tentar se inscrever. */}
+                        {!ehAdmin(usuario) && prova.status !== 'CONCLUIDA' && (() => {
+                          const cotas = cotasDaProva(prova);
+                          if (cotas.length === 0) return null;
+                          const recusa = motivoDaRecusa(prova.minha_elegibilidade);
+                          const jaInscrito = prova.minha_elegibilidade?.code === 'JA_INSCRITO';
+
+                          return (
+                            <div className="pt-2 border-t border-gray-100 space-y-1.5">
+                              <div className="flex items-start gap-2 text-xs text-gray-600">
+                                <Users className="h-3.5 w-3.5 shrink-0 mt-0.5 text-gray-400" />
+                                <div className="flex flex-wrap gap-1">
+                                  {cotas.map((cota) => (
+                                    <Badge
+                                      key={cota.grupo}
+                                      className={`text-xs ${
+                                        cota.restantes === 0
+                                          ? 'bg-gray-100 text-gray-500'
+                                          : 'bg-slate-100 text-slate-700'
+                                      }`}
+                                    >
+                                      {textoDaCota(cota)}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              </div>
+
+                              {recusa && (
+                                <div className={`flex items-start gap-2 text-xs ${
+                                  jaInscrito ? 'text-green-700' : 'text-amber-700'
+                                }`}>
+                                  {jaInscrito
+                                    ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                                    : <Ban className="h-3.5 w-3.5 shrink-0 mt-0.5" />}
+                                  <span>{recusa}</span>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
 
                         {/* Equipe em primeiro lugar - apenas para provas concluídas */}
                         {prova.status === 'CONCLUIDA' && prova.vencedor && (

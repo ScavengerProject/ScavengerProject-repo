@@ -8,7 +8,8 @@ import { Button } from '../components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Checkbox } from '../components/ui/checkbox';
 import { Badge } from '../components/ui/badge';
-import { Users, UserCheck, UserPlus, Save, AlertTriangle } from 'lucide-react';
+import { Users, UserCheck, UserPlus, Save, AlertTriangle, Ban } from 'lucide-react';
+import { cotasDaProva, textoDaCota } from '../lib/cotasProva';
 
 const STATUS_LABEL = {
   NAO_INICIADA: 'Não iniciada',
@@ -149,6 +150,10 @@ export default function CoordDefinirParticipacaoProva() {
   const membrosInscritos = contextoProva?.membros_inscritos || [];
   const provaAnteriorTitulo = contextoProva?.prova_anterior_titulo;
   const temBloqueados = membrosBloquadosIds.size > 0;
+  // Cotas da prova: o coordenador escala entre os já inscritos, então não
+  // esbarra nelas aqui — mas é o que explica por que metade da equipe não
+  // aparece na lista, e sem isso a tela parece estar escondendo gente.
+  const cotas = contextoProva ? cotasDaProva(contextoProva) : [];
 
   // Log: quem definiu por último os titulares/suplentes desta equipe nesta prova.
   const definidoPor = contextoProva?.definido_por;
@@ -243,6 +248,51 @@ export default function CoordDefinirParticipacaoProva() {
                   )}
                 </p>
               </div>
+            )}
+
+            {/* Limitações desta prova, explícitas */}
+            {(cotas.length > 0 || temBloqueados) && (
+              <Card className="border-slate-200 bg-slate-50">
+                <CardContent className="py-4 space-y-3">
+                  <div className="flex items-center gap-2 text-slate-900">
+                    <Ban className="h-4 w-4" />
+                    <p className="text-sm font-semibold">Limitações desta prova</p>
+                  </div>
+
+                  {cotas.length > 0 && (
+                    <div className="space-y-1.5">
+                      <p className="text-xs text-slate-600">
+                        Só estes grupos participam — quem não se encaixa não consegue se
+                        inscrever, e por isso não aparece na lista abaixo:
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {cotas.map((cota) => (
+                          <Badge
+                            key={cota.grupo}
+                            className={cota.restantes === 0
+                              ? 'bg-gray-200 text-gray-600'
+                              : 'bg-white text-slate-700 border border-slate-300'}
+                          >
+                            {textoDaCota(cota)}
+                          </Badge>
+                        ))}
+                      </div>
+                      <p className="text-xs text-slate-500">
+                        As vagas são da prova inteira, contando todas as equipes.
+                      </p>
+                    </div>
+                  )}
+
+                  {temBloqueados && (
+                    <p className="text-xs text-slate-600">
+                      Quem participou da prova anterior
+                      {provaAnteriorTitulo ? <> "{provaAnteriorTitulo}"</> : ''} não pode
+                      participar desta ({membrosBloquadosIds.size} membro(s) bloqueado(s) na
+                      lista abaixo).
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
             )}
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
