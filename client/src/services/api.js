@@ -251,6 +251,19 @@ export const provasService = {
   listarParticipantes: (provaId) =>
     request(`/provas/${provaId}/participantes`, { method: 'GET' }),
 
+  // Coordenador: membros da própria equipe com elegibilidade para ESTA prova
+  // (inclui os inelegíveis, com o motivo) e vagas restantes por grupo.
+  listarMembrosDaEquipeParaProva: (provaId) =>
+    request(`/provas/${provaId}/inscricao/membros-equipe`, { method: 'GET' }),
+
+  // Coordenador: inscreve vários membros da própria equipe de uma vez. Em lote
+  // porque chamadas paralelas de `inscrever` furam a cota do grupo.
+  inscreverMembrosDaEquipe: (provaId, usuarioIds) =>
+    request(`/provas/${provaId}/inscricoes/equipe`, {
+      method: 'POST',
+      body: JSON.stringify({ usuario_ids: usuarioIds }),
+    }),
+
   // Coordenador: listar membros da própria equipe inscritos na prova e definição atual
   obterEquipeParticipante: (provaId) =>
     request(`/provas/${provaId}/equipe-participante`, { method: 'GET' }),

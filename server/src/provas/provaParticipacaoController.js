@@ -7,6 +7,12 @@ import EmprestimoEquipe from '../models/EmprestimoEquipe.js';
 import Usuario, { vinculoBloqueado } from '../models/Usuario.js';
 import { getEquipeGincanaDoCoordenador } from '../equipes/coordenadorEquipe.js';
 import { getVinculo, statusNaEscola } from '../escolas/escolaHelpers.js';
+import {
+  avaliarElegibilidade,
+  contarInscritosPorGrupo,
+  resumirCotas,
+  getEquipeIdsCoordenadas,
+} from './elegibilidadeProva.js';
 
 // Escopo da gincana ativa (injetado por resolverGincana; fallback p/ gincana legada).
 const escopoGincana = (req) => req.gincanaId || 'GINCANA_PRINCIPAL';
@@ -446,6 +452,241 @@ export const listarAssociacoesProvas = async (req, res) => {
   } catch (error) {
     return res.status(500).json({
       message: 'Erro ao listar associações de alunos às provas.',
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Carrega os membros da equipe que o coordenador comanda nesta prova, já com o
+ * veredito de elegibilidade de cada um.
+ *
+ * Diferente de `carregarContextoCoordenadorParaProva`, que só enxerga quem JÁ
+ * está inscrito (ela serve para escalar titulares/suplentes), aqui o objetivo é
+ * o oposto: mostrar quem ainda PODE ser inscrito — e, para quem não pode, por
+ * quê. Esconder os inelegíveis sem explicação faz a tela parecer quebrada
+ * ("cadê meus alunos?"); é por isso que a lista devolve todo mundo.
+ */
+async function carregarMembrosParaInscricao(coordenadorId, provaId, escolaId) {
+  const prova = await Prova.findById(provaId)
+    .select('_id titulo status data_inicio data_fim requisito_usuario gincana_id');
+
+  if (!prova) {
+    return { erro: { status: 404, message: 'Prova não encontrada.' } };
+  }
+
+  // Restrito à gincana da prova: um coordenador com equipe em OUTRA edição não
+  // coordena nada aqui.
+  const equipeGincana = await getEquipeGincanaDoCoordenador(coordenadorId, {
+    populateEquipe: true,
+    gincanaId: prova.gincana_id,
+  });
+
+  if (!equipeGincana) {
+    return { erro: { status: 403, message: 'Você não coordena nenhuma equipe nesta gincana.' } };
+  }
+
+  const equipeId = equipeGincana.equipe_id?._id || equipeGincana.equipe_id;
+  if (!equipeId) {
+    return { erro: { status: 404, message: 'Equipe do coordenador não encontrada.' } };
+  }
+
+  const membroIds = (await EquipeMembros.find({ equipe_id: equipeId }).distinct('usuario_id'))
+    // O próprio coordenador fica de fora: ele se inscreve pelo botão normal
+    // "Inscrever-se", e o modal já mostra o estado dele em separado.
+    .filter((id) => String(id) !== String(coordenadorId));
+
+  const [usuarios, idsJaInscritos, inscritosPorGrupo] = await Promise.all([
+    Usuario.find({ _id: { $in: membroIds } }).select('nome email tipo turma status vinculos'),
+    ProvaUsuario.find({ prova_id: provaId, usuario_id: { $in: membroIds } }).distinct('usuario_id'),
+    contarInscritosPorGrupo(provaId, escolaId),
+  ]);
+
+  const jaInscritos = new Set(idsJaInscritos.map((id) => String(id)));
+
+  // Mesmo filtro de `carregarContextoCoordenadorParaProva`: numa transferência a
+  // linha em EquipeMembros fica como histórico, e um ex-membro não deve voltar a
+  // ser escalável. Instalação legada (sem nenhum vínculo) não é filtrada.
+  const membrosDaEscola = usuarios.filter(
+    (u) => (u.vinculos || []).length === 0 || getVinculo(u, escolaId)?.status === 'ATIVO'
+  );
+
+  const membros = membrosDaEscola.map((usuario) => {
+    const veredito = avaliarElegibilidade({
+      prova,
+      usuario,
+      escolaId,
+      temEquipe: true,
+      jaInscrito: jaInscritos.has(String(usuario._id)),
+      inscritosPorGrupo,
+    });
+
+    return {
+      id: usuario._id,
+      nome: usuario.nome,
+      email: usuario.email,
+      turma: getVinculo(usuario, escolaId)?.turma || usuario.turma || null,
+      status: statusNaEscola(usuario, escolaId),
+      grupo: veredito.grupo,
+      elegivel: veredito.ok,
+      motivo_codigo: veredito.ok ? null : veredito.code,
+      motivo: veredito.ok ? null : veredito.message,
+    };
+  });
+
+  // Elegíveis primeiro (é neles que o coordenador vai clicar), depois os já
+  // inscritos, e por último os recusados — cada bloco em ordem alfabética.
+  const peso = (m) => (m.elegivel ? 0 : m.motivo_codigo === 'JA_INSCRITO' ? 1 : 2);
+  membros.sort((a, b) => peso(a) - peso(b) || a.nome.localeCompare(b.nome, 'pt-BR'));
+
+  return { prova, equipeGincana, equipeId, membros, inscritosPorGrupo };
+}
+
+/**
+ * [GET] /api/provas/:id/inscricao/membros-equipe  (COORDENADOR)
+ * Membros da equipe do coordenador, com elegibilidade e vagas restantes.
+ */
+export const listarMembrosDaEquipeParaProva = async (req, res) => {
+  try {
+    const { id: provaId } = req.params;
+    const contexto = await carregarMembrosParaInscricao(req.usuario.id, provaId, req.escolaId);
+    if (contexto.erro) {
+      return res.status(contexto.erro.status).json({ message: contexto.erro.message });
+    }
+
+    const { prova, equipeGincana, equipeId, membros, inscritosPorGrupo } = contexto;
+
+    return res.status(200).json({
+      prova: { id: prova._id, titulo: prova.titulo, status: prova.status },
+      equipe: {
+        id: equipeId,
+        nome: equipeGincana.equipe_id?.nome || 'Equipe',
+        cor: equipeGincana.equipe_id?.cor || null,
+      },
+      cotas: resumirCotas(prova, inscritosPorGrupo),
+      membros,
+      total_elegiveis: membros.filter((m) => m.elegivel).length,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: 'Erro ao listar membros da equipe para esta prova.',
+      error: error.message,
+    });
+  }
+};
+
+// Teto por requisição: o lote existe para inscrever uma equipe, não para varrer
+// a escola. Mantém o loop sequencial abaixo com custo previsível.
+const MAX_INSCRICOES_POR_LOTE = 50;
+
+/**
+ * [POST] /api/provas/:id/inscricoes/equipe  (COORDENADOR)
+ * Inscreve vários membros da própria equipe de uma vez.
+ *
+ * Em lote e SEQUENCIAL de propósito: N chamadas paralelas à inscrição avulsa
+ * leriam a contagem da cota antes de qualquer inserção, todas passariam, e a
+ * prova acabaria com mais inscritos do que o limite do grupo. Aqui a contagem é
+ * incrementada a cada inserção, então a cota fecha no lugar certo e os demais
+ * voltam como falha explicada.
+ */
+export const inscreverMembrosDaEquipe = async (req, res) => {
+  try {
+    const { id: provaId } = req.params;
+    const coordenadorId = req.usuario.id;
+    const enviados = req.body?.usuario_ids;
+
+    if (!Array.isArray(enviados) || enviados.length === 0) {
+      return res.status(400).json({ message: 'Informe ao menos um membro para inscrever.' });
+    }
+    if (enviados.length > MAX_INSCRICOES_POR_LOTE) {
+      return res.status(400).json({
+        message: `Máximo de ${MAX_INSCRICOES_POR_LOTE} membros por vez.`,
+      });
+    }
+
+    const idsPedidos = toUniqueStrings(enviados);
+
+    const contexto = await carregarMembrosParaInscricao(coordenadorId, provaId, req.escolaId);
+    if (contexto.erro) {
+      return res.status(contexto.erro.status).json({ message: contexto.erro.message });
+    }
+
+    const { prova, membros, inscritosPorGrupo } = contexto;
+
+    // Autorização: só membros da equipe que ele coordena. `membros` já nasce
+    // restrito a ela, então qualquer id de fora simplesmente não está aqui.
+    const porId = new Map(membros.map((m) => [String(m.id), m]));
+    const forasteiro = idsPedidos.find((id) => !porId.has(id));
+    if (forasteiro) {
+      return res.status(403).json({
+        ok: false,
+        code: 'NAO_AUTORIZADO',
+        message: 'Você só pode inscrever membros da equipe que coordena.',
+      });
+    }
+
+    // Cópia mutável: cada inserção consome uma vaga do grupo para as seguintes.
+    const contagem = { ...inscritosPorGrupo };
+    const inscritos = [];
+    const falhas = [];
+
+    for (const id of idsPedidos) {
+      const membro = porId.get(id);
+      const usuario = await Usuario.findById(id).select('nome tipo turma vinculos');
+      if (!usuario) {
+        falhas.push({ id, nome: membro.nome, code: 'USUARIO_NAO_ENCONTRADO', message: 'Usuário não encontrado.' });
+        continue;
+      }
+
+      const jaInscrito = Boolean(await ProvaUsuario.exists({ prova_id: prova._id, usuario_id: id }));
+      const veredito = avaliarElegibilidade({
+        prova,
+        usuario,
+        escolaId: req.escolaId,
+        temEquipe: true,
+        jaInscrito,
+        inscritosPorGrupo: contagem,
+      });
+
+      if (!veredito.ok) {
+        falhas.push({ id, nome: usuario.nome, code: veredito.code, message: veredito.message });
+        continue;
+      }
+
+      try {
+        await ProvaUsuario.create({ prova_id: prova._id, usuario_id: id, gincana_id: prova.gincana_id });
+        contagem[veredito.grupo] = (contagem[veredito.grupo] || 0) + 1;
+        inscritos.push({ id, nome: usuario.nome });
+      } catch (error) {
+        // Corrida com outra inscrição da mesma pessoa (o índice único do par
+        // prova/usuário é quem decide).
+        if (error?.code === 11000) {
+          falhas.push({ id, nome: usuario.nome, code: 'JA_INSCRITO', message: 'Usuário já inscrito nesta prova.' });
+          continue;
+        }
+        throw error;
+      }
+    }
+
+    const corpo = {
+      ok: inscritos.length > 0,
+      inscritos,
+      falhas,
+      message: inscritos.length > 0
+        ? `${inscritos.length} membro(s) inscrito(s) com sucesso.`
+        : 'Nenhum membro pôde ser inscrito.',
+      // `erros` é o canal que o request() central do front já reexpõe como
+      // error.erros — sem ele, o 422 abaixo chegaria na tela como uma frase
+      // genérica, sem dizer quem foi recusado e por quê.
+      erros: falhas.map((f) => `${f.nome}: ${f.message}`),
+    };
+
+    // Sem nenhum sucesso a resposta é um erro de verdade — assim o tratamento
+    // padrão do front (catch + toast) funciona sem caso especial.
+    return res.status(inscritos.length > 0 ? 201 : 422).json(corpo);
+  } catch (error) {
+    return res.status(500).json({
+      message: 'Erro ao inscrever membros da equipe na prova.',
       error: error.message,
     });
   }

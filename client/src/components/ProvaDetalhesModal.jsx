@@ -15,6 +15,7 @@ import { provasService, equipesService, resultadosService, configuracoesService 
 import { toast } from "./ui/toast";
 import { useAuth } from "../hooks/useAuth";
 import { ehAdmin } from '../lib/perfis';
+import InscreverMembrosEquipeModal from "./InscreverMembrosEquipeModal";
 
 const ProvaDetalhesModal = ({ prova, isOpen, onClose, onInscricaoSucesso }) => {
   const { usuario } = useAuth();
@@ -29,6 +30,11 @@ const ProvaDetalhesModal = ({ prova, isOpen, onClose, onInscricaoSucesso }) => {
   
   const [ocultarPontos, setOcultarPontos] = useState(false); 
   const [salvandoConfig, setSalvandoConfig] = useState(false);
+
+  // Inscrição de membros da equipe (coordenador). Num modal próprio: o de
+  // detalhes já é longo, e a lista da equipe apareceria abaixo da dobra,
+  // longe do botão que a abriu.
+  const [inscreverMembrosAberto, setInscreverMembrosAberto] = useState(false);
 
   useEffect(() => {
     if (isOpen && prova) {
@@ -192,6 +198,11 @@ const ProvaDetalhesModal = ({ prova, isOpen, onClose, onInscricaoSucesso }) => {
   };
 
   const isAdmin = ehAdmin(usuario);
+  // O coordenador pode inscrever a própria equipe enquanto a prova aceita
+  // inscrições — mesma condição do botão de autoinscrição ao lado.
+  const podeInscreverEquipe = usuario?.tipo === 'COORDENADOR'
+    && temCotas
+    && prova.status !== 'CONCLUIDA';
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -342,20 +353,41 @@ const ProvaDetalhesModal = ({ prova, isOpen, onClose, onInscricaoSucesso }) => {
         <DialogFooter className="mt-6">
           <div className="flex items-center justify-between w-full gap-4">
             <Button variant="outline" onClick={onClose}>Fechar</Button>
-            {!jaInscrito && temCotas && prova.status !== 'CONCLUIDA' && (
-               <Button onClick={handleInscrever} disabled={inscrevendo} className="bg-blue-600 text-white">
-                  {inscrevendo ? "Inscrevendo..." : "Inscrever-se"}
-               </Button>
-            )}
-             {jaInscrito && (
-               <div className="flex items-center gap-2 px-4 py-2 bg-green-50 border border-green-200 rounded-lg">
-                <UserCheck className="h-5 w-5 text-green-600" />
-                <span className="text-sm font-medium text-green-800">Inscrito</span>
-              </div>
-            )}
+            <div className="flex items-center gap-3">
+              {podeInscreverEquipe && (
+                <Button
+                  variant="outline"
+                  onClick={() => setInscreverMembrosAberto(true)}
+                  className="border-blue-300 text-blue-700"
+                >
+                  <UserPlus className="h-4 w-4 mr-2" />
+                  Inscrever membros da equipe
+                </Button>
+              )}
+              {!jaInscrito && temCotas && prova.status !== 'CONCLUIDA' && (
+                 <Button onClick={handleInscrever} disabled={inscrevendo} className="bg-blue-600 text-white">
+                    {inscrevendo ? "Inscrevendo..." : "Inscrever-se"}
+                 </Button>
+              )}
+               {jaInscrito && (
+                 <div className="flex items-center gap-2 px-4 py-2 bg-green-50 border border-green-200 rounded-lg">
+                  <UserCheck className="h-5 w-5 text-green-600" />
+                  <span className="text-sm font-medium text-green-800">Inscrito</span>
+                </div>
+              )}
+            </div>
           </div>
         </DialogFooter>
       </DialogContent>
+
+      {podeInscreverEquipe && (
+        <InscreverMembrosEquipeModal
+          prova={prova}
+          isOpen={inscreverMembrosAberto}
+          onClose={() => setInscreverMembrosAberto(false)}
+          onInscricaoSucesso={onInscricaoSucesso}
+        />
+      )}
     </Dialog>
   );
 };
