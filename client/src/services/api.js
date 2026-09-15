@@ -518,12 +518,8 @@ export const emprestimosService = {
     return request(`/equipes/emprestimos${queryString ? '?' + queryString : ''}`, { method: 'GET' });
   },
 
-  // Criar novo empréstimo
-  criar: (usuario_id, equipe_destino_id, prova_id, inicio, fim) =>
-    request('/equipes/emprestimos', {
-      method: 'POST',
-      body: JSON.stringify({ usuario_id, equipe_destino_id, prova_id, inicio, fim }),
-    }),
+  // Não há `criar`: o empréstimo nasce do aceite de uma oferta
+  // (ofertasEmprestimoService.aceitar), nunca de uma criação avulsa.
 
   // Encerrar empréstimo
   encerrar: (emprestimoId, justificativa) =>
