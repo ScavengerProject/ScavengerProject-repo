@@ -243,6 +243,11 @@ export const provasService = {
       body: JSON.stringify(usuarioId ? { usuario_id: usuarioId } : {}),
     }),
   
+  // Provas em que o próprio usuário está inscrito na gincana ativa, já com a
+  // equipe pela qual ele participou de cada uma (empréstimo/migração incluídos).
+  minhasInscricoes: () =>
+    request('/provas/minhas-inscricoes', { method: 'GET' }),
+
   // Verificar se está inscrito na prova
   verificarInscricao: (provaId) =>
     request(`/provas/${provaId}/inscricao/status`, { method: 'GET' }),

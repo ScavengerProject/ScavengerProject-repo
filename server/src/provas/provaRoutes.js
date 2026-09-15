@@ -16,6 +16,7 @@ import {
   listarAssociacoesProvas,
   listarMembrosDaEquipeParaProva,
   inscreverMembrosDaEquipe,
+  listarMinhasInscricoes,
 } from './provaParticipacaoController.js';
 import { proteger, autorizar, resolverEscola, resolverGincana } from '../auth/authPermissions.js';
 
@@ -26,6 +27,13 @@ router.use(proteger, resolverEscola, resolverGincana);
 
 // Rotas públicas (protegidas)
 router.get('/', proteger, listarProvas);
+
+// As próprias inscrições do usuário, com a equipe pela qual ele participou de
+// cada prova. Sem `autorizar`: cada um lê só as suas. DECLARADA ANTES de
+// '/:id' — como é um único segmento, aquela rota a capturaria como um id de
+// prova e responderia 404.
+router.get('/minhas-inscricoes', proteger, listarMinhasInscricoes);
+
 router.get('/:id', proteger, obterProva);
 router.get('/:id/inscricao/status', proteger, verificarInscricao);
 

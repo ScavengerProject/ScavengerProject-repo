@@ -4,9 +4,12 @@ import EquipeMembros from '../models/EquipeMembros.js';
 import ProvaUsuario from '../models/ProvaUsuario.js';
 import ProvaEquipeParticipacao from '../models/ProvaEquipeParticipacao.js';
 import EmprestimoEquipe from '../models/EmprestimoEquipe.js';
+import MigracaoEquipe from '../models/MigracaoEquipe.js';
 import Usuario, { vinculoBloqueado } from '../models/Usuario.js';
 import { getEquipeGincanaDoCoordenador } from '../equipes/coordenadorEquipe.js';
 import { getVinculo, statusNaEscola } from '../escolas/escolaHelpers.js';
+import { estaPublicada } from './provaPublicacao.js';
+import { calcularStatusProva } from './provaController.js';
 import {
   avaliarElegibilidade,
   contarInscritosPorGrupo,
@@ -687,6 +690,193 @@ export const inscreverMembrosDaEquipe = async (req, res) => {
   } catch (error) {
     return res.status(500).json({
       message: 'Erro ao inscrever membros da equipe na prova.',
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Equipe (EquipeGincana._id) em que o usuário estava num dado momento.
+ *
+ * `EquipeMembros` só guarda a equipe ATUAL — quem migrou no meio da gincana
+ * perde, ali, o vínculo com quem era antes. As migrações aprovadas são o
+ * histórico: a primeira migração aprovada DEPOIS do momento procurado tem, na
+ * origem, a equipe em que a pessoa estava naquele momento.
+ *
+ * @param {Date|string|null} momento
+ * @param {Array} migracoes aprovadas, em ordem CRESCENTE de decisão
+ * @param {string|null} equipeGincanaAtualId
+ */
+const equipeGincanaNoMomento = (momento, migracoes, equipeGincanaAtualId) => {
+  if (!momento) return equipeGincanaAtualId;
+
+  const posterior = migracoes.find((m) => new Date(m.atualizado_em) > new Date(momento));
+  return posterior ? String(posterior.equipe_origem_id) : equipeGincanaAtualId;
+};
+
+/**
+ * [GET] /api/provas/minhas-inscricoes
+ * Provas em que o próprio usuário está inscrito na gincana ativa, com a equipe
+ * pela qual ele participou de cada uma.
+ *
+ * Sem `autorizar`: cada um lê apenas as próprias inscrições.
+ *
+ * "A equipe pela qual participou" não é simplesmente a equipe atual da pessoa —
+ * ela pode ter sido emprestada para outra equipe numa prova, ou ter migrado no
+ * meio da gincana. Por isso a origem é resolvida em três níveis, do mais forte
+ * para o mais fraco:
+ *
+ *   1. ESCALACAO  — o coordenador registrou a pessoa como titular/suplente
+ *                   daquela equipe naquela prova. É o registro do que de fato
+ *                   aconteceu, e já embute o empréstimo (quem é emprestado é
+ *                   escalado pela equipe de DESTINO).
+ *   2. EMPRESTIMO — houve empréstimo para a prova, mas ninguém chegou a definir
+ *                   a escalação: a equipe é a de destino.
+ *   3. HISTORICO/ATUAL — nenhum dos dois: reconstrói pela linha do tempo das
+ *                   migrações aprovadas, usando a data de início da prova.
+ */
+export const listarMinhasInscricoes = async (req, res) => {
+  try {
+    const meId = req.usuario.id;
+    const gincanaId = escopoGincana(req);
+    const isAdmin = ['ADMIN', 'SUPER_ADMIN'].includes(req.usuario?.tipo);
+
+    // Filtra pela gincana da PROVA, e não por ProvaUsuario.gincana_id: esse
+    // campo só existe em documentos criados depois de `migrar:gincana`, e um
+    // inscrito antigo sumiria da lista sem erro nenhum.
+    const inscricoes = await ProvaUsuario.find({ usuario_id: meId })
+      .populate('prova_id', 'titulo descricao formato data_inicio data_fim data_publicacao gincana_id');
+
+    const minhas = inscricoes.filter((inscricao) => {
+      const prova = inscricao.prova_id;
+      if (!prova || String(prova.gincana_id) !== String(gincanaId)) return false;
+      // Prova ainda não publicada fica indisponível para não-ADMIN (#18).
+      return isAdmin || estaPublicada(prova);
+    });
+
+    const provaIds = minhas.map((i) => i.prova_id._id);
+
+    const equipesGincana = await EquipeGincana.find({ gincana_id: gincanaId })
+      .populate('equipe_id', 'nome cor');
+
+    // EquipeGincana._id -> equipe mestra (empréstimos e migrações apontam para
+    // EquipeGincana; escalação e EquipeMembros apontam para a Equipe mestra).
+    const porEquipeGincana = new Map();
+    const porEquipeMestra = new Map();
+    equipesGincana.forEach((eg) => {
+      if (!eg.equipe_id) return;
+      const resumo = { id: eg.equipe_id._id, nome: eg.equipe_id.nome, cor: eg.equipe_id.cor || null };
+      porEquipeGincana.set(String(eg._id), resumo);
+      porEquipeMestra.set(String(eg.equipe_id._id), { equipeGincanaId: String(eg._id), ...resumo });
+    });
+
+    const equipeIdsDaGincana = Array.from(porEquipeMestra.keys());
+
+    const [membresiaAtual, escalacoes, emprestimos, migracoesAprovadas] = await Promise.all([
+      EquipeMembros.findOne({ usuario_id: meId, equipe_id: { $in: equipeIdsDaGincana } }),
+      ProvaEquipeParticipacao.find({
+        prova_id: { $in: provaIds },
+        $or: [{ titulares_usuario_ids: meId }, { suplentes_usuario_ids: meId }],
+      }).select('prova_id equipe_id titulares_usuario_ids'),
+      // Empréstimo CANCELADO nunca valeu; ENCERRADO valeu e terminou, então a
+      // pessoa participou mesmo assim.
+      EmprestimoEquipe.find({
+        usuario_id: meId,
+        prova_id: { $in: provaIds },
+        status: { $in: ['ATIVO', 'ENCERRADO'] },
+      }).select('prova_id equipe_origem_id equipe_destino_id'),
+      MigracaoEquipe.find({ usuario_id: meId, status: 'APROVADA' })
+        .select('equipe_origem_id equipe_destino_id atualizado_em')
+        .sort({ atualizado_em: 1 }),
+    ]);
+
+    const equipeAtual = membresiaAtual
+      ? porEquipeMestra.get(String(membresiaAtual.equipe_id)) || null
+      : null;
+    const equipeGincanaAtualId = equipeAtual?.equipeGincanaId || null;
+
+    // Só as migrações desta gincana (o campo gincana_id do modelo é recente —
+    // filtrar por ele descartaria as antigas em silêncio).
+    const migracoes = migracoesAprovadas.filter((m) => porEquipeGincana.has(String(m.equipe_destino_id)));
+
+    const escalacaoPorProva = new Map(escalacoes.map((e) => [
+      String(e.prova_id),
+      {
+        equipeId: String(e.equipe_id),
+        papel: (e.titulares_usuario_ids || []).some((id) => String(id) === String(meId))
+          ? 'TITULAR'
+          : 'SUPLENTE',
+      },
+    ]));
+    const emprestimoPorProva = new Map(emprestimos.map((e) => [String(e.prova_id), e]));
+
+    const resultado = minhas.map((inscricao) => {
+      const prova = inscricao.prova_id;
+      const escalacao = escalacaoPorProva.get(String(prova._id));
+      const emprestimo = emprestimoPorProva.get(String(prova._id));
+
+      let equipe = null;
+      let origem = null;
+
+      if (escalacao) {
+        equipe = porEquipeMestra.get(escalacao.equipeId) || null;
+        origem = 'ESCALACAO';
+      } else if (emprestimo) {
+        equipe = porEquipeGincana.get(String(emprestimo.equipe_destino_id)) || null;
+        origem = 'EMPRESTIMO';
+      } else {
+        const noMomento = equipeGincanaNoMomento(
+          prova.data_inicio || inscricao.createdAt,
+          migracoes,
+          equipeGincanaAtualId
+        );
+        equipe = noMomento ? porEquipeGincana.get(String(noMomento)) || null : null;
+        origem = String(noMomento) === String(equipeGincanaAtualId) ? 'ATUAL' : 'HISTORICO';
+      }
+
+      return {
+        prova: {
+          _id: prova._id,
+          titulo: prova.titulo,
+          descricao: prova.descricao,
+          formato: prova.formato,
+          data_inicio: prova.data_inicio,
+          data_fim: prova.data_fim,
+          status: calcularStatusProva(prova.data_inicio, prova.data_fim),
+        },
+        inscrito_em: inscricao.createdAt || null,
+        equipe: equipe ? { id: equipe.id, nome: equipe.nome, cor: equipe.cor } : null,
+        origem_vinculo: origem,
+        papel: escalacao?.papel || null,
+        emprestado: Boolean(emprestimo),
+        equipe_origem_emprestimo: emprestimo
+          ? porEquipeGincana.get(String(emprestimo.equipe_origem_id)) || null
+          : null,
+        // Deixa a tela dizer "você participou pela X (hoje você está na Y)" sem
+        // ter de comparar ids do lado do cliente.
+        equipe_atual_diferente: Boolean(
+          equipe && equipeAtual && String(equipe.id) !== String(equipeAtual.id)
+        ),
+      };
+    });
+
+    // Mais recentes primeiro; sem data de início, vai para o fim.
+    resultado.sort((a, b) => {
+      const da = a.prova.data_inicio ? new Date(a.prova.data_inicio).getTime() : -Infinity;
+      const db = b.prova.data_inicio ? new Date(b.prova.data_inicio).getTime() : -Infinity;
+      return db - da;
+    });
+
+    return res.status(200).json({
+      equipe_atual: equipeAtual
+        ? { id: equipeAtual.id, nome: equipeAtual.nome, cor: equipeAtual.cor }
+        : null,
+      total: resultado.length,
+      inscricoes: resultado,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: 'Erro ao listar suas inscrições.',
       error: error.message,
     });
   }
