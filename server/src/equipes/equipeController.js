@@ -9,7 +9,7 @@ import {
     filtroEscola,
     filtroEscolaComPerfil,
     projecaoUsuarioNaEscola,
-    comVinculoDaEscola,
+    usuarioDaEscola,
     getVinculo,
     aplicarVinculo,
     conflitoMultiEscola,
@@ -323,7 +323,7 @@ export const listarTodosMembros = async (req, res) => {
         // misturados com os da atual.
         const equipeIdsDaGincana = await EquipeGincana.find({ gincana_id: escopoGincana(req) }).distinct('equipe_id');
         const membros = await EquipeMembros.find({ equipe_id: { $in: equipeIdsDaGincana } })
-            .populate('usuario_id', 'nome email tipo turma')
+            .populate('usuario_id', 'nome email tipo turma vinculos')
             .populate('equipe_id', 'nome cor')
             .sort('usuario_id.nome');
 
@@ -334,12 +334,14 @@ export const listarTodosMembros = async (req, res) => {
         membros.forEach(membro => {
             if (membro.usuario_id && membro.usuario_id._id && !usuariosProcessados.has(membro.usuario_id._id.toString())) {
                 usuariosProcessados.add(membro.usuario_id._id.toString());
+                // Papel/turma DESTA escola (ver usuarioDaEscola).
+                const usuario = usuarioDaEscola(membro.usuario_id, req.escolaId);
                 usuariosUnicos.push({
-                    _id: membro.usuario_id._id,
-                    nome: membro.usuario_id.nome,
-                    email: membro.usuario_id.email,
-                    tipo: membro.usuario_id.tipo,
-                    turma: membro.usuario_id.turma,
+                    _id: usuario._id,
+                    nome: usuario.nome,
+                    email: usuario.email,
+                    tipo: usuario.tipo,
+                    turma: usuario.turma,
                 });
             }
         });
@@ -431,7 +433,7 @@ export const listarMembrosPorEquipe = async (req, res) => {
         const registrosMembros = await EquipeMembros.find({ equipe_id: equipeId })
             // CORRIGIDO: Retirado o .select('is_coordenador usuario_id') daqui,
             // pois o find() já retorna o objeto inteiro, e o select dentro do populate é suficiente.
-            .populate('usuario_id', 'nome email tipo turma');
+            .populate('usuario_id', 'nome email tipo turma vinculos');
 
         // Se a busca falhar por um ID mal formado, ela cai no catch com CastError.
         if (!registrosMembros) {
@@ -440,7 +442,8 @@ export const listarMembrosPorEquipe = async (req, res) => {
 
         // 3. Formata os dados para o frontend
         const membros = registrosMembros.map(reg => {
-            const usuario = reg.usuario_id;
+            // Papel/turma DESTA escola (ver usuarioDaEscola).
+            const usuario = usuarioDaEscola(reg.usuario_id, req.escolaId);
 
             if (!usuario) return null;
 
@@ -515,7 +518,7 @@ export const visualizarEquipe = async (req, res) => {
         const [equipe, membrosDaEquipe] = await Promise.all([
             Equipe.findById(equipeId),
             EquipeMembros.find({ equipe_id: equipeId })
-                .populate('usuario_id', 'nome email tipo turma')
+                .populate('usuario_id', 'nome email tipo turma vinculos')
         ]);
 
         if (!equipe) return res.status(404).json({ message: 'Equipe não encontrada.' });
@@ -530,7 +533,8 @@ export const visualizarEquipe = async (req, res) => {
             // Mantém a estrutura completa com _id e usuario_id populado + flag de coordenador
             membros: membrosDaEquipe.map(membro => ({
                 _id: membro._id,
-                usuario_id: membro.usuario_id,
+                // Papel/turma DESTA escola (ver usuarioDaEscola).
+                usuario_id: usuarioDaEscola(membro.usuario_id, req.escolaId),
                 equipe_id: membro.equipe_id,
                 is_coordenador: membro.is_coordenador,
             }))
@@ -970,10 +974,7 @@ export const listarUsuariosElegiveisCoordenador = async (req, res) => {
             ...filtroEscolaComPerfil(req.escolaId, 'ALUNO'),
         }).select('nome email tipo turma vinculos _id'))
             // Mesmo formato da agregação acima: papel e turma desta escola.
-            .map((u) => {
-                const { vinculos, ...resto } = comVinculoDaEscola(u, req.escolaId);
-                return resto;
-            });
+            .map((u) => usuarioDaEscola(u, req.escolaId));
 
         const usuariosMap = new Map();
 

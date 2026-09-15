@@ -77,6 +77,22 @@ export function statusNaEscola(usuario, escolaId) {
 }
 
 /**
+ * Turma efetiva do usuário DENTRO de uma escola.
+ *
+ * Mesma lógica do papel e da situação: o que vale é o vínculo. O campo de topo
+ * `Usuario.turma` é legado — fica null para quem se cadastrou por convite — e
+ * só responde por instalações anteriores ao multi-escola, cujos usuários não
+ * têm nenhum vínculo para consultar.
+ *
+ * @returns {string|null}
+ */
+export function turmaNaEscola(usuario, escolaId) {
+    if (!usuario) return null;
+    const vinculo = getVinculo(usuario, escolaId);
+    return (vinculo ? vinculo.turma : usuario.turma) ?? null;
+}
+
+/**
  * Resolve os escola_id (String) aos quais o usuário está vinculado.
  *
  * Diferente do vínculo de gincana (que é derivado de EquipeMembros), o vínculo
@@ -136,6 +152,30 @@ export function comVinculoDaEscola(usuario, escolaId) {
         turma: vinculo ? vinculo.turma : obj.turma,
         status: vinculo?.status || obj.status,
     };
+}
+
+/**
+ * Mesmo que `comVinculoDaEscola`, mas sem devolver a lista de vínculos.
+ *
+ * É a forma de serializar um usuário POPULADO dentro de outro documento
+ * (membro de equipe, membro oferecido, usuário de um empréstimo): o populate
+ * precisa trazer `vinculos` para que a projeção funcione, e nada disso deve
+ * vazar para a tela junto.
+ *
+ * Usar isto não é cosmético. `Usuario.turma` e `Usuario.tipo` de topo são
+ * legado: quem se cadastrou por convite tem a turma real APENAS em
+ * `vinculos[].turma`, e o campo de topo fica null (ver `registrarUsuario`).
+ * Ler o campo de topo faz a tela exibir "Sem turma" para a escola inteira — e,
+ * onde a turma decide algo (critério de empréstimo, cota de prova), faz o
+ * sistema decidir errado.
+ *
+ * @param {object} usuario documento populado (ou objeto) de Usuario
+ * @param {string} escolaId
+ */
+export function usuarioDaEscola(usuario, escolaId) {
+    if (!usuario) return usuario;
+    const { vinculos, ...resto } = comVinculoDaEscola(usuario, escolaId);
+    return resto;
 }
 
 /**

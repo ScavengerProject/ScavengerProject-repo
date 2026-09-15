@@ -583,6 +583,12 @@ export const solicitacoesEmprestimoService = {
  * Serviço de Ofertas de Empréstimo
  */
 export const ofertasEmprestimoService = {
+  // Membros da minha equipe que podem ser ofertados para uma solicitação —
+  // com o motivo de cada recusa, para a tela poder explicá-la.
+  // [GET] /api/equipes/ofertas-emprestimo/ofertaveis/:solicitacaoId
+  membrosOfertaveis: (solicitacao_id) =>
+    request(`/equipes/ofertas-emprestimo/ofertaveis/${solicitacao_id}`, { method: 'GET' }),
+
   // Coordenador cria oferta
   criar: (solicitacao_id, membros_oferecidos_ids, mensagem) =>
     request('/equipes/ofertas-emprestimo', {
