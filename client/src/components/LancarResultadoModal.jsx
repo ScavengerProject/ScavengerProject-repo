@@ -60,7 +60,10 @@ const LancarResultadoModal = ({ prova, isOpen, onClose }) => {
             const dadosFormatados = resultadosData.map(r => ({
               equipe_id: r.equipe_id,
               valor: r.valor.toString(),
-              quesitos: {} // Por enquanto, inicializa vazio - pode ser populado se houver dados salvos
+              // Quantidades de bônus como foram lançadas. Antes isto nascia
+              // vazio: reabrir o lançamento mostrava "Bônus: 0 pts" numa prova
+              // lançada com bônus e, pior, salvar de novo apagava esses pontos.
+              quesitos: r.quesitos || {}
             }));
             setResultados(dadosFormatados);
           } else {

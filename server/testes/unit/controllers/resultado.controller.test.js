@@ -251,4 +251,91 @@ describe('resultadoController - listarResultadosDaProva', () => {
     expect(lista[0].pontos_obtidos).toBe(100); // ordenado desc
     expect(lista[0].equipe_nome).toBe('Primeiro');
   });
+
+  // Reabrir o lançamento precisa devolver O QUE FOI DIGITADO, não o que o
+  // cálculo produziu: antes só voltava o primeiro número do texto de
+  // `detalhes_pontuacao`, então as quantidades de bônus reapareciam vazias e
+  // salvar de novo zerava os pontos de bônus da equipe.
+  it('devolve a quantidade da unidade e as quantidades de bônus informadas', async () => {
+    const prova = await criarProvaConcluida(
+      { pontos_por_unidade: 2, nome_unidade: 'agasalhos' },
+      [{ chave: 'EX_ALUNOS', nome: 'Ex-alunos', pontos_por_unidade: 20, teto_unidades: 5 }]
+    );
+    const equipe = await criarEquipeComGincana('Azul');
+
+    await lancarResultados(
+      {
+        query: { provaId: prova._id.toString() },
+        body: {
+          tipo: 'PROPORCIONAL',
+          resultados: [{ equipe_id: equipe._id.toString(), valor: 20, quesitos: { EX_ALUNOS: '3' } }],
+        },
+        usuario: { id: avaliadorId },
+      },
+      mockRes()
+    );
+
+    const res = mockRes();
+    await listarResultadosDaProva({ query: { provaId: prova._id.toString() } }, res);
+
+    const [linha] = res.json.mock.calls[0][0];
+    expect(linha.valor).toBe('20');
+    expect(linha.quesitos).toEqual({ EX_ALUNOS: '3' });
+    expect(linha.pontos_obtidos).toBe(100); // 20×2 + 3×20
+  });
+
+  it('guarda a quantidade informada, e não a limitada pelo teto', async () => {
+    const prova = await criarProvaConcluida(
+      { pontos_por_unidade: 2, nome_unidade: 'agasalhos' },
+      [{ chave: 'EX_ALUNOS', nome: 'Ex-alunos', pontos_por_unidade: 20, teto_unidades: 5 }]
+    );
+    const equipe = await criarEquipeComGincana('Vermelha');
+
+    await lancarResultados(
+      {
+        query: { provaId: prova._id.toString() },
+        body: {
+          tipo: 'PROPORCIONAL',
+          resultados: [{ equipe_id: equipe._id.toString(), valor: 10, quesitos: { EX_ALUNOS: '7' } }],
+        },
+        usuario: { id: avaliadorId },
+      },
+      mockRes()
+    );
+
+    const res = mockRes();
+    await listarResultadosDaProva({ query: { provaId: prova._id.toString() } }, res);
+
+    const [linha] = res.json.mock.calls[0][0];
+    // O campo reabre com o 7 digitado; o teto continua valendo no cálculo.
+    expect(linha.quesitos).toEqual({ EX_ALUNOS: '7' });
+    expect(linha.pontos_obtidos).toBe(120); // 10×2 + min(7,5)×20
+  });
+
+  // Compatibilidade: lançamentos gravados antes dos campos de entrada só têm o
+  // texto de `detalhes_pontuacao`. Sem a leitura desse texto, toda prova já
+  // lançada com bônus continuaria reabrindo zerada.
+  it('recupera a entrada de um resultado antigo, sem os campos novos', async () => {
+    const prova = await criarProvaConcluida(
+      { pontos_por_unidade: 2, nome_unidade: 'agasalhos' },
+      [{ chave: 'EX_ALUNOS', nome: 'Ex-alunos', pontos_por_unidade: 20, teto_unidades: 5 }]
+    );
+    const equipe = await criarEquipeComGincana('Antiga');
+
+    await Resultado.create({
+      gincana_id: 'GINCANA_PRINCIPAL',
+      prova_id: prova._id,
+      equipe_id: equipe._id,
+      pontuacao_obtida: 100,
+      detalhes_pontuacao: '20 agasalhos + Ex-alunos (3 × 20pts = 60pts)',
+      avaliado_por_usuario_id: avaliadorId,
+    });
+
+    const res = mockRes();
+    await listarResultadosDaProva({ query: { provaId: prova._id.toString() } }, res);
+
+    const [linha] = res.json.mock.calls[0][0];
+    expect(linha.valor).toBe('20');
+    expect(linha.quesitos).toEqual({ EX_ALUNOS: '3' });
+  });
 });
