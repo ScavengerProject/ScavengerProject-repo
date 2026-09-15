@@ -203,6 +203,101 @@ describe('resultadoController - lancarResultados (cálculo de pontos)', () => {
     expect(resultado.detalhes_pontuacao).toMatch(/Pais\/Mães \(3 × 20pts = 60pts\)/);
   });
 
+  // RANKING + bônus na mesma prova nunca tinha sido exercitado junto: a
+  // pontuação da posição e a das categorias vêm de ramos diferentes do cálculo.
+  it('RANKING: soma a pontuação da posição E as categorias de bônus', async () => {
+    const prova = await criarProvaConcluida(
+      { '1': 100, '2': 70, '3': 50 },
+      [{ chave: 'EX_ALUNOS', nome: 'Ex-alunos envolvidos', pontos_por_unidade: 20, teto_unidades: 5 }]
+    );
+    const azul = await criarEquipeComGincana('Azul');
+    const vermelha = await criarEquipeComGincana('Vermelha');
+
+    const res = mockRes();
+    await lancarResultados(
+      {
+        query: { provaId: prova._id.toString() },
+        body: { tipo: 'RANKING', resultados: [
+          { equipe_id: azul._id.toString(), valor: '1', quesitos: { EX_ALUNOS: '3' } },
+          { equipe_id: vermelha._id.toString(), valor: '2', quesitos: { EX_ALUNOS: '5' } },
+        ] },
+        usuario: { id: avaliadorId },
+      },
+      res
+    );
+
+    expect(res.status).toHaveBeenCalledWith(201);
+    const rAzul = await Resultado.findOne({ prova_id: prova._id, equipe_id: azul._id });
+    expect(rAzul.pontuacao_obtida).toBe(160); // 100 (1ª) + 3×20
+    const egAzul = await EquipeGincana.findOne({ equipe_id: azul._id });
+    expect(egAzul.pontos_acumulados).toBe(160);
+
+    const rVermelha = await Resultado.findOne({ prova_id: prova._id, equipe_id: vermelha._id });
+    expect(rVermelha.pontuacao_obtida).toBe(170); // 70 (2ª) + 5×20
+  });
+
+  // `0` não é "campo em branco": é a equipe que não atingiu o mínimo (ou não
+  // trouxe nenhuma unidade). A validação de obrigatoriedade testava a
+  // veracidade do valor, então um único 0 derrubava o lançamento inteiro com
+  // 500 — nenhuma das outras equipes era gravada.
+  it('LIMIAR: aceita quantidade 0 e ainda pontua os bônus da equipe', async () => {
+    const prova = await criarProvaConcluida(
+      { quantidade_minima: 30, pontuacao_fixa: 300, nome_unidade: 'alunos' },
+      [{ chave: 'EX_ALUNOS', nome: 'Ex-alunos', pontos_por_unidade: 20, teto_unidades: 5 }]
+    );
+    const presente = await criarEquipeComGincana('Presente');
+    const ausente = await criarEquipeComGincana('Ausente');
+
+    const res = mockRes();
+    await lancarResultados(
+      {
+        query: { provaId: prova._id.toString() },
+        body: { tipo: 'LIMIAR', resultados: [
+          { equipe_id: presente._id.toString(), valor: 40, quesitos: { EX_ALUNOS: '2' } },
+          { equipe_id: ausente._id.toString(), valor: 0, quesitos: { EX_ALUNOS: '3' } },
+        ] },
+        usuario: { id: avaliadorId },
+      },
+      res
+    );
+
+    expect(res.status).toHaveBeenCalledWith(201);
+    const rPresente = await Resultado.findOne({ prova_id: prova._id, equipe_id: presente._id });
+    expect(rPresente.pontuacao_obtida).toBe(340); // 300 + 2×20
+    const rAusente = await Resultado.findOne({ prova_id: prova._id, equipe_id: ausente._id });
+    expect(rAusente.pontuacao_obtida).toBe(60); // sem base, mas 3×20 de bônus
+    expect(rAusente.detalhes_pontuacao).toMatch(/NÃO atingido/i);
+  });
+
+  it('PROPORCIONAL: aceita quantidade 0', async () => {
+    const prova = await criarProvaConcluida({ pontos_por_unidade: 2, nome_unidade: 'agasalhos' });
+    const equipe = await criarEquipeComGincana('Zerada');
+
+    const res = mockRes();
+    await lancarResultados(
+      { query: { provaId: prova._id.toString() }, body: { tipo: 'PROPORCIONAL', resultados: [{ equipe_id: equipe._id.toString(), valor: 0 }] }, usuario: { id: avaliadorId } },
+      res
+    );
+
+    expect(res.status).toHaveBeenCalledWith(201);
+    const resultado = await Resultado.findOne({ prova_id: prova._id, equipe_id: equipe._id });
+    expect(resultado.pontuacao_obtida).toBe(0);
+  });
+
+  it('continua recusando o lançamento sem valor nenhum', async () => {
+    const prova = await criarProvaConcluida({ quantidade_minima: 30, pontuacao_fixa: 300 });
+    const equipe = await criarEquipeComGincana('SemValor');
+
+    const res = mockRes();
+    await lancarResultados(
+      { query: { provaId: prova._id.toString() }, body: { tipo: 'LIMIAR', resultados: [{ equipe_id: equipe._id.toString(), valor: '' }] }, usuario: { id: avaliadorId } },
+      res
+    );
+
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining('Dados incompletos') }));
+  });
+
   it('relançar resultados reverte os pontos anteriores (sem dobrar)', async () => {
     const prova = await criarProvaConcluida({ '1': 100 });
     const equipe = await criarEquipeComGincana('Recalc');

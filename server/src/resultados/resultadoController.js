@@ -258,7 +258,13 @@ export const lancarResultados = async (req, res) => {
     }
 
     for (const res of resultados) {
-      if (!res.equipe_id || !res.valor) {
+      // `0` é um valor VÁLIDO (e não "ausente"): numa prova de tudo ou nada é
+      // exatamente a equipe que não atingiu o mínimo, e numa proporcional é a
+      // que não trouxe nenhuma unidade — ambas podem ainda pontuar por bônus.
+      // Testar com `!res.valor` derrubava o lançamento INTEIRO com 500, e
+      // nenhuma das outras equipes era gravada.
+      const valorAusente = res.valor === undefined || res.valor === null || String(res.valor).trim() === '';
+      if (!res.equipe_id || valorAusente) {
         throw new Error(`Dados incompletos para resultado: equipe_id e valor são obrigatórios`);
       }
 
