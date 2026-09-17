@@ -1,12 +1,10 @@
 // src/equipes/ofertaEmprestimoController.js
 import OfertaEmprestimo from '../models/OfertaEmprestimo.js';
 import SolicitacaoEmprestimo from '../models/SolicitacaoEmprestimo.js';
-import EquipeGincana from '../models/EquipeGincana.js';
-import EquipeMembro from '../models/EquipeMembros.js';
 import EmprestimoEquipe from '../models/EmprestimoEquipe.js';
-import Usuario from '../models/Usuario.js';
 import Notificacao from '../models/Notificacao.js';
 import { getEquipeGincanaDoCoordenador } from './coordenadorEquipe.js';
+import { carregarMembrosOfertaveis, comTurmaDaEscola } from './ofertaElegibilidade.js';
 
 // Escopo da gincana ativa (injetado por resolverGincana; fallback p/ gincana legada).
 const escopoGincana = (req) => req.gincanaId || 'GINCANA_PRINCIPAL';
@@ -17,7 +15,7 @@ const basePopulate = [
     path: 'equipe_ofertante_id',
     populate: { path: 'equipe_id', model: 'Equipe', select: 'nome cor' },
   },
-  { path: 'membros_oferecidos.usuario_id', select: 'nome email turma' },
+  { path: 'membros_oferecidos.usuario_id', select: 'nome email turma vinculos' },
   { path: 'decidido_por', select: 'nome email tipo' },
   {
     path: 'solicitacao_id',
@@ -31,6 +29,48 @@ const basePopulate = [
     ]
   }
 ];
+
+// [GET] /api/equipes/ofertas-emprestimo/ofertaveis/:solicitacaoId
+// Membros da equipe do coordenador, com o veredito de cada um para a solicitação
+export const listarMembrosOfertaveis = async (req, res) => {
+  try {
+    const contexto = await carregarMembrosOfertaveis({
+      coordenadorId: req.usuario.id,
+      solicitacaoId: req.params.solicitacaoId,
+      escolaId: req.escolaId,
+      gincanaId: escopoGincana(req),
+    });
+
+    if (contexto.erro) {
+      return res.status(contexto.erro.status).json({
+        message: contexto.erro.message,
+        ...(contexto.erro.code ? { code: contexto.erro.code } : {}),
+      });
+    }
+
+    const { prova, minhaEquipe, membros, vagas_restantes, criterios, cotas } = contexto;
+
+    return res.status(200).json({
+      prova: { id: prova._id, titulo: prova.titulo },
+      equipe: {
+        id: minhaEquipe.equipe_id?._id || minhaEquipe.equipe_id,
+        nome: minhaEquipe.equipe_id?.nome || 'Equipe',
+        cor: minhaEquipe.equipe_id?.cor || null,
+      },
+      criterios,
+      cotas,
+      vagas_restantes,
+      membros,
+      total_ofertaveis: membros.filter((m) => m.ofertavel).length,
+    });
+  } catch (error) {
+    console.error('Erro ao listar membros ofertáveis:', error);
+    return res.status(500).json({
+      message: 'Erro ao listar membros ofertáveis.',
+      error: error.message,
+    });
+  }
+};
 
 // [POST] /api/equipes/ofertas-emprestimo
 // Coordenador oferece membros para uma solicitação
@@ -52,43 +92,24 @@ export const criarOferta = async (req, res) => {
 
     const gincanaId = escopoGincana(req);
 
-    // Buscar a equipe que o coordenador gerencia
-    const minhaEquipe = await getEquipeGincanaDoCoordenador(me.id, { gincanaId });
-    if (!minhaEquipe) {
-      return res.status(404).json({ message: 'Você não é coordenador de nenhuma equipe.' });
-    }
-
-    // Verificar se a solicitação existe e está aprovada
-    const solicitacao = await SolicitacaoEmprestimo.findById(solicitacao_id);
-    if (!solicitacao) {
-      return res.status(404).json({ message: 'Solicitação não encontrada.' });
-    }
-
-    if (!['APROVADA', 'EM_ANDAMENTO'].includes(solicitacao.status)) {
-      return res.status(409).json({
-        message: 'Solicitação não está disponível para ofertas.'
-      });
-    }
-
-    // Não pode ofertar para sua própria solicitação
-    if (String(solicitacao.equipe_solicitante_id) === String(minhaEquipe._id)) {
-      return res.status(409).json({
-        message: 'Você não pode ofertar membros para sua própria solicitação.'
-      });
-    }
-
-    // Verificar se os membros pertencem à equipe do coordenador
-    // Usar minhaEquipe.equipe_id (ID da Equipe) e não minhaEquipe._id (ID do EquipeGincana)
-    const membros = await EquipeMembro.find({
-      equipe_id: minhaEquipe.equipe_id,
-      usuario_id: { $in: membros_oferecidos_ids }
+    // Solicitação, equipe do coordenador e veredito de cada membro vêm da MESMA
+    // função que alimenta a tela (ver ofertaElegibilidade.js): se a validação
+    // daqui fosse escrita à parte, a lista prometeria o que a rota recusa.
+    const contexto = await carregarMembrosOfertaveis({
+      coordenadorId: me.id,
+      solicitacaoId: solicitacao_id,
+      escolaId: req.escolaId,
+      gincanaId,
     });
 
-    if (membros.length !== membros_oferecidos_ids.length) {
-      return res.status(422).json({
-        message: 'Alguns membros não pertencem à sua equipe.'
+    if (contexto.erro) {
+      return res.status(contexto.erro.status).json({
+        message: contexto.erro.message,
+        ...(contexto.erro.code ? { code: contexto.erro.code } : {}),
       });
     }
+
+    const { solicitacao, minhaEquipe, membros, vagas_restantes } = contexto;
 
     // Verificar se já existe uma oferta pendente desta equipe para esta solicitação
     const ofertaExistente = await OfertaEmprestimo.findOne({
@@ -100,6 +121,36 @@ export const criarOferta = async (req, res) => {
     if (ofertaExistente) {
       return res.status(409).json({
         message: 'Você já possui uma oferta pendente para esta solicitação.'
+      });
+    }
+
+    const porId = new Map(membros.map((m) => [String(m.id), m]));
+
+    // Uma linha por id recusado: o front mostra todas de uma vez (ver `erros`
+    // em services/api.js), em vez de o coordenador corrigir um por vez.
+    const erros = membros_oferecidos_ids.map((id) => {
+      const membro = porId.get(String(id));
+      if (!membro) return 'Alguns membros não pertencem à sua equipe.';
+      if (!membro.ofertavel) return `${membro.nome}: ${membro.motivo}`;
+      return null;
+    }).filter(Boolean);
+
+    if (erros.length > 0) {
+      return res.status(422).json({
+        message: erros[0],
+        code: 'MEMBROS_NAO_OFERTAVEIS',
+        erros,
+      });
+    }
+
+    // A quantidade pedida também é uma limitação da solicitação: ofertar mais
+    // gente do que a equipe pode receber só produz recusa do outro lado.
+    if (membros_oferecidos_ids.length > vagas_restantes) {
+      return res.status(422).json({
+        message: vagas_restantes === 0
+          ? 'Esta solicitação já foi atendida — não há mais vagas.'
+          : `Esta solicitação aceita no máximo ${vagas_restantes} pessoa(s).`,
+        code: 'EXCEDE_QUANTIDADE_SOLICITADA',
       });
     }
 
@@ -131,7 +182,7 @@ export const criarOferta = async (req, res) => {
     });
 
     const result = await OfertaEmprestimo.findById(oferta._id).populate(basePopulate);
-    return res.status(201).json(result);
+    return res.status(201).json(comTurmaDaEscola(result, req.escolaId));
   } catch (error) {
     console.error('Erro ao criar oferta:', error);
     return res.status(500).json({
@@ -179,7 +230,7 @@ export const listarOfertas = async (req, res) => {
       .sort({ criado_em: -1 })
       .populate(basePopulate);
 
-    return res.status(200).json(ofertas);
+    return res.status(200).json(comTurmaDaEscola(ofertas, req.escolaId));
   } catch (error) {
     console.error('Erro ao listar ofertas:', error);
     return res.status(500).json({
@@ -275,7 +326,7 @@ export const aceitarOferta = async (req, res) => {
     }
 
     const result = await OfertaEmprestimo.findById(id).populate(basePopulate);
-    return res.status(200).json(result);
+    return res.status(200).json(comTurmaDaEscola(result, req.escolaId));
   } catch (error) {
     console.error('Erro ao aceitar oferta:', error);
     return res.status(500).json({
@@ -334,7 +385,7 @@ export const recusarOferta = async (req, res) => {
     });
 
     const result = await OfertaEmprestimo.findById(id).populate(basePopulate);
-    return res.status(200).json(result);
+    return res.status(200).json(comTurmaDaEscola(result, req.escolaId));
   } catch (error) {
     console.error('Erro ao recusar oferta:', error);
     return res.status(500).json({
@@ -373,7 +424,7 @@ export const cancelarOferta = async (req, res) => {
     await oferta.save();
 
     const result = await OfertaEmprestimo.findById(id).populate(basePopulate);
-    return res.status(200).json(result);
+    return res.status(200).json(comTurmaDaEscola(result, req.escolaId));
   } catch (error) {
     console.error('Erro ao cancelar oferta:', error);
     return res.status(500).json({

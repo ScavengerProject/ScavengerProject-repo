@@ -12,7 +12,9 @@ import {
   buscarMinhaEquipeId,
   meuVinculoNaGincana,
   atualizarEquipe,
+  criarEquipe,
   adicionarCoordenador,
+  removerCoordenador,
   listarEquipesPublicas,
   listarEquipesGincana,
   listarTodosMembros,
@@ -275,7 +277,10 @@ describe('equipeController - EquipeMembros de gincana anterior não deve "vazar"
   });
 
   it('adicionarCoordenador permite adicionar quem só tem membresia numa gincana anterior', async () => {
-    const candidato = await Usuario.create({ nome: 'Candidato', email: 'cand2@x.com', senha: '123', tipo: 'ALUNO' });
+    const candidato = await Usuario.create({
+      nome: 'Candidato', email: 'cand2@x.com', senha: '123', tipo: 'ALUNO',
+      vinculos: [{ escola_id: 'ESCOLA_X', tipo: 'ALUNO', turma: 'EF - 6º Ano' }],
+    });
     const equipeAntiga = await Equipe.create({ nome: 'Equipe Antiga', cor: '#111' });
     await EquipeGincana.create({ equipe_id: equipeAntiga._id, gincana_id: 'GINCANA_ANTIGA' });
     await EquipeMembros.create({ equipe_id: equipeAntiga._id, usuario_id: candidato._id, is_coordenador: false });
@@ -287,12 +292,158 @@ describe('equipeController - EquipeMembros de gincana anterior não deve "vazar"
       params: { id: equipe._id.toString() },
       body: { usuario_id: candidato._id.toString() },
       gincanaId: 'GINCANA_ATUAL',
+      escolaId: 'ESCOLA_X',
     };
     const res = mockRes();
 
     await adicionarCoordenador(req, res);
 
     expect(res.status).toHaveBeenCalledWith(200);
+  });
+});
+
+// Atribuir a equipe e conceder o papel viraram UMA ação só. Antes o endpoint
+// escrevia o papel BASE (`Usuario.tipo`), que resolverEscola ignora: quem era
+// adicionado aqui ficava com is_coordenador=true e sem passar em nenhum
+// autorizar('COORDENADOR'), e só virava coordenador de verdade se um admin
+// também trocasse o papel na tela de usuários — dois passos, sem nada avisando
+// que o segundo existia. Quem parava no primeiro via o menu de coordenador com
+// todas as telas vazias.
+describe('equipeController - papel de coordenador acompanha o vínculo com a equipe', () => {
+  const ESCOLA = 'ESCOLA_X';
+  const GINCANA = 'GINCANA_ATUAL';
+
+  // Aluno da escola ativa, livre (sem equipe nesta gincana) — é exatamente
+  // quem o dropdown de "Adicionar coordenador" oferece.
+  async function cenarioCoordenador(overridesUsuario = {}) {
+    const equipe = await Equipe.create({ nome: 'Equipe', cor: '#333' });
+    const eg = await EquipeGincana.create({ equipe_id: equipe._id, gincana_id: GINCANA, max_coordenadores: 2 });
+    const aluno = await Usuario.create({
+      nome: 'Aluno Promovido', email: 'promovido@x.com', senha: '123', tipo: 'ALUNO',
+      vinculos: [{ escola_id: ESCOLA, tipo: 'ALUNO', turma: 'EM - 1º Ano' }],
+      ...overridesUsuario,
+    });
+    return { equipe, eg, aluno };
+  }
+
+  const papelNoVinculo = (usuario, escolaId = ESCOLA) =>
+    (usuario.vinculos || []).find((v) => String(v.escola_id) === escolaId)?.tipo;
+
+  it('adicionarCoordenador concede o papel no VÍNCULO da escola ativa, não no tipo base', async () => {
+    const { equipe, aluno } = await cenarioCoordenador();
+
+    const req = {
+      params: { id: equipe._id.toString() },
+      body: { usuario_id: aluno._id.toString() },
+      gincanaId: GINCANA,
+      escolaId: ESCOLA,
+    };
+    const res = mockRes();
+
+    await adicionarCoordenador(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(200);
+
+    // As duas metades, em sincronia: papel (permissão) e relação (dados).
+    const salvo = await Usuario.findById(aluno._id);
+    expect(papelNoVinculo(salvo)).toBe('COORDENADOR');
+    expect(await EquipeMembros.exists({ equipe_id: equipe._id, usuario_id: aluno._id, is_coordenador: true })).toBeTruthy();
+
+    // A turma do vínculo é preservada: sem ela o recém-coordenador não
+    // conseguiria se inscrever em prova (GRUPO_INDETERMINADO).
+    const vinculo = salvo.vinculos.find((v) => v.escola_id === ESCOLA);
+    expect(vinculo.turma).toBe('EM - 1º Ano');
+  });
+
+  it('adicionarCoordenador recusa quem não tem turma definida', async () => {
+    const { equipe, aluno } = await cenarioCoordenador({
+      vinculos: [{ escola_id: ESCOLA, tipo: 'ALUNO', turma: null }],
+      turma: null,
+    });
+
+    const req = {
+      params: { id: equipe._id.toString() },
+      body: { usuario_id: aluno._id.toString() },
+      gincanaId: GINCANA,
+      escolaId: ESCOLA,
+    };
+    const res = mockRes();
+
+    await adicionarCoordenador(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(await EquipeMembros.exists({ usuario_id: aluno._id })).toBeFalsy();
+  });
+
+  // COORDENADOR é perfil de escola única. Como a concessão do papel migrou para
+  // cá, a checagem de conflito multi-escola também precisa valer aqui — senão
+  // este caminho viraria a brecha para prender alguém em duas escolas.
+  // O candidato é PROFESSOR nas duas porque só perfis multi-escola conseguem
+  // existir assim (o próprio model recusa um ALUNO com dois vínculos).
+  it('adicionarCoordenador recusa quem já atua em outra escola', async () => {
+    const { equipe, aluno } = await cenarioCoordenador({
+      nome: 'Professor Dois Vinculos', email: 'prof2@x.com', tipo: 'PROFESSOR',
+      vinculos: [
+        { escola_id: ESCOLA, tipo: 'PROFESSOR', turma: null },
+        { escola_id: 'ESCOLA_B', tipo: 'PROFESSOR', turma: null },
+      ],
+    });
+
+    const req = {
+      params: { id: equipe._id.toString() },
+      body: { usuario_id: aluno._id.toString() },
+      gincanaId: GINCANA,
+      escolaId: ESCOLA,
+    };
+    const res = mockRes();
+
+    await adicionarCoordenador(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ codigo: 'PERFIL_ESCOLA_UNICA' }));
+    expect(await EquipeMembros.exists({ usuario_id: aluno._id })).toBeFalsy();
+  });
+
+  it('removerCoordenador devolve o papel de ALUNO no vínculo da escola ativa', async () => {
+    const { equipe, aluno } = await cenarioCoordenador({
+      vinculos: [{ escola_id: ESCOLA, tipo: 'COORDENADOR', turma: 'EM - 1º Ano' }],
+    });
+    await EquipeMembros.create({ equipe_id: equipe._id, usuario_id: aluno._id, is_coordenador: true });
+
+    const req = {
+      params: { id: equipe._id.toString(), usuarioId: aluno._id.toString() },
+      gincanaId: GINCANA,
+      escolaId: ESCOLA,
+    };
+    const res = mockRes();
+
+    await removerCoordenador(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(200);
+
+    const salvo = await Usuario.findById(aluno._id);
+    expect(papelNoVinculo(salvo)).toBe('ALUNO');
+    expect(await EquipeMembros.exists({ usuario_id: aluno._id })).toBeFalsy();
+  });
+
+  it('removerCoordenador não rebaixa quem coordena mas é PROFESSOR na escola', async () => {
+    const { equipe, aluno: professor } = await cenarioCoordenador({
+      nome: 'Professora Coord', email: 'profcoord@x.com', tipo: 'PROFESSOR',
+      vinculos: [{ escola_id: ESCOLA, tipo: 'PROFESSOR', turma: null }],
+    });
+    await EquipeMembros.create({ equipe_id: equipe._id, usuario_id: professor._id, is_coordenador: true });
+
+    const req = {
+      params: { id: equipe._id.toString(), usuarioId: professor._id.toString() },
+      gincanaId: GINCANA,
+      escolaId: ESCOLA,
+    };
+    const res = mockRes();
+
+    await removerCoordenador(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(papelNoVinculo(await Usuario.findById(professor._id))).toBe('PROFESSOR');
   });
 });
 
@@ -408,5 +559,85 @@ describe('equipeController - listagens restritas à gincana ativa', () => {
 
     const nomes = res.json.mock.calls[0][0].map((u) => u.nome);
     expect(nomes).toContain('Aluno Livre');
+  });
+});
+
+describe('equipeController - o payload de uma equipe nunca é parcial', () => {
+  // AdminEquipes substitui o item da lista pelo objeto devolvido por estas
+  // rotas. Quando `coordenadores`/`max_coordenadores` faltavam, uma equipe com
+  // coordenadores passava a aparecer como "coordenador não definido (0/1)", e o
+  // modal de limite — partindo desse 1 — levava 409 do servidor, que contava os
+  // coordenadores reais.
+  it('atualizarEquipe devolve coordenadores e max_coordenadores ao editar só nome e cor', async () => {
+    const equipe = await Equipe.create({ nome: 'Time', cor: '#111' });
+    await EquipeGincana.create({
+      equipe_id: equipe._id, gincana_id: 'GINCANA_ATUAL', max_coordenadores: 3,
+    });
+    const coords = await Usuario.create([
+      { nome: 'C1', email: 'c1@x.com', senha: '123', tipo: 'COORDENADOR' },
+      { nome: 'C2', email: 'c2@x.com', senha: '123', tipo: 'COORDENADOR' },
+      { nome: 'C3', email: 'c3@x.com', senha: '123', tipo: 'COORDENADOR' },
+    ]);
+    await EquipeMembros.create(coords.map((c) => ({
+      equipe_id: equipe._id, usuario_id: c._id, is_coordenador: true,
+    })));
+
+    const req = {
+      params: { id: equipe._id.toString() },
+      body: { nome: 'Time Renomeado', cor: '#222' },
+      gincanaId: 'GINCANA_ATUAL',
+    };
+    const res = mockRes();
+
+    await atualizarEquipe(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    const { equipe: payload } = res.json.mock.calls[0][0];
+    expect(payload.nome).toBe('Time Renomeado');
+    expect(payload.cor).toBe('#222');
+    expect(payload.max_coordenadores).toBe(3);
+    expect(payload.coordenadores.map((c) => c.nome).sort()).toEqual(['C1', 'C2', 'C3']);
+  });
+
+  it('atualizarEquipe lê o contexto da gincana ATIVA, não o de outra edição', async () => {
+    const equipe = await Equipe.create({ nome: 'Time', cor: '#111' });
+    // A edição antiga é criada primeiro de propósito: um findOne sem filtro de
+    // gincana devolveria justamente esta.
+    await EquipeGincana.create({
+      equipe_id: equipe._id, gincana_id: 'GINCANA_ANTIGA',
+      pontos_acumulados: 999, max_coordenadores: 5,
+    });
+    await EquipeGincana.create({
+      equipe_id: equipe._id, gincana_id: 'GINCANA_ATUAL',
+      pontos_acumulados: 10, max_coordenadores: 2,
+    });
+
+    const req = {
+      params: { id: equipe._id.toString() },
+      body: { nome: 'Time', cor: '#333' },
+      gincanaId: 'GINCANA_ATUAL',
+    };
+    const res = mockRes();
+
+    await atualizarEquipe(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    const { equipe: payload } = res.json.mock.calls[0][0];
+    expect(payload.pontos_acumulados).toBe(10);
+    expect(payload.max_coordenadores).toBe(2);
+  });
+
+  it('criarEquipe devolve a lista de coordenadores vazia e o limite padrão', async () => {
+    const req = { body: { nome: 'Time Novo', cor: '#444' }, gincanaId: 'GINCANA_ATUAL' };
+    const res = mockRes();
+
+    await criarEquipe(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(201);
+    const { equipe: payload } = res.json.mock.calls[0][0];
+    expect(payload.nome).toBe('Time Novo');
+    expect(payload.coordenadores).toEqual([]);
+    expect(payload.max_coordenadores).toBe(1);
+    expect(payload.total_membros).toBe(0);
   });
 });

@@ -185,7 +185,34 @@ que o cliente usa para mandar o usuário escolher de novo:
 |---|---|---|
 | `GINCANA_NAO_SELECIONADA` | trocou de escola e ainda não escolheu uma gincana | vai para `/selecionar-gincana` |
 | `GINCANA_ENCERRADA` | a edição ativa foi encerrada (ou o ano virou) | vai para `/selecionar-gincana` |
-| `SEM_VINCULO_ESCOLA` / `VINCULO_INATIVO` | perdeu o vínculo com a escola ativa | vai para `/selecionar-escola` |
+| `SEM_VINCULO_ESCOLA` | perdeu o vínculo com a escola ativa | vai para `/selecionar-escola` |
+| `VINCULO_INATIVO` | o vínculo existe, mas foi **desativado** (reversível) | vai para `/acesso-bloqueado` |
+| `VINCULO_BANIDO` | o vínculo existe, mas o usuário foi **banido** da escola | vai para `/acesso-bloqueado` |
+| `VINCULO_PENDENTE` | vínculo solicitado, aguardando decisão de um ADMIN | vai para `/aguardando-aprovacao` |
+
+Os três últimos **não** voltam para `/selecionar-escola` de propósito: a escola
+recusada continua sendo a única que o usuário tem, então mandá-lo escolher de
+novo é um laço. `/acesso-bloqueado` é uma tela terminal — não dispara nenhuma
+requisição com escopo.
+
+#### Situação do vínculo
+
+O status que vale é o de `Usuario.vinculos[].status` (por escola); o
+`Usuario.status` do topo é legado e só é lido para usuários sem nenhum vínculo.
+
+| Status | O que significa |
+|---|---|
+| `ATIVO` | usa o sistema normalmente |
+| `PENDENTE` | solicitação aguardando um ADMIN (tela `/aguardando-aprovacao`) |
+| `INATIVO` | desativação administrativa, reversível — basta voltar para ATIVO |
+| `BANIDO` | decisão disciplinar; o atalho "desativar/reativar" se recusa a desfazer (409 `REATIVACAO_EXPLICITA`), só um "Ativar" explícito devolve o acesso |
+
+`SUSPENSO` foi removido — ele nunca teve comportamento próprio. A checagem de
+bloqueio é por exclusão (tudo que não é `ATIVO` nem `PENDENTE` bloqueia), então
+um `SUSPENSO` que tenha sobrado no banco é tratado como bloqueio, e não como
+acesso: o sistema funciona sem a migração. Ainda assim rode
+`npm run migrar:suspenso`, porque o valor saiu do enum e o próximo `save` desse
+usuário falha com um `ValidationError` que não menciona status.
 
 ### Fluxo de entrada
 

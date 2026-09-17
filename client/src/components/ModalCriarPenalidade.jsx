@@ -5,6 +5,7 @@ import { Input } from "./ui/input";
 import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
 import { penalidadesService } from "../services/api";
+import { toast } from "./ui/toast";
 import {
   Select,
   SelectContent,
@@ -79,7 +80,7 @@ export default function ModalCriarPenalidade({ open, onClose, onSubmit }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.equipeId) {
-      alert("Selecione uma equipe para criar a penalidade.");
+      toast.error("Selecione uma equipe para criar a penalidade.");
       return;
     }
 
@@ -106,13 +107,13 @@ export default function ModalCriarPenalidade({ open, onClose, onSubmit }) {
         )
       );
 
-      alert("Penalidade criada com sucesso!");
+      toast.success("Penalidade criada com sucesso!");
       if (typeof onSubmit === "function") onSubmit(res);
       onClose();
     } catch (error) {
       // Só mostra erro se for realmente erro
       console.error("Erro ao criar penalidade:", error);
-      alert("Erro ao criar penalidade: " + (error?.message || "Verifique o console para mais detalhes"));
+      toast.error(error?.message || "Erro ao criar penalidade.");
     }
   };
 

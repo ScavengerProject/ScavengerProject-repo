@@ -76,36 +76,40 @@ describe('Prova Model', () => {
     });
 
     // ==========================================================================
-    // GRUPO DE TESTES PARA A US02 - QUESITOS DE AVALIAÇÃO
+    // GRUPO DE TESTES PARA A US02 - CATEGORIAS DE BÔNUS (bonus_categorias)
     // ==========================================================================
-    describe('US02 - Evaluation Criteria (quesitos_de_avaliacao)', () => {
+    describe('US02 - Categorias de bônus (bonus_categorias)', () => {
         // --------------------------------------------------------------------------
-        // US02.1 - Teste principal com todos os quesitos de avaliação
+        // US02.1 - Teste principal com múltiplas categorias de bônus válidas
         // --------------------------------------------------------------------------
 
-        it('deve salvar uma prova com MÚLTIPLOS quesitos de avaliação válidos', async () => {
+        it('deve salvar uma prova com MÚLTIPLAS categorias de bônus válidas', async () => {
             const provaData = {
-                ...baseProvaData, // Os dados base pra criar a prova
-                quesitos_de_avaliacao: ['TEMPO', 'PRODUTIVIDADE'],  // Os dois quesitos adicionados
+                ...baseProvaData,
+                bonus_categorias: [
+                    { chave: 'EX_ALUNOS', nome: 'Ex-alunos', pontos_por_unidade: 20, teto_unidades: 5 },
+                    { chave: 'PAIS_MAES', nome: 'Pais/Mães', pontos_por_unidade: 20, teto_unidades: 5 },
+                ],
             };
 
             const novaProva = new Prova(provaData);
             const provaSalva = await novaProva.save();
 
-            expect(provaSalva.quesitos_de_avaliacao).toEqual(['TEMPO', 'PRODUTIVIDADE']);
-            expect(provaSalva.quesitos_de_avaliacao).toHaveLength(2);
-            expect(provaSalva.quesitos_de_avaliacao).toBeInstanceOf(Array);
+            expect(provaSalva.bonus_categorias).toHaveLength(2);
+            expect(provaSalva.bonus_categorias[0].toObject()).toMatchObject({
+                chave: 'EX_ALUNOS', nome: 'Ex-alunos', pontos_por_unidade: 20, teto_unidades: 5,
+            });
         });
 
         // --------------------------------------------------------------------------
-        //  US02.2 - Rejeita a criação da prova quando tiver um quesito que não está predescrito no ENUM
+        // US02.2 - Rejeita categoria de bônus sem os campos obrigatórios
         // --------------------------------------------------------------------------
 
-        it('deve rejeitar e falhar a validação se um quesito no array for inválido (fora do ENUM)', async () => {
+        it('deve rejeitar e falhar a validação se uma categoria de bônus não tiver "nome"', async () => {
             const provaData = {
                 ...baseProvaData,
                 titulo: 'Prova Inválida',
-                quesitos_de_avaliacao: ['TEMPO', 'FORCA'],  // O teste deve falhar com 'FORCA'
+                bonus_categorias: [{ chave: 'EX_ALUNOS', pontos_por_unidade: 20 }],
             };
 
             let erro;
@@ -116,30 +120,42 @@ describe('Prova Model', () => {
                 erro = e;
             }
 
-            // Tem que sinalizar um erro e deve ser um ValidationError
             expect(erro).toBeInstanceOf(mongoose.Error.ValidationError);
-
-            // Verifica se a mensagem de erro (a string completo) menciona o campo e o valor inválido
-            expect(erro.message).toMatch(/quesitos_de_avaliacao/i);
-            expect(erro.message).toMatch(/FORCA/i);
+            expect(erro.message).toMatch(/bonus_categorias/i);
         });
-        
+
         // --------------------------------------------------------------------------
         // US02.3 - Testa o array sendo enviado vazio (é permitido e também uma boa prática)
         // --------------------------------------------------------------------------
 
-        it('deve salvar uma prova com array de quesitos vazio se nenhum for fornecido', async () => {
+        it('deve salvar uma prova com array de bonus_categorias vazio se nenhum for fornecido', async () => {
             const provaData = {
                 ...baseProvaData,
-                // Não contém o campo quesitos_de_avaliacao (deve ir vazio)
+                // Não contém o campo bonus_categorias (deve ir vazio)
             };
 
             const novaProva = new Prova(provaData);
             const provaSalva = await novaProva.save();
-            
+
             // O campo deve ser um array vazio por causa do 'default: []' no schema do models
-            expect(provaSalva.quesitos_de_avaliacao).toEqual([]);
-            expect(provaSalva.quesitos_de_avaliacao).toHaveLength(0);
+            expect(provaSalva.bonus_categorias).toEqual([]);
+            expect(provaSalva.bonus_categorias).toHaveLength(0);
+        });
+
+        // --------------------------------------------------------------------------
+        // US02.4 - teto_unidades é opcional (null = sem teto)
+        // --------------------------------------------------------------------------
+
+        it('deve aceitar uma categoria de bônus sem teto_unidades (sem teto)', async () => {
+            const provaData = {
+                ...baseProvaData,
+                bonus_categorias: [{ chave: 'DOACOES', nome: 'Doações', pontos_por_unidade: 2 }],
+            };
+
+            const novaProva = new Prova(provaData);
+            const provaSalva = await novaProva.save();
+
+            expect(provaSalva.bonus_categorias[0].teto_unidades).toBeNull();
         });
     });
 });

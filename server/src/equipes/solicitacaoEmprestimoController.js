@@ -7,6 +7,7 @@ import Usuario from '../models/Usuario.js';
 import Notificacao from '../models/Notificacao.js';
 import { getEquipeGincanaDoCoordenador } from './coordenadorEquipe.js';
 import { filtroEscolaComPerfil } from '../escolas/escolaHelpers.js';
+import { comTurmaDaEscola } from './ofertaElegibilidade.js';
 
 // Escopo da gincana ativa (injetado por resolverGincana; fallback p/ gincana legada).
 const escopoGincana = (req) => req.gincanaId || 'GINCANA_PRINCIPAL';
@@ -150,13 +151,15 @@ export const obterSolicitacao = async (req, res) => {
           path: 'equipe_ofertante_id',
           populate: { path: 'equipe_id', model: 'Equipe', select: 'nome cor' },
         },
-        { path: 'membros_oferecidos.usuario_id', select: 'nome email turma' },
+        { path: 'membros_oferecidos.usuario_id', select: 'nome email turma vinculos' },
         { path: 'decidido_por', select: 'nome email tipo' },
       ]);
 
     return res.status(200).json({
       ...solicitacao.toObject(),
-      ofertas,
+      // Turma dos membros oferecidos pelo vínculo com a escola ativa: é desta
+      // tela que o coordenador solicitante decide aceitar ou recusar.
+      ofertas: comTurmaDaEscola(ofertas, req.escolaId),
     });
   } catch (error) {
     console.error('Erro ao obter solicitação:', error);

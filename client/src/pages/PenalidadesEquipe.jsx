@@ -7,6 +7,7 @@ import { Plus, ArrowLeft } from "lucide-react";
 import ModalCriarPenalidade from "../components/ModalCriarPenalidade";
 
 import { penalidadesService } from "../services/api";
+import { toast } from "../components/ui/toast";
 
 export default function Penalidades() {
   const navigate = useNavigate();
@@ -25,7 +26,7 @@ export default function Penalidades() {
     } catch (err) {
       console.error(err);
       // O 'api.js' já lança um erro com a mensagem correta
-      alert(`Erro ao carregar penalidades: ${err.message}`);
+      toast.error(`Erro ao carregar penalidades: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -39,19 +40,9 @@ export default function Penalidades() {
     setOpenModal(true);
   };
 
-  // 3. FUNÇÃO ATUALIZADA (handleSubmitPenalidade)
-  const handleSubmitPenalidade = async (penalidade) => {
-    try {
-      // Usa o serviço centralizado
-      await penalidadesService.criarPenalidade(penalidade);
-
-      alert("Penalidade criada com sucesso!");
-      carregarPenalidades(); // Atualiza lista
-    } catch (err) {
-      console.error(err);
-      alert(`Erro ao criar penalidade: ${err.message}`);
-    }
-    // Não precisa de 'finally' aqui, o modal é fechado pelo componente filho
+  // O modal ja cria a penalidade e notifica o sucesso; aqui so recarregamos a lista.
+  const handleSubmitPenalidade = () => {
+    carregarPenalidades();
   };
 
   const handleVoltar = () => {

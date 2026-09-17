@@ -1,7 +1,7 @@
 import Escola from '../models/Escola.js';
 import Usuario from '../models/Usuario.js';
 import Gincana from '../models/Gincana.js';
-import { PERFIS_ESCOLA, podeMultiEscola } from '../models/Usuario.js';
+import { PERFIS_ESCOLA, podeMultiEscola, vinculoBloqueado } from '../models/Usuario.js';
 import {
     filtroEscola,
     getVinculo,
@@ -10,6 +10,7 @@ import {
     conflitoMultiEscola,
 } from './escolaHelpers.js';
 import { notificarCoordenadoresDeOrigem } from '../notificacoes/notificarTransferenciaEscola.js';
+import { recusaMudancaDePapelCoordenador } from '../equipes/coordenadorEquipe.js';
 
 /**
  * [GET] Lista todas as escolas (apenas SUPER_ADMIN).
@@ -32,6 +33,19 @@ export const listarEscolas = async (req, res) => {
  * Cada item vem com `meu_tipo`: o papel do usuário NAQUELA escola. É o que a
  * tela de seleção usa para saber com que perfil ele vai entrar — e o que o
  * front aplica no lugar do papel do token depois de escolher a escola.
+ *
+ * Escola de vínculo bloqueado (INATIVO/BANIDO) continua na lista, mas marcada
+ * com `meu_vinculo_bloqueado: true`. Ela NÃO pode ser escolhida — quem tenta
+ * leva 403 em `resolverEscola` — e o front precisa saber disso ANTES de
+ * selecionar: esta rota não passa por `resolverEscola` (só `resolverPapelBase`),
+ * então era ela que devolvia a escola bloqueada como se fosse utilizável, o
+ * front auto-selecionava a única da lista, a primeira chamada com escopo
+ * respondia 403 e o usuário voltava para cá — o laço escola <-> gincana.
+ *
+ * Devolver a escola marcada, em vez de omiti-la, é o que permite explicar o
+ * bloqueio ("você foi banido desta escola") em vez de mostrar uma lista vazia.
+ * PENDENTE fica fora do bloqueio de propósito: ele PRECISA ser selecionável
+ * para o usuário chegar na tela de espera (ver codigo VINCULO_PENDENTE).
  */
 export const minhasEscolas = async (req, res) => {
     try {
@@ -55,10 +69,12 @@ export const minhasEscolas = async (req, res) => {
         res.status(200).json(
             escolas.map((e) => {
                 const vinculo = getVinculo(usuario, e._id);
+                const status = vinculo?.status || 'ATIVO';
                 return {
                     ...e.toObject(),
                     meu_tipo: vinculo?.tipo || null,
-                    meu_vinculo_status: vinculo?.status || 'ATIVO',
+                    meu_vinculo_status: status,
+                    meu_vinculo_bloqueado: vinculoBloqueado(status),
                 };
             })
         );
@@ -276,6 +292,14 @@ export const vincularUsuario = async (req, res) => {
         // O papel efetivo é o informado ou, na falta dele, o papel base herdado
         // (mesma regra de aplicarVinculo) — a checagem precisa usar esse valor.
         const tipoEfetivo = tipo || (usuario.tipo === 'SUPER_ADMIN' ? 'ADMIN' : usuario.tipo);
+
+        // Vale também para o papel HERDADO: um `tipo` base COORDENADOR (resquício
+        // do fluxo antigo) criaria aqui um vínculo de coordenador sem equipe.
+        const recusaCoordenador = await recusaMudancaDePapelCoordenador(tipoEfetivo, null);
+        if (recusaCoordenador) {
+            return res.status(400).json({ message: recusaCoordenador, codigo: 'COORDENADOR_VIA_EQUIPE' });
+        }
+
         const conflito = conflitoMultiEscola(usuario, id, tipoEfetivo);
 
         let vinculoOrigem = null;
@@ -356,6 +380,12 @@ export const alterarPapelUsuario = async (req, res) => {
 
         if ((tipo === 'ALUNO' || tipo === 'COORDENADOR') && !(turma ?? vinculo.turma)) {
             return res.status(400).json({ message: 'Turma é obrigatória para alunos e coordenadores.' });
+        }
+
+        // COORDENADOR se concede/revoga em Gerenciar Equipes, junto com a equipe.
+        const recusaCoordenador = await recusaMudancaDePapelCoordenador(tipo, vinculo.tipo, usuario._id);
+        if (recusaCoordenador) {
+            return res.status(400).json({ message: recusaCoordenador, codigo: 'COORDENADOR_VIA_EQUIPE' });
         }
 
         // Rebaixar um ADMIN multi-escola para um perfil de participante deixaria

@@ -4,9 +4,19 @@ import EquipeMembros from '../models/EquipeMembros.js';
 import ProvaUsuario from '../models/ProvaUsuario.js';
 import ProvaEquipeParticipacao from '../models/ProvaEquipeParticipacao.js';
 import EmprestimoEquipe from '../models/EmprestimoEquipe.js';
-import Usuario from '../models/Usuario.js';
+import MigracaoEquipe from '../models/MigracaoEquipe.js';
+import Usuario, { vinculoBloqueado } from '../models/Usuario.js';
 import { getEquipeGincanaDoCoordenador } from '../equipes/coordenadorEquipe.js';
-import { getVinculo } from '../escolas/escolaHelpers.js';
+import { getVinculo, statusNaEscola, turmaNaEscola } from '../escolas/escolaHelpers.js';
+import { estaPublicada } from './provaPublicacao.js';
+import { calcularStatusProva } from './provaController.js';
+import {
+  avaliarElegibilidade,
+  contarInscritosPorGrupo,
+  resumirCotas,
+  getEquipeIdsCoordenadas,
+  anexarCotasEElegibilidade,
+} from './elegibilidadeProva.js';
 
 // Escopo da gincana ativa (injetado por resolverGincana; fallback p/ gincana legada).
 const escopoGincana = (req) => req.gincanaId || 'GINCANA_PRINCIPAL';
@@ -20,7 +30,8 @@ const provaJaEncerrou = (prova) => {
 const toUniqueStrings = (arr) => Array.from(new Set((arr || []).map((item) => String(item))));
 
 async function carregarContextoCoordenadorParaProva(coordenadorId, provaId, escolaId) {
-  const prova = await Prova.findById(provaId).select('_id titulo status data_inicio data_fim proibir_membros_consecutivos gincana_id');
+  const prova = await Prova.findById(provaId)
+    .select('_id titulo status data_inicio data_fim proibir_membros_consecutivos requisito_usuario gincana_id');
 
   if (!prova) {
     return { erro: { status: 404, message: 'Prova não encontrada.' } };
@@ -52,7 +63,7 @@ async function carregarContextoCoordenadorParaProva(coordenadorId, provaId, esco
     const [entrada, saida] = await Promise.all([
       // Alunos emprestados PARA esta equipe nesta prova
       EmprestimoEquipe.find({ prova_id: provaId, equipe_destino_id: equipeGincana._id, status: 'ATIVO' })
-        .populate('usuario_id', 'nome email tipo turma status')
+        .populate('usuario_id', 'nome email tipo turma status vinculos')
         .populate({ path: 'equipe_origem_id', populate: { path: 'equipe_id', model: 'Equipe', select: 'nome cor' } }),
       // Alunos desta equipe emprestados PARA FORA nesta prova (não devem ser escaláveis por ela aqui)
       EmprestimoEquipe.find({ prova_id: provaId, equipe_origem_id: equipeGincana._id, status: 'ATIVO' }).select('usuario_id'),
@@ -82,7 +93,7 @@ async function carregarContextoCoordenadorParaProva(coordenadorId, provaId, esco
   const inscricoes = await ProvaUsuario.find({
     prova_id: provaId,
     usuario_id: { $in: membroIdsComCoordenador },
-  }).populate('usuario_id', 'nome email tipo turma status');
+  }).populate('usuario_id', 'nome email tipo turma status vinculos');
 
   const membrosInscritos = inscricoes
     .filter((inscricao) => inscricao.usuario_id)
@@ -91,8 +102,12 @@ async function carregarContextoCoordenadorParaProva(coordenadorId, provaId, esco
       nome: inscricao.usuario_id.nome,
       email: inscricao.usuario_id.email,
       tipo: inscricao.usuario_id.tipo,
-      turma: inscricao.usuario_id.turma,
-      status: inscricao.usuario_id.status,
+      // Turma do VÍNCULO com esta escola: o campo de topo é legado e fica null
+      // para quem entrou por convite (ver turmaNaEscola).
+      turma: turmaNaEscola(inscricao.usuario_id, escolaId),
+      // Status do VÍNCULO com esta escola (ver statusNaEscola): desativar
+      // alguém na escola A não pode aparecer como desativado na escola B.
+      status: statusNaEscola(inscricao.usuario_id, escolaId),
       inscricao_id: inscricao._id,
       emprestado: false,
       equipe_origem_nome: null,
@@ -109,8 +124,8 @@ async function carregarContextoCoordenadorParaProva(coordenadorId, provaId, esco
       nome: u.nome,
       email: u.email,
       tipo: u.tipo,
-      turma: u.turma,
-      status: u.status,
+      turma: turmaNaEscola(u, escolaId),
+      status: statusNaEscola(u, escolaId),
       inscricao_id: null,
       emprestado: true,
       equipe_origem_nome: emp.equipe_origem_id?.equipe_id?.nome || null,
@@ -193,6 +208,11 @@ export const listarEquipeParticipanteDaProva = async (req, res) => {
 
     const { bloqueados, provaTitulo } = await buscarMemblosBloqueadosDaProvaAnterior(prova, equipeId);
 
+    // Mesmas cotas que a tela de inscrição mostra. O coordenador escala entre os
+    // já inscritos, então ele não esbarra nelas aqui — mas precisa saber por que
+    // meia equipe não aparece na lista, e é isto que responde.
+    const inscritosPorGrupo = await contarInscritosPorGrupo(provaId, req.escolaId);
+
     const membros = membrosInscritos.map((membro) => {
       const id = String(membro.id);
       const grupo = titularesIds.includes(id)
@@ -214,6 +234,7 @@ export const listarEquipeParticipanteDaProva = async (req, res) => {
         nome: equipeGincana.equipe_id?.nome || 'Equipe',
         cor: equipeGincana.equipe_id?.cor || null,
       },
+      cotas: resumirCotas(prova, inscritosPorGrupo),
       titulares_usuario_ids: titularesIds,
       suplentes_usuario_ids: suplentesIds,
       total_inscritos: membros.length,
@@ -277,14 +298,21 @@ export const salvarEquipeParticipanteDaProva = async (req, res) => {
       });
     }
 
-    // Validação: membros BANIDO ou SUSPENSO não podem participar
-    const membrosBanidosSuspensos = membrosInscritos.filter(
-      (m) => idsEnviados.includes(String(m.id)) && (m.status === 'BANIDO' || m.status === 'SUSPENSO')
+    // Rede de segurança: quem não tem vínculo ATIVO com a escola não é
+    // escalável. Na prática o próprio `membrosInscritos` já filtra por isso
+    // (ver carregarContextoCoordenadorParaProva), mas o coordenador entra na
+    // lista sem passar por aquele filtro — e usuários de instalação legada, sem
+    // nenhum vínculo, caem no status base.
+    const membrosBloqueados = membrosInscritos.filter(
+      (m) => idsEnviados.includes(String(m.id)) && vinculoBloqueado(m.status)
     );
-    if (membrosBanidosSuspensos.length > 0) {
-      const nomes = membrosBanidosSuspensos.map((m) => `${m.nome} (${m.status})`).join(', ');
+    if (membrosBloqueados.length > 0) {
+      const rotulo = { INATIVO: 'desativado', BANIDO: 'banido' };
+      const nomes = membrosBloqueados
+        .map((m) => `${m.nome} (${rotulo[m.status] || m.status})`)
+        .join(', ');
       return res.status(400).json({
-        message: `Os seguintes membros não podem participar pois estão banidos ou suspensos: ${nomes}.`,
+        message: `Os seguintes membros não podem participar pois não têm acesso ativo à escola: ${nomes}.`,
       });
     }
 
@@ -348,8 +376,8 @@ export const listarAssociacoesProvas = async (req, res) => {
       Prova.find({ gincana_id: gincanaId }).select('titulo data_inicio data_fim status').sort({ data_inicio: -1 }),
       ProvaEquipeParticipacao.find({ gincana_id: gincanaId })
         .populate('equipe_id', 'nome cor')
-        .populate('titulares_usuario_ids', 'nome email tipo turma status')
-        .populate('suplentes_usuario_ids', 'nome email tipo turma status'),
+        .populate('titulares_usuario_ids', 'nome email tipo turma status vinculos')
+        .populate('suplentes_usuario_ids', 'nome email tipo turma status vinculos'),
       EquipeGincana.find({ gincana_id: gincanaId }).select('_id equipe_id'),
       EmprestimoEquipe.find({ status: 'ATIVO', gincana_id: gincanaId })
         .select('usuario_id prova_id equipe_destino_id')
@@ -388,8 +416,10 @@ export const listarAssociacoesProvas = async (req, res) => {
         nome: u.nome,
         email: u.email,
         tipo: u.tipo,
-        turma: u.turma,
-        status: u.status,
+        // Turma e situação são POR ESCOLA (ver turmaNaEscola/statusNaEscola):
+        // os campos de topo são legado e não valem para quem tem vínculo.
+        turma: turmaNaEscola(u, req.escolaId),
+        status: statusNaEscola(u, req.escolaId),
         emprestado,
         equipe_origem_nome: emprestado ? emprestadosMap.get(String(u._id)) : null,
       };
@@ -437,6 +467,437 @@ export const listarAssociacoesProvas = async (req, res) => {
   } catch (error) {
     return res.status(500).json({
       message: 'Erro ao listar associações de alunos às provas.',
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Carrega os membros da equipe que o coordenador comanda nesta prova, já com o
+ * veredito de elegibilidade de cada um.
+ *
+ * Diferente de `carregarContextoCoordenadorParaProva`, que só enxerga quem JÁ
+ * está inscrito (ela serve para escalar titulares/suplentes), aqui o objetivo é
+ * o oposto: mostrar quem ainda PODE ser inscrito — e, para quem não pode, por
+ * quê. Esconder os inelegíveis sem explicação faz a tela parecer quebrada
+ * ("cadê meus alunos?"); é por isso que a lista devolve todo mundo.
+ */
+async function carregarMembrosParaInscricao(coordenadorId, provaId, escolaId) {
+  const prova = await Prova.findById(provaId)
+    .select('_id titulo status data_inicio data_fim requisito_usuario gincana_id');
+
+  if (!prova) {
+    return { erro: { status: 404, message: 'Prova não encontrada.' } };
+  }
+
+  // Restrito à gincana da prova: um coordenador com equipe em OUTRA edição não
+  // coordena nada aqui.
+  const equipeGincana = await getEquipeGincanaDoCoordenador(coordenadorId, {
+    populateEquipe: true,
+    gincanaId: prova.gincana_id,
+  });
+
+  if (!equipeGincana) {
+    return { erro: { status: 403, message: 'Você não coordena nenhuma equipe nesta gincana.' } };
+  }
+
+  const equipeId = equipeGincana.equipe_id?._id || equipeGincana.equipe_id;
+  if (!equipeId) {
+    return { erro: { status: 404, message: 'Equipe do coordenador não encontrada.' } };
+  }
+
+  const membroIds = (await EquipeMembros.find({ equipe_id: equipeId }).distinct('usuario_id'))
+    // O próprio coordenador fica de fora: ele se inscreve pelo botão normal
+    // "Inscrever-se", e o modal já mostra o estado dele em separado.
+    .filter((id) => String(id) !== String(coordenadorId));
+
+  const [usuarios, idsJaInscritos, inscritosPorGrupo] = await Promise.all([
+    Usuario.find({ _id: { $in: membroIds } }).select('nome email tipo turma status vinculos'),
+    ProvaUsuario.find({ prova_id: provaId, usuario_id: { $in: membroIds } }).distinct('usuario_id'),
+    contarInscritosPorGrupo(provaId, escolaId),
+  ]);
+
+  const jaInscritos = new Set(idsJaInscritos.map((id) => String(id)));
+
+  // Mesmo filtro de `carregarContextoCoordenadorParaProva`: numa transferência a
+  // linha em EquipeMembros fica como histórico, e um ex-membro não deve voltar a
+  // ser escalável. Instalação legada (sem nenhum vínculo) não é filtrada.
+  const membrosDaEscola = usuarios.filter(
+    (u) => (u.vinculos || []).length === 0 || getVinculo(u, escolaId)?.status === 'ATIVO'
+  );
+
+  const membros = membrosDaEscola.map((usuario) => {
+    const veredito = avaliarElegibilidade({
+      prova,
+      usuario,
+      escolaId,
+      temEquipe: true,
+      jaInscrito: jaInscritos.has(String(usuario._id)),
+      inscritosPorGrupo,
+    });
+
+    return {
+      id: usuario._id,
+      nome: usuario.nome,
+      email: usuario.email,
+      turma: turmaNaEscola(usuario, escolaId),
+      status: statusNaEscola(usuario, escolaId),
+      grupo: veredito.grupo,
+      elegivel: veredito.ok,
+      motivo_codigo: veredito.ok ? null : veredito.code,
+      motivo: veredito.ok ? null : veredito.message,
+    };
+  });
+
+  // Elegíveis primeiro (é neles que o coordenador vai clicar), depois os já
+  // inscritos, e por último os recusados — cada bloco em ordem alfabética.
+  const peso = (m) => (m.elegivel ? 0 : m.motivo_codigo === 'JA_INSCRITO' ? 1 : 2);
+  membros.sort((a, b) => peso(a) - peso(b) || a.nome.localeCompare(b.nome, 'pt-BR'));
+
+  return { prova, equipeGincana, equipeId, membros, inscritosPorGrupo };
+}
+
+/**
+ * [GET] /api/provas/:id/inscricao/membros-equipe  (COORDENADOR)
+ * Membros da equipe do coordenador, com elegibilidade e vagas restantes.
+ */
+export const listarMembrosDaEquipeParaProva = async (req, res) => {
+  try {
+    const { id: provaId } = req.params;
+    const contexto = await carregarMembrosParaInscricao(req.usuario.id, provaId, req.escolaId);
+    if (contexto.erro) {
+      return res.status(contexto.erro.status).json({ message: contexto.erro.message });
+    }
+
+    const { prova, equipeGincana, equipeId, membros, inscritosPorGrupo } = contexto;
+
+    return res.status(200).json({
+      prova: { id: prova._id, titulo: prova.titulo, status: prova.status },
+      equipe: {
+        id: equipeId,
+        nome: equipeGincana.equipe_id?.nome || 'Equipe',
+        cor: equipeGincana.equipe_id?.cor || null,
+      },
+      cotas: resumirCotas(prova, inscritosPorGrupo),
+      membros,
+      total_elegiveis: membros.filter((m) => m.elegivel).length,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: 'Erro ao listar membros da equipe para esta prova.',
+      error: error.message,
+    });
+  }
+};
+
+// Teto por requisição: o lote existe para inscrever uma equipe, não para varrer
+// a escola. Mantém o loop sequencial abaixo com custo previsível.
+const MAX_INSCRICOES_POR_LOTE = 50;
+
+/**
+ * [POST] /api/provas/:id/inscricoes/equipe  (COORDENADOR)
+ * Inscreve vários membros da própria equipe de uma vez.
+ *
+ * Em lote e SEQUENCIAL de propósito: N chamadas paralelas à inscrição avulsa
+ * leriam a contagem da cota antes de qualquer inserção, todas passariam, e a
+ * prova acabaria com mais inscritos do que o limite do grupo. Aqui a contagem é
+ * incrementada a cada inserção, então a cota fecha no lugar certo e os demais
+ * voltam como falha explicada.
+ */
+export const inscreverMembrosDaEquipe = async (req, res) => {
+  try {
+    const { id: provaId } = req.params;
+    const coordenadorId = req.usuario.id;
+    const enviados = req.body?.usuario_ids;
+
+    if (!Array.isArray(enviados) || enviados.length === 0) {
+      return res.status(400).json({ message: 'Informe ao menos um membro para inscrever.' });
+    }
+    if (enviados.length > MAX_INSCRICOES_POR_LOTE) {
+      return res.status(400).json({
+        message: `Máximo de ${MAX_INSCRICOES_POR_LOTE} membros por vez.`,
+      });
+    }
+
+    const idsPedidos = toUniqueStrings(enviados);
+
+    const contexto = await carregarMembrosParaInscricao(coordenadorId, provaId, req.escolaId);
+    if (contexto.erro) {
+      return res.status(contexto.erro.status).json({ message: contexto.erro.message });
+    }
+
+    const { prova, membros, inscritosPorGrupo } = contexto;
+
+    // Autorização: só membros da equipe que ele coordena. `membros` já nasce
+    // restrito a ela, então qualquer id de fora simplesmente não está aqui.
+    const porId = new Map(membros.map((m) => [String(m.id), m]));
+    const forasteiro = idsPedidos.find((id) => !porId.has(id));
+    if (forasteiro) {
+      return res.status(403).json({
+        ok: false,
+        code: 'NAO_AUTORIZADO',
+        message: 'Você só pode inscrever membros da equipe que coordena.',
+      });
+    }
+
+    // Cópia mutável: cada inserção consome uma vaga do grupo para as seguintes.
+    const contagem = { ...inscritosPorGrupo };
+    const inscritos = [];
+    const falhas = [];
+
+    for (const id of idsPedidos) {
+      const membro = porId.get(id);
+      const usuario = await Usuario.findById(id).select('nome tipo turma vinculos');
+      if (!usuario) {
+        falhas.push({ id, nome: membro.nome, code: 'USUARIO_NAO_ENCONTRADO', message: 'Usuário não encontrado.' });
+        continue;
+      }
+
+      const jaInscrito = Boolean(await ProvaUsuario.exists({ prova_id: prova._id, usuario_id: id }));
+      const veredito = avaliarElegibilidade({
+        prova,
+        usuario,
+        escolaId: req.escolaId,
+        temEquipe: true,
+        jaInscrito,
+        inscritosPorGrupo: contagem,
+      });
+
+      if (!veredito.ok) {
+        falhas.push({ id, nome: usuario.nome, code: veredito.code, message: veredito.message });
+        continue;
+      }
+
+      try {
+        await ProvaUsuario.create({ prova_id: prova._id, usuario_id: id, gincana_id: prova.gincana_id });
+        contagem[veredito.grupo] = (contagem[veredito.grupo] || 0) + 1;
+        inscritos.push({ id, nome: usuario.nome });
+      } catch (error) {
+        // Corrida com outra inscrição da mesma pessoa (o índice único do par
+        // prova/usuário é quem decide).
+        if (error?.code === 11000) {
+          falhas.push({ id, nome: usuario.nome, code: 'JA_INSCRITO', message: 'Usuário já inscrito nesta prova.' });
+          continue;
+        }
+        throw error;
+      }
+    }
+
+    const corpo = {
+      ok: inscritos.length > 0,
+      inscritos,
+      falhas,
+      message: inscritos.length > 0
+        ? `${inscritos.length} membro(s) inscrito(s) com sucesso.`
+        : 'Nenhum membro pôde ser inscrito.',
+      // `erros` é o canal que o request() central do front já reexpõe como
+      // error.erros — sem ele, o 422 abaixo chegaria na tela como uma frase
+      // genérica, sem dizer quem foi recusado e por quê.
+      erros: falhas.map((f) => `${f.nome}: ${f.message}`),
+    };
+
+    // Sem nenhum sucesso a resposta é um erro de verdade — assim o tratamento
+    // padrão do front (catch + toast) funciona sem caso especial.
+    return res.status(inscritos.length > 0 ? 201 : 422).json(corpo);
+  } catch (error) {
+    return res.status(500).json({
+      message: 'Erro ao inscrever membros da equipe na prova.',
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Equipe (EquipeGincana._id) em que o usuário estava num dado momento.
+ *
+ * `EquipeMembros` só guarda a equipe ATUAL — quem migrou no meio da gincana
+ * perde, ali, o vínculo com quem era antes. As migrações aprovadas são o
+ * histórico: a primeira migração aprovada DEPOIS do momento procurado tem, na
+ * origem, a equipe em que a pessoa estava naquele momento.
+ *
+ * @param {Date|string|null} momento
+ * @param {Array} migracoes aprovadas, em ordem CRESCENTE de decisão
+ * @param {string|null} equipeGincanaAtualId
+ */
+const equipeGincanaNoMomento = (momento, migracoes, equipeGincanaAtualId) => {
+  if (!momento) return equipeGincanaAtualId;
+
+  const posterior = migracoes.find((m) => new Date(m.atualizado_em) > new Date(momento));
+  return posterior ? String(posterior.equipe_origem_id) : equipeGincanaAtualId;
+};
+
+/**
+ * [GET] /api/provas/minhas-inscricoes
+ * Provas em que o próprio usuário está inscrito na gincana ativa, com a equipe
+ * pela qual ele participou de cada uma.
+ *
+ * Sem `autorizar`: cada um lê apenas as próprias inscrições.
+ *
+ * "A equipe pela qual participou" não é simplesmente a equipe atual da pessoa —
+ * ela pode ter sido emprestada para outra equipe numa prova, ou ter migrado no
+ * meio da gincana. Por isso a origem é resolvida em três níveis, do mais forte
+ * para o mais fraco:
+ *
+ *   1. ESCALACAO  — o coordenador registrou a pessoa como titular/suplente
+ *                   daquela equipe naquela prova. É o registro do que de fato
+ *                   aconteceu, e já embute o empréstimo (quem é emprestado é
+ *                   escalado pela equipe de DESTINO).
+ *   2. EMPRESTIMO — houve empréstimo para a prova, mas ninguém chegou a definir
+ *                   a escalação: a equipe é a de destino.
+ *   3. HISTORICO/ATUAL — nenhum dos dois: reconstrói pela linha do tempo das
+ *                   migrações aprovadas, usando a data de início da prova.
+ */
+export const listarMinhasInscricoes = async (req, res) => {
+  try {
+    const meId = req.usuario.id;
+    const gincanaId = escopoGincana(req);
+    const isAdmin = ['ADMIN', 'SUPER_ADMIN'].includes(req.usuario?.tipo);
+
+    // Filtra pela gincana da PROVA, e não por ProvaUsuario.gincana_id: esse
+    // campo só existe em documentos criados depois de `migrar:gincana`, e um
+    // inscrito antigo sumiria da lista sem erro nenhum.
+    // Sem `select`: o objeto `prova` daqui alimenta o mesmo ProvaDetalhesModal
+    // das outras telas, que lê pontuação, cotas e ocultar_pontos. Um payload
+    // recortado à mão fazia o modal calcular "nenhuma cota" e anunciar
+    // "Prova Indisponível" para uma prova em que a pessoa ESTÁ inscrita.
+    const inscricoes = await ProvaUsuario.find({ usuario_id: meId })
+      .populate('prova_id');
+
+    const minhas = inscricoes.filter((inscricao) => {
+      const prova = inscricao.prova_id;
+      if (!prova || String(prova.gincana_id) !== String(gincanaId)) return false;
+      // Prova ainda não publicada fica indisponível para não-ADMIN (#18).
+      return isAdmin || estaPublicada(prova);
+    });
+
+    const provaIds = minhas.map((i) => i.prova_id._id);
+
+    const equipesGincana = await EquipeGincana.find({ gincana_id: gincanaId })
+      .populate('equipe_id', 'nome cor');
+
+    // EquipeGincana._id -> equipe mestra (empréstimos e migrações apontam para
+    // EquipeGincana; escalação e EquipeMembros apontam para a Equipe mestra).
+    const porEquipeGincana = new Map();
+    const porEquipeMestra = new Map();
+    equipesGincana.forEach((eg) => {
+      if (!eg.equipe_id) return;
+      const resumo = { id: eg.equipe_id._id, nome: eg.equipe_id.nome, cor: eg.equipe_id.cor || null };
+      porEquipeGincana.set(String(eg._id), resumo);
+      porEquipeMestra.set(String(eg.equipe_id._id), { equipeGincanaId: String(eg._id), ...resumo });
+    });
+
+    const equipeIdsDaGincana = Array.from(porEquipeMestra.keys());
+
+    const [membresiaAtual, escalacoes, emprestimos, migracoesAprovadas] = await Promise.all([
+      EquipeMembros.findOne({ usuario_id: meId, equipe_id: { $in: equipeIdsDaGincana } }),
+      ProvaEquipeParticipacao.find({
+        prova_id: { $in: provaIds },
+        $or: [{ titulares_usuario_ids: meId }, { suplentes_usuario_ids: meId }],
+      }).select('prova_id equipe_id titulares_usuario_ids'),
+      // Empréstimo CANCELADO nunca valeu; ENCERRADO valeu e terminou, então a
+      // pessoa participou mesmo assim.
+      EmprestimoEquipe.find({
+        usuario_id: meId,
+        prova_id: { $in: provaIds },
+        status: { $in: ['ATIVO', 'ENCERRADO'] },
+      }).select('prova_id equipe_origem_id equipe_destino_id'),
+      MigracaoEquipe.find({ usuario_id: meId, status: 'APROVADA' })
+        .select('equipe_origem_id equipe_destino_id atualizado_em')
+        .sort({ atualizado_em: 1 }),
+    ]);
+
+    // Mesmas cotas/elegibilidade que a listagem de provas anexa, pelo mesmo
+    // caminho — a prova não pode se descrever de um jeito aqui e de outro lá.
+    const provasComCotas = await anexarCotasEElegibilidade(
+      minhas.map((i) => i.prova_id),
+      { usuarioId: meId, escolaId: req.escolaId, isAdmin }
+    );
+    const provaPorId = new Map(provasComCotas.map((p) => [String(p._id), p]));
+
+    const equipeAtual = membresiaAtual
+      ? porEquipeMestra.get(String(membresiaAtual.equipe_id)) || null
+      : null;
+    const equipeGincanaAtualId = equipeAtual?.equipeGincanaId || null;
+
+    // Só as migrações desta gincana (o campo gincana_id do modelo é recente —
+    // filtrar por ele descartaria as antigas em silêncio).
+    const migracoes = migracoesAprovadas.filter((m) => porEquipeGincana.has(String(m.equipe_destino_id)));
+
+    const escalacaoPorProva = new Map(escalacoes.map((e) => [
+      String(e.prova_id),
+      {
+        equipeId: String(e.equipe_id),
+        papel: (e.titulares_usuario_ids || []).some((id) => String(id) === String(meId))
+          ? 'TITULAR'
+          : 'SUPLENTE',
+      },
+    ]));
+    const emprestimoPorProva = new Map(emprestimos.map((e) => [String(e.prova_id), e]));
+
+    const resultado = minhas.map((inscricao) => {
+      const prova = inscricao.prova_id;
+      const escalacao = escalacaoPorProva.get(String(prova._id));
+      const emprestimo = emprestimoPorProva.get(String(prova._id));
+
+      let equipe = null;
+      let origem = null;
+
+      if (escalacao) {
+        equipe = porEquipeMestra.get(escalacao.equipeId) || null;
+        origem = 'ESCALACAO';
+      } else if (emprestimo) {
+        equipe = porEquipeGincana.get(String(emprestimo.equipe_destino_id)) || null;
+        origem = 'EMPRESTIMO';
+      } else {
+        const noMomento = equipeGincanaNoMomento(
+          prova.data_inicio || inscricao.createdAt,
+          migracoes,
+          equipeGincanaAtualId
+        );
+        equipe = noMomento ? porEquipeGincana.get(String(noMomento)) || null : null;
+        origem = String(noMomento) === String(equipeGincanaAtualId) ? 'ATUAL' : 'HISTORICO';
+      }
+
+      const provaCompleta = provaPorId.get(String(prova._id));
+
+      return {
+        prova: {
+          ...provaCompleta,
+          status: calcularStatusProva(prova.data_inicio, prova.data_fim),
+        },
+        inscrito_em: inscricao.createdAt || null,
+        equipe: equipe ? { id: equipe.id, nome: equipe.nome, cor: equipe.cor } : null,
+        origem_vinculo: origem,
+        papel: escalacao?.papel || null,
+        emprestado: Boolean(emprestimo),
+        equipe_origem_emprestimo: emprestimo
+          ? porEquipeGincana.get(String(emprestimo.equipe_origem_id)) || null
+          : null,
+        // Deixa a tela dizer "você participou pela X (hoje você está na Y)" sem
+        // ter de comparar ids do lado do cliente.
+        equipe_atual_diferente: Boolean(
+          equipe && equipeAtual && String(equipe.id) !== String(equipeAtual.id)
+        ),
+      };
+    });
+
+    // Mais recentes primeiro; sem data de início, vai para o fim.
+    resultado.sort((a, b) => {
+      const da = a.prova.data_inicio ? new Date(a.prova.data_inicio).getTime() : -Infinity;
+      const db = b.prova.data_inicio ? new Date(b.prova.data_inicio).getTime() : -Infinity;
+      return db - da;
+    });
+
+    return res.status(200).json({
+      equipe_atual: equipeAtual
+        ? { id: equipeAtual.id, nome: equipeAtual.nome, cor: equipeAtual.cor }
+        : null,
+      total: resultado.length,
+      inscricoes: resultado,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: 'Erro ao listar suas inscrições.',
       error: error.message,
     });
   }

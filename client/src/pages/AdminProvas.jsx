@@ -35,10 +35,11 @@ import ProvaSequenciamentoForm from "../components/ProvaSequenciamentoForm";
 import ProvaParticipantesForm from "../components/ProvaParticipantesForm";
 import LancarResultadoModal from "../components/LancarResultadoModal";
 
-const QUESITOS_OPCOES = [
-  { value: 'TEMPO', label: 'Tempo de Execução' },
-  { value: 'PRODUTIVIDADE', label: 'Produtividade/Volume' },
-];
+// Gera uma chave estável a partir do nome digitado pelo admin (ex: "Ex-alunos" -> "EX_ALUNOS").
+const gerarChaveBonus = (nome) => {
+  const semAcentos = (nome || '').normalize('NFD').replace(/[̀-ͯ]/g, '');
+  return semAcentos.trim().toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+};
 
 /**
  * Calcula o status da prova automaticamente a partir das datas (mesma regra do backend).
@@ -131,7 +132,7 @@ const AdminProvas = () => {
     data_fim: "",
     data_publicacao: "",
     status: "NAO_INICIADA",
-    quesitos_de_avaliacao: [],
+    bonus_categorias: [],
     requisito_usuario: {
       ALUNOS_FUNDAMENTAL: 0,
       ALUNOS_MEDIO: 0,
@@ -142,7 +143,6 @@ const AdminProvas = () => {
     criterio_elegibilidade: {},
     sequenciamento: {},
     pontuacao: {},
-    configuracao_quesitos: {},
     proibir_membros_consecutivos: false,
   });
 
@@ -197,7 +197,7 @@ const AdminProvas = () => {
       data_inicio: "",
       data_fim: "",
       data_publicacao: "",
-      quesitos_de_avaliacao: [],
+      bonus_categorias: [],
       requisito_usuario: {
         ALUNOS_FUNDAMENTAL: 0,
         ALUNOS_MEDIO: 0,
@@ -208,31 +208,33 @@ const AdminProvas = () => {
       criterio_elegibilidade: {},
       sequenciamento: {},
       pontuacao: {},
-      configuracao_quesitos: {},
       proibir_membros_consecutivos: false,
     });
     setEditingProva(null);
   };
 
-  // Função para manipular o array de quesitos
-  const handleQuesitoChange = (quesitoValue, isChecked) => {
-    setFormData((prev) => {
-      const currentQuesitos = prev.quesitos_de_avaliacao;
-      
-      if (isChecked) {
-        // adiciona o quesito se marcado
-        return { 
-          ...prev, 
-          quesitos_de_avaliacao: [...currentQuesitos, quesitoValue] 
-        };
-      } else {
-        // Remove o quesito se desmarcado
-        return { 
-          ...prev, 
-          quesitos_de_avaliacao: currentQuesitos.filter((q) => q !== quesitoValue) 
-        };
-      }
-    });
+  // Funções para manipular a lista de categorias de bônus (ex: ex-alunos, pais/mães)
+  const adicionarCategoriaBonus = () => {
+    setFormData((prev) => ({
+      ...prev,
+      bonus_categorias: [...prev.bonus_categorias, { nome: '', pontos_por_unidade: '', teto_unidades: '' }],
+    }));
+  };
+
+  const atualizarCategoriaBonus = (index, campo, valor) => {
+    setFormData((prev) => ({
+      ...prev,
+      bonus_categorias: prev.bonus_categorias.map((cat, i) =>
+        i === index ? { ...cat, [campo]: valor } : cat
+      ),
+    }));
+  };
+
+  const removerCategoriaBonus = (index) => {
+    setFormData((prev) => ({
+      ...prev,
+      bonus_categorias: prev.bonus_categorias.filter((_, i) => i !== index),
+    }));
   };
 
   const handleTipoPontuacaoChange = (novoTipo) => {
@@ -261,6 +263,16 @@ const AdminProvas = () => {
         data_inicio: formData.data_inicio ? new Date(formData.data_inicio).toISOString() : "",
         data_fim: formData.data_fim ? new Date(formData.data_fim).toISOString() : "",
         data_publicacao: formData.data_publicacao ? new Date(formData.data_publicacao).toISOString() : "",
+        // A chave é derivada do nome aqui (não a cada digitação) para não mudar
+        // sob o admin enquanto ele ainda está editando o nome da categoria.
+        bonus_categorias: formData.bonus_categorias
+          .filter((cat) => cat.nome && cat.nome.trim() !== '')
+          .map((cat) => ({
+            chave: gerarChaveBonus(cat.nome),
+            nome: cat.nome,
+            pontos_por_unidade: Number(cat.pontos_por_unidade) || 0,
+            teto_unidades: cat.teto_unidades === '' || cat.teto_unidades == null ? null : Number(cat.teto_unidades),
+          })),
       };
 
       if (editingProva) {
@@ -321,10 +333,13 @@ const AdminProvas = () => {
 
     const pontuacaoData = prova.pontuacao || {};
     let tipoSalvo = 'RANKING'; // Padrão
-    
-    // Se tiver a chave 'pontos_por_unidade', é do tipo proporcional
+
+    // Se tiver a chave 'pontos_por_unidade', é do tipo proporcional; se tiver
+    // 'quantidade_minima', é do tipo limiar (tudo ou nada).
     if (pontuacaoData.hasOwnProperty('pontos_por_unidade')) {
       tipoSalvo = 'PROPORCIONAL';
+    } else if (pontuacaoData.hasOwnProperty('quantidade_minima')) {
+      tipoSalvo = 'LIMIAR';
     }
     setTipoPontuacao(tipoSalvo);
 
@@ -335,13 +350,12 @@ const AdminProvas = () => {
       data_inicio: paraDatetimeLocal(prova.data_inicio),
       data_fim: paraDatetimeLocal(prova.data_fim),
       data_publicacao: paraDatetimeLocal(prova.data_publicacao),
-      quesitos_de_avaliacao: prova.quesitos_de_avaliacao || [],
+      bonus_categorias: prova.bonus_categorias || [],
       requisito_usuario: requisitoUsuario,
       restricao_participacao: prova.restricao_participacao || {},
       criterio_elegibilidade: prova.criterio_elegibilidade || {},
       sequenciamento: prova.sequenciamento || {},
       pontuacao: prova.pontuacao || {},
-      configuracao_quesitos: prova.configuracao_quesitos || {},
       proibir_membros_consecutivos: prova.proibir_membros_consecutivos || false,
     });
     setIsDialogOpen(true);
@@ -459,6 +473,11 @@ const AdminProvas = () => {
     // Tipo Proporcional
     if (pontuacao.pontos_por_unidade && pontuacao.nome_unidade) {
       return `${pontuacao.pontos_por_unidade} pts por ${pontuacao.nome_unidade}`;
+    }
+
+    // Tipo Limiar (tudo ou nada)
+    if (pontuacao.hasOwnProperty('quantidade_minima')) {
+      return `${pontuacao.pontuacao_fixa || 0} pts ao atingir ${pontuacao.quantidade_minima} ${pontuacao.nome_unidade || 'unidades'}`;
     }
 
     // Tipo Ranking (1º, 2º, 3º)
@@ -648,6 +667,7 @@ const AdminProvas = () => {
                       <SelectContent className="bg-white border-gray-300">
                         <SelectItem value="RANKING">Por Posição (1º, 2º, 3º)</SelectItem>
                         <SelectItem value="PROPORCIONAL">Por Unidade (Ex: por doação)</SelectItem>
+                        <SelectItem value="LIMIAR">Tudo ou nada (mínimo obrigatório)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -777,211 +797,127 @@ const AdminProvas = () => {
                       </div>
                     </div>
                   )}
-                </div>
 
-                  {/* Quesitos de Avaliação (Múltiplos) */}
-                  <div className="grid gap-2">
-                    <Label htmlFor="quesitos" className="text-gray-900 font-medium">
-                      Quesitos de Avaliação (Pontuação)
-                    </Label>
-                    <div className="flex flex-wrap gap-4 p-3 border border-gray-300 rounded-md bg-gray-50">
-                      {QUESITOS_OPCOES.map((quesito) => (
-                        <div key={quesito.value} className="flex items-center space-x-2">
-                          <Checkbox
-                            id={quesito.value}
-                            checked={formData.quesitos_de_avaliacao.includes(quesito.value)}
-                            onCheckedChange={(isChecked) => handleQuesitoChange(quesito.value, isChecked)}
-                            disabled={submitting}
-                          />
-                          <Label htmlFor={quesito.value} className="text-gray-700 font-normal select-none cursor-pointer">
-                            {quesito.label}
-                          </Label>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Configurações de Quesitos - Campos Condicionais */}
-                  {formData.quesitos_de_avaliacao.includes('TEMPO') && (
-                    <div className="grid gap-4 p-4 border border-blue-300 rounded-md bg-blue-50">
-                      <h4 className="text-md font-semibold text-blue-900">Configuração do Quesito "Tempo de Execução"</h4>
+                  {/* 2c. Inputs para TIPO LIMIAR (tudo ou nada) */}
+                  {tipoPontuacao === 'LIMIAR' && (
+                    <div className="grid gap-4 pt-2">
                       <div className="grid grid-cols-2 gap-4">
                         <div className="grid gap-1">
-                          <Label htmlFor="tempo_limite" className="text-sm font-normal text-blue-800">
-                            Tempo Limite (minutos)
-                          </Label>
-                          <Input
-                            id="tempo_limite"
-                            type="number"
-                            min="1"
-                            value={formData.configuracao_quesitos?.TEMPO?.tempo_limite_minutos || ""}
-                            onChange={(e) => setFormData(prev => ({
-                              ...prev,
-                              configuracao_quesitos: {
-                                ...prev.configuracao_quesitos,
-                                TEMPO: {
-                                  ...prev.configuracao_quesitos?.TEMPO,
-                                  tempo_limite_minutos: Number(e.target.value)
-                                }
-                              }
-                            }))}
-                            placeholder="Ex: 30"
-                            className="bg-white border-blue-300"
-                            disabled={submitting}
-                          />
-                        </div>
-                        <div className="grid gap-1">
-                          <Label htmlFor="tempo_bonus" className="text-sm font-normal text-blue-800">
-                            Pontuação Extra
-                          </Label>
-                          <Input
-                            id="tempo_bonus"
-                            type="number"
-                            min="0"
-                            value={formData.configuracao_quesitos?.TEMPO?.pontuacao_bonus || ""}
-                            onChange={(e) => setFormData(prev => ({
-                              ...prev,
-                              configuracao_quesitos: {
-                                ...prev.configuracao_quesitos,
-                                TEMPO: {
-                                  ...prev.configuracao_quesitos?.TEMPO,
-                                  pontuacao_bonus: Number(e.target.value)
-                                }
-                              }
-                            }))}
-                            placeholder="Ex: 50"
-                            className="bg-white border-blue-300"
-                            disabled={submitting}
-                          />
-                        </div>
-                      </div>
-                      <div className="grid gap-1">
-                        <Label htmlFor="tempo_descricao" className="text-sm font-normal text-blue-800">
-                          Descrição do Bônus (opcional)
-                        </Label>
-                        <Input
-                          id="tempo_descricao"
-                          type="text"
-                          value={formData.configuracao_quesitos?.TEMPO?.descricao_bonus || ""}
-                          onChange={(e) => setFormData(prev => ({
-                            ...prev,
-                            configuracao_quesitos: {
-                              ...prev.configuracao_quesitos,
-                              TEMPO: {
-                                ...prev.configuracao_quesitos?.TEMPO,
-                                descricao_bonus: e.target.value
-                              }
-                            }
-                          }))}
-                          placeholder="Ex: Pontuação extra por completar dentro do tempo limite"
-                          className="bg-white border-blue-300"
-                          disabled={submitting}
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {formData.quesitos_de_avaliacao.includes('PRODUTIVIDADE') && (
-                    <div className="grid gap-4 p-4 border border-green-300 rounded-md bg-green-50">
-                      <h4 className="text-md font-semibold text-green-900">Configuração do Quesito "Produtividade/Volume"</h4>
-                      <div className="grid grid-cols-3 gap-4">
-                        <div className="grid gap-1">
-                          <Label htmlFor="unidade_medida" className="text-sm font-normal text-green-800">
-                            Unidade de Medida
-                          </Label>
-                          <Input
-                            id="unidade_medida"
-                            type="text"
-                            value={formData.configuracao_quesitos?.PRODUTIVIDADE?.unidade_medida || ""}
-                            onChange={(e) => setFormData(prev => ({
-                              ...prev,
-                              configuracao_quesitos: {
-                                ...prev.configuracao_quesitos,
-                                PRODUTIVIDADE: {
-                                  ...prev.configuracao_quesitos?.PRODUTIVIDADE,
-                                  unidade_medida: e.target.value
-                                }
-                              }
-                            }))}
-                            placeholder="Ex: itens, litros, km"
-                            className="bg-white border-green-300"
-                            disabled={submitting}
-                          />
-                        </div>
-                        <div className="grid gap-1">
-                          <Label htmlFor="quantidade_minima" className="text-sm font-normal text-green-800">
+                          <Label htmlFor="quantidade_minima_pontuacao" className="text-sm font-normal text-gray-700">
                             Quantidade Mínima
                           </Label>
                           <Input
-                            id="quantidade_minima"
-                            type="number"
-                            min="1"
-                            value={formData.configuracao_quesitos?.PRODUTIVIDADE?.quantidade_minima || ""}
+                            id="quantidade_minima_pontuacao" type="number" min="0"
+                            value={formData.pontuacao.quantidade_minima ?? ""}
                             onChange={(e) => setFormData(prev => ({
-                              ...prev,
-                              configuracao_quesitos: {
-                                ...prev.configuracao_quesitos,
-                                PRODUTIVIDADE: {
-                                  ...prev.configuracao_quesitos?.PRODUTIVIDADE,
-                                  quantidade_minima: Number(e.target.value)
-                                }
-                              }
+                              ...prev, pontuacao: { ...prev.pontuacao, quantidade_minima: Number(e.target.value) }
                             }))}
-                            placeholder="Ex: 100"
-                            className="bg-white border-green-300"
-                            disabled={submitting}
+                            placeholder="Ex: 30" className="bg-white border-gray-300" disabled={submitting}
                           />
                         </div>
                         <div className="grid gap-1">
-                          <Label htmlFor="produtividade_bonus" className="text-sm font-normal text-green-800">
-                            Pontuação Extra
+                          <Label htmlFor="pontuacao_fixa" className="text-sm font-normal text-gray-700">
+                            Pontuação ao atingir o mínimo
                           </Label>
                           <Input
-                            id="produtividade_bonus"
-                            type="number"
-                            min="0"
-                            value={formData.configuracao_quesitos?.PRODUTIVIDADE?.pontuacao_bonus || ""}
+                            id="pontuacao_fixa" type="number" min="0"
+                            value={formData.pontuacao.pontuacao_fixa || ""}
                             onChange={(e) => setFormData(prev => ({
-                              ...prev,
-                              configuracao_quesitos: {
-                                ...prev.configuracao_quesitos,
-                                PRODUTIVIDADE: {
-                                  ...prev.configuracao_quesitos?.PRODUTIVIDADE,
-                                  pontuacao_bonus: Number(e.target.value)
-                                }
-                              }
+                              ...prev, pontuacao: { ...prev.pontuacao, pontuacao_fixa: Number(e.target.value) }
                             }))}
-                            placeholder="Ex: 75"
-                            className="bg-white border-green-300"
-                            disabled={submitting}
+                            placeholder="Ex: 300" className="bg-white border-gray-300" disabled={submitting}
                           />
                         </div>
                       </div>
                       <div className="grid gap-1">
-                        <Label htmlFor="produtividade_descricao" className="text-sm font-normal text-green-800">
-                          Descrição do Bônus (opcional)
+                        <Label htmlFor="nome_unidade_limiar" className="text-sm font-normal text-gray-700">
+                          Nome da Unidade (opcional)
                         </Label>
                         <Input
-                          id="produtividade_descricao"
-                          type="text"
-                          value={formData.configuracao_quesitos?.PRODUTIVIDADE?.descricao_bonus || ""}
+                          id="nome_unidade_limiar" type="text"
+                          value={formData.pontuacao.nome_unidade || ""}
                           onChange={(e) => setFormData(prev => ({
-                            ...prev,
-                            configuracao_quesitos: {
-                              ...prev.configuracao_quesitos,
-                              PRODUTIVIDADE: {
-                                ...prev.configuracao_quesitos?.PRODUTIVIDADE,
-                                descricao_bonus: e.target.value
-                              }
-                            }
+                            ...prev, pontuacao: { ...prev.pontuacao, nome_unidade: e.target.value }
                           }))}
-                          placeholder="Ex: Pontuação extra por atingir a meta de produtividade"
-                          className="bg-white border-green-300"
-                          disabled={submitting}
+                          placeholder="Ex: alunos" className="bg-white border-gray-300" disabled={submitting}
                         />
+                        <p className="text-xs text-gray-500">
+                          Abaixo do mínimo a equipe recebe 0 pontos; ao atingir ou superar, recebe o valor fixo configurado.
+                        </p>
                       </div>
                     </div>
                   )}
+                </div>
+
+                  {/* Categorias de Bônus (lista dinâmica) */}
+                  <div className="grid gap-2">
+                    <Label className="text-gray-900 font-medium">
+                      Categorias de Bônus (opcional)
+                    </Label>
+                    <p className="text-xs text-gray-500">
+                      Pontos extra por unidade informada por equipe no lançamento de resultado
+                      (ex: "Ex-alunos" a 20 pts cada, com teto de 5 unidades = até 100 pts).
+                    </p>
+                    <div className="grid gap-3 p-3 border border-gray-300 rounded-md bg-gray-50">
+                      {formData.bonus_categorias.map((categoria, index) => (
+                        <div key={index} className="grid grid-cols-[2fr_1fr_1fr_auto] gap-2 items-end p-2 bg-white border border-gray-200 rounded-md">
+                          <div className="grid gap-1">
+                            <Label className="text-xs font-normal text-gray-700">Nome</Label>
+                            <Input
+                              type="text"
+                              value={categoria.nome}
+                              onChange={(e) => atualizarCategoriaBonus(index, 'nome', e.target.value)}
+                              placeholder="Ex: Ex-alunos"
+                              className="bg-white border-gray-300 text-sm"
+                              disabled={submitting}
+                            />
+                          </div>
+                          <div className="grid gap-1">
+                            <Label className="text-xs font-normal text-gray-700">Pontos/unidade</Label>
+                            <Input
+                              type="number" min="0"
+                              value={categoria.pontos_por_unidade}
+                              onChange={(e) => atualizarCategoriaBonus(index, 'pontos_por_unidade', e.target.value)}
+                              placeholder="Ex: 20"
+                              className="bg-white border-gray-300 text-sm"
+                              disabled={submitting}
+                            />
+                          </div>
+                          <div className="grid gap-1">
+                            <Label className="text-xs font-normal text-gray-700">Teto (opcional)</Label>
+                            <Input
+                              type="number" min="0"
+                              value={categoria.teto_unidades}
+                              onChange={(e) => atualizarCategoriaBonus(index, 'teto_unidades', e.target.value)}
+                              placeholder="Ex: 5"
+                              className="bg-white border-gray-300 text-sm"
+                              disabled={submitting}
+                            />
+                          </div>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            onClick={() => removerCategoriaBonus(index)}
+                            disabled={submitting}
+                            className="border-gray-300 hover:bg-red-50 hover:text-red-600"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={adicionarCategoriaBonus}
+                        disabled={submitting}
+                        className="border-gray-300 hover:bg-gray-100 justify-self-start"
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Adicionar categoria
+                      </Button>
+                    </div>
+                  </div>
 
                   {/* Divisor visual para separar seções básicas das avançadas */}
                   <div className="border-t border-gray-300 my-4"></div>
@@ -1138,10 +1074,12 @@ const AdminProvas = () => {
                         <p className="text-xs text-gray-500 uppercase font-semibold">Término</p>
                         <p className="text-xs sm:text-sm text-gray-900">{formatarData(prova.data_fim)}</p>
                       </div>
-                      {prova.quesitos_de_avaliacao && prova.quesitos_de_avaliacao.length > 0 && (
+                      {prova.bonus_categorias && prova.bonus_categorias.length > 0 && (
                         <div className="col-span-2">
-                          <p className="text-xs text-gray-500 uppercase font-semibold">Quesitos</p>
-                          <p className="text-xs sm:text-sm text-gray-900 break-words">{prova.quesitos_de_avaliacao.join(", ")}</p>
+                          <p className="text-xs text-gray-500 uppercase font-semibold">Categorias de Bônus</p>
+                          <p className="text-xs sm:text-sm text-gray-900 break-words">
+                            {prova.bonus_categorias.map((c) => `${c.nome} (${c.pontos_por_unidade}pts${c.teto_unidades != null ? `, máx ${c.teto_unidades}` : ''})`).join(" • ")}
+                          </p>
                         </div>
                       )}
                       {prova.requisito_usuario && (

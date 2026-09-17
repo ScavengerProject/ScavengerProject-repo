@@ -6,46 +6,39 @@ import { Label } from '../components/ui/label';
 import { Checkbox } from '../components/ui/checkbox';
 import { Textarea } from '../components/ui/textarea';
 import { toast } from '../components/ui/toast';
-import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import MainLayout from '../components/MainLayout';
-import { solicitacoesEmprestimoService, ofertasEmprestimoService, equipesService } from '../services/api';
-import { ArrowLeft, Users, Clock, Send } from 'lucide-react';
+import { solicitacoesEmprestimoService, ofertasEmprestimoService } from '../services/api';
+import { Users, Clock, Send, Info, Lock } from 'lucide-react';
 
 export default function CoordOferecerMembros() {
-  const navigate = useNavigate();
   const { usuario, logout } = useAuth();
   const [solicitacoes, setSolicitacoes] = useState([]);
-  const [minhaEquipe, setMinhaEquipe] = useState(null);
-  const [membrosDisponiveis, setMembrosDisponiveis] = useState([]);
   const [loading, setLoading] = useState(true);
   const [openOfertar, setOpenOfertar] = useState(false);
   const [solicitacaoSelecionada, setSolicitacaoSelecionada] = useState(null);
   const [membrosSelecionados, setMembrosSelecionados] = useState([]);
   const [mensagem, setMensagem] = useState('');
+  // Contexto da oferta (membros + limitações), vindo do servidor para ESTA
+  // solicitação. É a mesma avaliação que a rota de criar oferta usa.
+  const [contexto, setContexto] = useState(null);
+  const [carregandoMembros, setCarregandoMembros] = useState(false);
+  const [erroMembros, setErroMembros] = useState(null);
+  const [enviando, setEnviando] = useState(false);
 
   const carregarDados = async () => {
     try {
       setLoading(true);
-      
+
       // Carregar solicitações aprovadas (que não são da minha equipe)
       const solicitacoesList = await solicitacoesEmprestimoService.listar('APROVADA');
-      
-      // Carregar minha equipe
-      const equipe = await equipesService.visualizarMinhaEquipe();
-      setMinhaEquipe(equipe);
 
       // Filtrar solicitações que não são da minha equipe
       const solicitacoesDisponiveis = (solicitacoesList || []).filter(
         sol => String(sol.coordenador_solicitante_id?._id) !== String(usuario._id)
       );
-      
-      setSolicitacoes(solicitacoesDisponiveis);
 
-      // Carregar membros da minha equipe
-      if (equipe?.membros) {
-        setMembrosDisponiveis(equipe.membros);
-      }
+      setSolicitacoes(solicitacoesDisponiveis);
     } catch (e) {
       toast.error(e?.message || 'Erro ao carregar dados');
     } finally {
@@ -57,19 +50,52 @@ export default function CoordOferecerMembros() {
     carregarDados();
   }, []);
 
+  /**
+   * Quem pode ser ofertado é decidido no servidor, nunca aqui: a turma real do
+   * membro mora no vínculo com a escola (o campo antigo `usuario.turma` vem
+   * null para quem entrou por convite), e só o servidor sabe quem já está
+   * inscrito na prova, já foi emprestado ou já está numa oferta pendente.
+   */
+  const carregarMembrosOfertaveis = async (solicitacaoId) => {
+    try {
+      setCarregandoMembros(true);
+      setErroMembros(null);
+      const dados = await ofertasEmprestimoService.membrosOfertaveis(solicitacaoId);
+      setContexto(dados);
+    } catch (e) {
+      setContexto(null);
+      setErroMembros(e?.message || 'Não foi possível carregar os membros da sua equipe.');
+    } finally {
+      setCarregandoMembros(false);
+    }
+  };
+
   const abrirDialogOfertar = (solicitacao) => {
     setSolicitacaoSelecionada(solicitacao);
     setMembrosSelecionados([]);
     setMensagem('');
+    setContexto(null);
     setOpenOfertar(true);
+    carregarMembrosOfertaveis(solicitacao._id);
   };
 
+  const membros = contexto?.membros || [];
+  const ofertaveis = membros.filter((m) => m.ofertavel);
+  const bloqueados = membros.filter((m) => !m.ofertavel);
+  const vagasRestantes = contexto?.vagas_restantes ?? 0;
+  const limiteAtingido = membrosSelecionados.length >= vagasRestantes;
+
   const toggleMembro = (membroId) => {
-    setMembrosSelecionados(prev =>
-      prev.includes(membroId)
-        ? prev.filter(id => id !== membroId)
-        : [...prev, membroId]
-    );
+    setMembrosSelecionados(prev => {
+      if (prev.includes(membroId)) return prev.filter(id => id !== membroId);
+      // A quantidade pedida é um limite da solicitação, não uma sugestão: o
+      // servidor recusa o excedente, então a tela não deixa nem selecionar.
+      if (prev.length >= vagasRestantes) {
+        toast.error(`Esta solicitação aceita no máximo ${vagasRestantes} pessoa(s).`);
+        return prev;
+      }
+      return [...prev, membroId];
+    });
   };
 
   const criarOferta = async () => {
@@ -81,6 +107,7 @@ export default function CoordOferecerMembros() {
     }
 
     try {
+      setEnviando(true);
       await ofertasEmprestimoService.criar(
         solicitacaoSelecionada._id,
         membrosSelecionados,
@@ -90,9 +117,17 @@ export default function CoordOferecerMembros() {
       toast.success('Oferta enviada com sucesso!');
       setOpenOfertar(false);
       setSolicitacaoSelecionada(null);
+      setContexto(null);
       await carregarDados();
     } catch (e) {
-      toast.error(e?.message || 'Erro ao criar oferta');
+      // `erros` traz TODOS os motivos de uma vez (ver services/api.js); mostrar
+      // só o primeiro faria o coordenador corrigir a seleção um nome por vez.
+      toast.error((e?.erros || [e?.message || 'Erro ao criar oferta']).join(' • '));
+      // A recusa quase sempre significa que o estado mudou desde que a tela
+      // carregou (alguém foi inscrito na prova, outra oferta foi aceita).
+      await carregarMembrosOfertaveis(solicitacaoSelecionada._id);
+    } finally {
+      setEnviando(false);
     }
   };
 
@@ -100,35 +135,6 @@ export default function CoordOferecerMembros() {
     if (!data) return '—';
     return new Date(data).toLocaleString('pt-BR');
   };
-
-  const membroAtendeCriterios = (membro, criterios) => {
-    if (!criterios) return true;
-
-    // Verificar nível escolar
-    if (criterios.niveis_escolares?.length > 0) {
-      if (!membro.usuario_id?.turma || !criterios.niveis_escolares.includes(membro.usuario_id.turma)) {
-        return false;
-      }
-    }
-
-    // Verificar gênero (assumindo que temos essa informação no usuário)
-    // Se não tiver, podemos ignorar esse critério
-    // if (criterios.genero && criterios.genero !== 'QUALQUER') {
-    //   if (membro.usuario_id?.genero !== criterios.genero) {
-    //     return false;
-    //   }
-    // }
-
-    return true;
-  };
-
-  const membrosRecomendados = membrosDisponiveis.filter(m => 
-    solicitacaoSelecionada ? membroAtendeCriterios(m, solicitacaoSelecionada.criterios) : true
-  );
-
-  const membrosOutros = membrosDisponiveis.filter(m => 
-    solicitacaoSelecionada ? !membroAtendeCriterios(m, solicitacaoSelecionada.criterios) : false
-  );
 
   if (loading) {
     return (
@@ -260,74 +266,133 @@ export default function CoordOferecerMembros() {
               </div>
             )}
 
-            {/* Membros Recomendados */}
-            {membrosRecomendados.length > 0 && (
+            {/* Limitações desta solicitação: responde por que metade da equipe
+                aparece bloqueada logo abaixo. */}
+            {contexto && (
+              <div className="bg-amber-50 border border-amber-200 rounded p-3 space-y-1">
+                <p className="text-sm font-medium text-amber-900 flex items-center gap-2">
+                  <Info className="h-4 w-4" /> Limitações desta solicitação
+                </p>
+                <p className="text-xs text-amber-800">
+                  Vagas ainda em aberto: <strong>{vagasRestantes}</strong> de{' '}
+                  {solicitacaoSelecionada?.quantidade_solicitada}
+                </p>
+                {contexto.criterios?.niveis_escolares?.length > 0 && (
+                  <p className="text-xs text-amber-800">
+                    Só entram membros de: {contexto.criterios.niveis_escolares.join(', ')}
+                  </p>
+                )}
+                {contexto.cotas?.length > 0 && (
+                  <p className="text-xs text-amber-800">
+                    A prova aceita {contexto.cotas.map((c) => c.label).join(', ')}.
+                  </p>
+                )}
+                <p className="text-xs text-amber-800">
+                  Quem já está inscrito nesta prova pela sua equipe não pode ser emprestado.
+                </p>
+              </div>
+            )}
+
+            {carregandoMembros && (
+              <div className="flex items-center justify-center py-6">
+                <div className="animate-spin w-6 h-6 border-4 border-gray-300 border-t-transparent rounded-full" />
+              </div>
+            )}
+
+            {erroMembros && (
+              <div className="bg-red-50 border border-red-200 rounded p-3 space-y-2">
+                <p className="text-sm text-red-800">{erroMembros}</p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => carregarMembrosOfertaveis(solicitacaoSelecionada?._id)}
+                >
+                  Tentar novamente
+                </Button>
+              </div>
+            )}
+
+            {/* Pedido já atendido: nada a selecionar, e dizer isso é melhor do
+                que deixar o coordenador clicar e levar um toast por membro. */}
+            {!carregandoMembros && contexto && vagasRestantes === 0 && (
+              <div className="bg-gray-100 border border-gray-200 rounded p-3">
+                <p className="text-sm text-gray-700">
+                  Esta solicitação já foi atendida — não há mais vagas em aberto.
+                </p>
+              </div>
+            )}
+
+            {/* Membros que podem ser ofertados */}
+            {!carregandoMembros && contexto && vagasRestantes > 0 && ofertaveis.length > 0 && (
               <div className="space-y-2">
                 <Label className="text-gray-700 font-medium">
-                  Membros Recomendados (atendem aos critérios)
+                  Podem ser ofertados ({ofertaveis.length})
                 </Label>
                 <div className="space-y-2 max-h-48 overflow-y-auto p-2 border rounded bg-green-50">
-                  {membrosRecomendados.map((membro) => (
-                    <div
-                      key={membro._id}
-                      className="flex items-center gap-3 p-2 hover:bg-white rounded cursor-pointer"
-                      onClick={() => toggleMembro(membro.usuario_id?._id)}
-                    >
-                      <Checkbox
-                        id={membro._id}
-                        checked={membrosSelecionados.includes(membro.usuario_id?._id)}
-                        onCheckedChange={() => toggleMembro(membro.usuario_id?._id)}
-                      />
-                      <label htmlFor={membro._id} className="flex-1 cursor-pointer">
-                        <p className="text-sm font-medium text-gray-900">
-                          {membro.usuario_id?.nome || '—'}
-                        </p>
-                        <p className="text-xs text-gray-600">
-                          {membro.usuario_id?.turma || 'Sem turma'} • {membro.usuario_id?.email}
-                        </p>
-                      </label>
-                    </div>
-                  ))}
+                  {ofertaveis.map((membro) => {
+                    const selecionado = membrosSelecionados.includes(membro.id);
+                    const bloqueadoPeloLimite = !selecionado && limiteAtingido;
+                    return (
+                      <div
+                        key={membro.id}
+                        className={`flex items-center gap-3 p-2 rounded ${
+                          bloqueadoPeloLimite ? 'opacity-50 cursor-not-allowed' : 'hover:bg-white cursor-pointer'
+                        }`}
+                        onClick={() => !bloqueadoPeloLimite && toggleMembro(membro.id)}
+                      >
+                        {/* O clique é tratado UMA vez, pela linha inteira: com o
+                            checkbox também clicável, o evento subia para a linha
+                            e a seleção era desfeita no mesmo clique. */}
+                        <span className="pointer-events-none">
+                          <Checkbox checked={selecionado} onCheckedChange={() => {}} />
+                        </span>
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-gray-900">
+                            {membro.nome || '—'}
+                            {membro.is_coordenador && (
+                              <span className="ml-2 text-xs bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded">
+                                Coordenador
+                              </span>
+                            )}
+                          </p>
+                          <p className="text-xs text-gray-600">
+                            {membro.turma || 'Sem turma'} • {membro.email}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}
 
-            {/* Outros Membros */}
-            {membrosOutros.length > 0 && (
+            {!carregandoMembros && contexto && vagasRestantes > 0 && ofertaveis.length === 0 && (
+              <p className="text-center text-gray-600 py-4">
+                Nenhum membro da sua equipe pode ser ofertado para esta solicitação.
+              </p>
+            )}
+
+            {/* Bloqueados: aparecem com o motivo, em vez de sumirem da lista */}
+            {!carregandoMembros && bloqueados.length > 0 && (
               <div className="space-y-2">
                 <Label className="text-gray-700 font-medium">
-                  Outros Membros
+                  Não podem ser ofertados ({bloqueados.length})
                 </Label>
-                <div className="space-y-2 max-h-48 overflow-y-auto p-2 border rounded">
-                  {membrosOutros.map((membro) => (
-                    <div
-                      key={membro._id}
-                      className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded cursor-pointer"
-                      onClick={() => toggleMembro(membro.usuario_id?._id)}
-                    >
-                      <Checkbox
-                        id={membro._id}
-                        checked={membrosSelecionados.includes(membro.usuario_id?._id)}
-                        onCheckedChange={() => toggleMembro(membro.usuario_id?._id)}
-                      />
-                      <label htmlFor={membro._id} className="flex-1 cursor-pointer">
-                        <p className="text-sm font-medium text-gray-900">
-                          {membro.usuario_id?.nome || '—'}
+                <div className="space-y-2 max-h-48 overflow-y-auto p-2 border rounded bg-gray-50">
+                  {bloqueados.map((membro) => (
+                    <div key={membro.id} className="flex items-start gap-3 p-2 rounded">
+                      <Lock className="h-4 w-4 text-gray-400 mt-1 shrink-0" />
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-gray-700">{membro.nome || '—'}</p>
+                        <p className="text-xs text-gray-500">
+                          {membro.turma || 'Sem turma'} • {membro.email}
                         </p>
-                        <p className="text-xs text-gray-600">
-                          {membro.usuario_id?.turma || 'Sem turma'} • {membro.usuario_id?.email}
-                        </p>
-                      </label>
+                        <p className="text-xs text-gray-600 mt-0.5">{membro.motivo}</p>
+                      </div>
                     </div>
                   ))}
                 </div>
               </div>
-            )}
-
-            {membrosDisponiveis.length === 0 && (
-              <p className="text-center text-gray-600 py-4">
-                Sua equipe não tem membros disponíveis no momento.
-              </p>
             )}
 
             {/* Mensagem opcional */}
@@ -348,7 +413,7 @@ export default function CoordOferecerMembros() {
             {membrosSelecionados.length > 0 && (
               <div className="bg-blue-50 p-3 rounded border border-blue-200">
                 <p className="text-sm font-medium text-blue-900">
-                  {membrosSelecionados.length} membro(s) selecionado(s)
+                  {membrosSelecionados.length} de {vagasRestantes} vaga(s) selecionada(s)
                 </p>
               </div>
             )}
@@ -361,9 +426,9 @@ export default function CoordOferecerMembros() {
             <Button
               className="bg-blue-600 hover:bg-blue-700 text-white"
               onClick={criarOferta}
-              disabled={membrosSelecionados.length === 0}
+              disabled={membrosSelecionados.length === 0 || enviando}
             >
-              Enviar Oferta
+              {enviando ? 'Enviando...' : 'Enviar Oferta'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -372,4 +437,3 @@ export default function CoordOferecerMembros() {
     </MainLayout>
   );
 }
-

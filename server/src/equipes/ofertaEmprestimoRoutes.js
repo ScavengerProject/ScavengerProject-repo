@@ -4,6 +4,7 @@ import { proteger, autorizar, resolverEscola, resolverGincana } from '../auth/au
 import {
   criarOferta,
   listarOfertas,
+  listarMembrosOfertaveis,
   aceitarOferta,
   recusarOferta,
   cancelarOferta,
@@ -19,6 +20,10 @@ router.post('/', proteger, autorizar('COORDENADOR'), criarOferta);
 
 // Admin e Coordenador podem listar
 router.get('/', proteger, autorizar('ADMIN', 'COORDENADOR'), listarOfertas);
+
+// Quem da minha equipe pode ser ofertado para esta solicitação (e por que não).
+// Antes de qualquer '/:id' para não ser capturado por ele.
+router.get('/ofertaveis/:solicitacaoId', proteger, autorizar('COORDENADOR'), listarMembrosOfertaveis);
 
 // Coordenador solicitante ou Admin aceita/recusa ofertas
 router.patch('/:id/aceitar', proteger, autorizar('ADMIN', 'COORDENADOR'), aceitarOferta);

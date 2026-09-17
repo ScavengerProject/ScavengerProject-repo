@@ -1,17 +1,18 @@
 // src/equipes/emprestimoEquipeController.js
 import EmprestimoEquipe from '../models/EmprestimoEquipe.js';
-import EquipeGincana from '../models/EquipeGincana.js';
 import EquipeMembro from '../models/EquipeMembros.js';
 import Prova from '../models/Prova.js';
-import Usuario from '../models/Usuario.js';
 import { getEquipesGincanaDoCoordenador } from './coordenadorEquipe.js';
+import { usuarioDaEscola } from '../escolas/escolaHelpers.js';
 
 // Escopo da gincana ativa (injetado por resolverGincana; fallback p/ gincana legada).
 const escopoGincana = (req) => req.gincanaId || 'GINCANA_PRINCIPAL';
 
-// Campos de populate para devolver nomes úteis no front
+// Campos de populate para devolver nomes úteis no front.
+// `vinculos` entra no select do emprestado porque é de lá que saem papel e
+// turma da escola ativa (ver comTurmaDoEmprestado).
 const basePopulate = [
-  { path: 'usuario_id', select: 'nome email tipo' },
+  { path: 'usuario_id', select: 'nome email tipo turma vinculos' },
   {
     path: 'equipe_origem_id',
     populate: { path: 'equipe_id', model: 'Equipe', select: 'nome cor' },
@@ -25,65 +26,38 @@ const basePopulate = [
   { path: 'encerrado_por', select: 'nome email tipo' },
 ];
 
-// [POST] /api/equipes/emprestimos
-// body: { usuario_id, equipe_destino_id, prova_id, inicio?, fim? }
-export const criarEmprestimo = async (req, res) => {
-  try {
-    const me = req.usuario;
-    const { usuario_id, equipe_destino_id, prova_id, inicio, fim } = req.body;
+/**
+ * Projeta o emprestado no papel/turma da ESCOLA ATIVA.
+ *
+ * O populate trazia só `nome email tipo`: a tela de empréstimos mostrava
+ * "Sem turma" para todo mundo porque o campo nem vinha. Acrescentar `turma` ao
+ * select não bastaria — o campo de topo é legado e fica null para quem entrou
+ * por convite; a turma real está no vínculo (ver usuarioDaEscola).
+ */
+const comTurmaDoEmprestado = (emprestimoOuLista, escolaId) => {
+  const achatar = (emprestimo) => {
+    if (!emprestimo) return emprestimo;
+    const obj = typeof emprestimo.toObject === 'function' ? emprestimo.toObject() : { ...emprestimo };
+    if (obj.usuario_id?.vinculos) obj.usuario_id = usuarioDaEscola(obj.usuario_id, escolaId);
+    return obj;
+  };
 
-    if (!usuario_id || !equipe_destino_id || !prova_id) {
-      return res.status(400).json({ message: 'usuario_id, equipe_destino_id e prova_id são obrigatórios.' });
-    }
-
-    // valida usuário
-    const usuario = await Usuario.findById(usuario_id).select('_id nome tipo');
-    if (!usuario) return res.status(404).json({ message: 'Usuário não encontrado.' });
-
-    // valida prova
-    const prova = await Prova.findById(prova_id).select('_id titulo data_inicio data_fim');
-    if (!prova) return res.status(404).json({ message: 'Prova não encontrada.' });
-
-    // valida equipe destino (EquipeGincana)
-    const egDestino = await EquipeGincana.findById(equipe_destino_id).select('_id equipe_id gincana_id coordenador_usuario_id');
-    if (!egDestino) return res.status(404).json({ message: 'Equipe destino (gincana) não encontrada.' });
-
-    // Origem: equipe atual do usuário (EquipeMembros → equipe_id)
-    const membroAtual = await EquipeMembro.findOne({ usuario_id }).select('_id equipe_id');
-    if (!membroAtual) return res.status(422).json({ message: 'Usuário não pertence a nenhuma equipe no momento.' });
-
-    // Buscar o EquipeGincana correspondente à equipe_id do membro
-    const egOrigem = await EquipeGincana.findOne({ equipe_id: membroAtual.equipe_id }).select('_id equipe_id');
-    if (!egOrigem) return res.status(422).json({ message: 'Equipe de origem não encontrada no contexto da gincana.' });
-
-    // Evita empréstimo para a mesma equipe
-    if (String(egOrigem._id) === String(egDestino._id)) {
-      return res.status(409).json({ message: 'Usuário já está nesta equipe.' });
-    }
-
-    // Impede 2 empréstimos ATIVO para a mesma prova
-    const jaAtivo = await EmprestimoEquipe.findOne({ usuario_id, prova_id, status: 'ATIVO' }).select('_id');
-    if (jaAtivo) return res.status(409).json({ message: 'Já existe um empréstimo ATIVO para este usuário nesta prova.' });
-
-    // cria
-    const doc = await EmprestimoEquipe.create({
-      usuario_id,
-      gincana_id: egDestino.gincana_id || escopoGincana(req),
-      equipe_origem_id: egOrigem._id,
-      equipe_destino_id,
-      prova_id,
-      inicio: inicio ? new Date(inicio) : new Date(),
-      fim: fim ? new Date(fim) : null,
-      status: 'ATIVO',
-      criado_por: me.id,
-    });
-
-    const result = await EmprestimoEquipe.findById(doc._id).populate(basePopulate);
-    return res.status(201).json(result);
-  } catch (error) {
-    return res.status(500).json({ message: 'Erro ao criar empréstimo.', error: error.message });
-  }
+  return Array.isArray(emprestimoOuLista)
+    ? emprestimoOuLista.map(achatar)
+    : achatar(emprestimoOuLista);
 };
+
+/**
+ * Não existe criação avulsa de empréstimo.
+ *
+ * O empréstimo é o RESULTADO do acordo entre dois coordenadores — solicitação
+ * (aprovada pelo ADMIN) -> oferta -> aceite do solicitante, em
+ * `ofertaEmprestimoController.aceitarOferta`, o único lugar que cria um
+ * `EmprestimoEquipe`. O antigo `POST /api/equipes/emprestimos` deixava o ADMIN
+ * mover um aluno de equipe direto, sem solicitação, sem oferta e sem nenhum dos
+ * dois coordenadores saber: o papel dele no fluxo é aprovar ou rejeitar a
+ * solicitação, e encerrar um empréstimo em curso.
+ */
 
 // [GET] /api/equipes/emprestimos
 // filtros opcionais: ?status=ATIVO|ENCERRADO|CANCELADO&provaId=...&usuarioId=...
@@ -106,7 +80,7 @@ export const listarEmprestimos = async (req, res) => {
     }
 
     const items = await EmprestimoEquipe.find(filtro).sort({ criado_em: -1 }).populate(basePopulate);
-    return res.status(200).json(items);
+    return res.status(200).json(comTurmaDoEmprestado(items, req.escolaId));
   } catch (error) {
     return res.status(500).json({ message: 'Erro ao listar empréstimos.', error: error.message });
   }
@@ -118,7 +92,7 @@ export const encerrarEmprestimo = async (req, res) => {
   try {
     const me = req.usuario;
     const { id } = req.params;
-    const { justificativa } = req.body;
+    const { justificativa } = req.body || {};
 
     const emp = await EmprestimoEquipe.findById(id);
     if (!emp) return res.status(404).json({ message: 'Empréstimo não encontrado.' });
@@ -131,7 +105,7 @@ export const encerrarEmprestimo = async (req, res) => {
     await emp.save();
 
     const result = await EmprestimoEquipe.findById(id).populate(basePopulate);
-    return res.status(200).json(result);
+    return res.status(200).json(comTurmaDoEmprestado(result, req.escolaId));
   } catch (error) {
     return res.status(500).json({ message: 'Erro ao encerrar empréstimo.', error: error.message });
   }

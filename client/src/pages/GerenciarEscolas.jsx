@@ -15,6 +15,16 @@ import { PERFIS_MULTI_ESCOLA, ehPerfilDeEscolaUnica } from '../lib/perfis';
 // Perfis que fazem sentido dentro de uma escola (SUPER_ADMIN é global).
 const PERFIS_ESCOLA = ['ADMIN', 'PROFESSOR', 'COORDENADOR', 'ALUNO', 'PAI/MÃE'];
 
+// COORDENADOR não se atribui por aqui: ele é concedido ao definir a pessoa como
+// coordenadora de uma equipe (Gerenciar Equipes), junto com a relação — dar só o
+// papel deixava a pessoa com o menu de coordenador e todas as telas vazias.
+// A API recusa do mesmo jeito (COORDENADOR_VIA_EQUIPE); some do <select> para
+// não oferecer um caminho que termina em erro. Continua listado para quem JÁ é
+// coordenador, senão o campo apareceria vazio na linha dessa pessoa.
+const PERFIS_ATRIBUIVEIS = PERFIS_ESCOLA.filter((t) => t !== 'COORDENADOR');
+const perfisDisponiveisPara = (tipoAtual) =>
+  tipoAtual === 'COORDENADOR' ? PERFIS_ESCOLA : PERFIS_ATRIBUIVEIS;
+
 // Rótulo do <option>: deixa explícito quais perfis prendem a pessoa a uma
 // escola só, para o SUPER_ADMIN não descobrir a regra pelo erro do servidor.
 const rotuloPerfil = (tipo) =>
@@ -404,7 +414,7 @@ const GerenciarEscolas = () => {
                 className="h-10 rounded-md border border-gray-300 bg-white px-3 text-sm"
               >
                 <option value="">Manter o perfil atual</option>
-                {PERFIS_ESCOLA.map((t) => (
+                {PERFIS_ATRIBUIVEIS.map((t) => (
                   <option key={t} value={t}>{rotuloPerfil(t)}</option>
                 ))}
               </select>
@@ -460,7 +470,7 @@ const GerenciarEscolas = () => {
                         }
                         className="h-9 rounded-md border border-gray-300 bg-white px-2 text-xs"
                       >
-                        {PERFIS_ESCOLA.map((t) => (
+                        {perfisDisponiveisPara(u.tipo).map((t) => (
                           <option
                             key={t}
                             value={t}

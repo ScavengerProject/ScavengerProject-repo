@@ -104,9 +104,20 @@ const request = async (endpoint, options = {}) => {
       if (codigo === 'GINCANA_NAO_SELECIONADA' || codigo === 'GINCANA_ENCERRADA') {
         localStorage.removeItem('gincanaAtivaId');
         redirecionarPara('/selecionar-gincana');
+      } else if (codigo === 'VINCULO_INATIVO' || codigo === 'VINCULO_BANIDO') {
+        // O vínculo existe, mas está bloqueado (desativado ou banido). NÃO é um
+        // caso de "escolha outra escola": a escola continua sendo a dele, e
+        // mandá-lo para /selecionar-escola era o laço — a escola recusada era a
+        // única da lista, o EscolaProvider a selecionava sozinho de novo e a
+        // primeira chamada com escopo trazia o mesmo 403.
+        //
+        // O escopo é limpo (nada mais pode ser carregado nele) e o destino é a
+        // tela terminal, que não dispara nenhuma requisição com escopo.
+        localStorage.removeItem('escolaAtivaId');
+        localStorage.removeItem('gincanaAtivaId');
+        redirecionarPara('/acesso-bloqueado');
       } else if (
         codigo === 'SEM_VINCULO_ESCOLA'
-        || codigo === 'VINCULO_INATIVO'
         || codigo === 'ESCOLA_NAO_SELECIONADA'
       ) {
         localStorage.removeItem('escolaAtivaId');
@@ -189,7 +200,7 @@ export const provasService = {
         data_fim: dados.data_fim || null,
         data_publicacao: dados.data_publicacao || null,
         status: dados.status || 'NAO_INICIADA',
-        quesitos_de_avaliacao: dados.quesitos_de_avaliacao || [],
+        bonus_categorias: dados.bonus_categorias || [],
         requisito_usuario: dados.requisito_usuario || null,
         restricao_participacao: dados.restricao_participacao || {},
         criterio_elegibilidade: dados.criterio_elegibilidade || {},
@@ -209,7 +220,7 @@ export const provasService = {
         data_fim: dados.data_fim || null,
         data_publicacao: dados.data_publicacao || null,
         status: dados.status || 'NAO_INICIADA',
-        quesitos_de_avaliacao: dados.quesitos_de_avaliacao || [],
+        bonus_categorias: dados.bonus_categorias || [],
         requisito_usuario: dados.requisito_usuario || null,
         restricao_participacao: dados.restricao_participacao || {},
         criterio_elegibilidade: dados.criterio_elegibilidade || {},
@@ -232,6 +243,11 @@ export const provasService = {
       body: JSON.stringify(usuarioId ? { usuario_id: usuarioId } : {}),
     }),
   
+  // Provas em que o próprio usuário está inscrito na gincana ativa, já com a
+  // equipe pela qual ele participou de cada uma (empréstimo/migração incluídos).
+  minhasInscricoes: () =>
+    request('/provas/minhas-inscricoes', { method: 'GET' }),
+
   // Verificar se está inscrito na prova
   verificarInscricao: (provaId) =>
     request(`/provas/${provaId}/inscricao/status`, { method: 'GET' }),
@@ -239,6 +255,19 @@ export const provasService = {
   // Listar participantes de uma prova
   listarParticipantes: (provaId) =>
     request(`/provas/${provaId}/participantes`, { method: 'GET' }),
+
+  // Coordenador: membros da própria equipe com elegibilidade para ESTA prova
+  // (inclui os inelegíveis, com o motivo) e vagas restantes por grupo.
+  listarMembrosDaEquipeParaProva: (provaId) =>
+    request(`/provas/${provaId}/inscricao/membros-equipe`, { method: 'GET' }),
+
+  // Coordenador: inscreve vários membros da própria equipe de uma vez. Em lote
+  // porque chamadas paralelas de `inscrever` furam a cota do grupo.
+  inscreverMembrosDaEquipe: (provaId, usuarioIds) =>
+    request(`/provas/${provaId}/inscricoes/equipe`, {
+      method: 'POST',
+      body: JSON.stringify({ usuario_ids: usuarioIds }),
+    }),
 
   // Coordenador: listar membros da própria equipe inscritos na prova e definição atual
   obterEquipeParticipante: (provaId) =>
@@ -489,12 +518,8 @@ export const emprestimosService = {
     return request(`/equipes/emprestimos${queryString ? '?' + queryString : ''}`, { method: 'GET' });
   },
 
-  // Criar novo empréstimo
-  criar: (usuario_id, equipe_destino_id, prova_id, inicio, fim) =>
-    request('/equipes/emprestimos', {
-      method: 'POST',
-      body: JSON.stringify({ usuario_id, equipe_destino_id, prova_id, inicio, fim }),
-    }),
+  // Não há `criar`: o empréstimo nasce do aceite de uma oferta
+  // (ofertasEmprestimoService.aceitar), nunca de uma criação avulsa.
 
   // Encerrar empréstimo
   encerrar: (emprestimoId, justificativa) =>
@@ -554,6 +579,12 @@ export const solicitacoesEmprestimoService = {
  * Serviço de Ofertas de Empréstimo
  */
 export const ofertasEmprestimoService = {
+  // Membros da minha equipe que podem ser ofertados para uma solicitação —
+  // com o motivo de cada recusa, para a tela poder explicá-la.
+  // [GET] /api/equipes/ofertas-emprestimo/ofertaveis/:solicitacaoId
+  membrosOfertaveis: (solicitacao_id) =>
+    request(`/equipes/ofertas-emprestimo/ofertaveis/${solicitacao_id}`, { method: 'GET' }),
+
   // Coordenador cria oferta
   criar: (solicitacao_id, membros_oferecidos_ids, mensagem) =>
     request('/equipes/ofertas-emprestimo', {
@@ -640,7 +671,7 @@ export const usuariosService = {
   alternarStatus: (id) =>
     request(`/usuarios/${id}/status`, { method: 'PATCH' }),
 
-  // Definir status diretamente (ATIVO, INATIVO, BANIDO, SUSPENSO)
+  // Definir status diretamente (ATIVO, INATIVO, BANIDO)
   definirStatus: (id, status) =>
     request(`/usuarios/${id}/status`, {
       method: 'PATCH',

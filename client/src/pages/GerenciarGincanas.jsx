@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Label } from '../components/ui/label';
 import { Input } from '../components/ui/input';
 import { Textarea } from '../components/ui/textarea';
-import { Trophy, Plus, Archive, CheckCircle, Power } from 'lucide-react';
+import { Trophy, Plus, Archive, CheckCircle, Power, Pencil, CalendarRange } from 'lucide-react';
 import { toast } from '../components/ui/toast';
 
 const statusColor = (status) => {
@@ -21,6 +21,37 @@ const statusColor = (status) => {
   }
 };
 
+const formVazio = () => ({
+  nome: '',
+  ano: new Date().getFullYear(),
+  descricao: '',
+  data_inicio: '',
+  data_fim: '',
+});
+
+/**
+ * O período da gincana é data sem hora: gravamos meia-noite UTC e lemos de volta
+ * pelos componentes UTC. Converter pelo fuso local devolveria o dia anterior em
+ * qualquer fuso a oeste de Greenwich — no Brasil, 01/03 viraria 28/02 a cada ida
+ * e volta do formulário.
+ */
+const paraInputDate = (data) => {
+  if (!data) return '';
+  const d = new Date(data);
+  if (isNaN(d.getTime())) return '';
+  return d.toISOString().slice(0, 10);
+};
+
+const paraISO = (valor) => (valor ? new Date(`${valor}T00:00:00.000Z`).toISOString() : null);
+
+const formatarData = (data) => new Date(data).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+
+const periodoLegivel = ({ data_inicio, data_fim }) => {
+  if (!data_inicio && !data_fim) return null;
+  if (data_inicio && data_fim) return `${formatarData(data_inicio)} a ${formatarData(data_fim)}`;
+  return data_inicio ? `a partir de ${formatarData(data_inicio)}` : `até ${formatarData(data_fim)}`;
+};
+
 const GerenciarGincanas = () => {
   const { usuario, logout } = useAuth();
   const { recarregarGincanas } = useGincana();
@@ -29,7 +60,9 @@ const GerenciarGincanas = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [form, setForm] = useState({ nome: '', ano: new Date().getFullYear(), descricao: '' });
+  // Gincana sendo editada; null significa que o modal está em modo de criação.
+  const [editando, setEditando] = useState(null);
+  const [form, setForm] = useState(formVazio);
 
   const fetchGincanas = async () => {
     try {
@@ -47,26 +80,64 @@ const GerenciarGincanas = () => {
     fetchGincanas();
   }, []);
 
-  const handleCriar = async (e) => {
+  const abrirCriacao = () => {
+    setEditando(null);
+    setForm(formVazio());
+    setIsModalOpen(true);
+  };
+
+  const abrirEdicao = (gincana) => {
+    setEditando(gincana);
+    setForm({
+      nome: gincana.nome,
+      ano: gincana.ano,
+      descricao: gincana.descricao || '',
+      data_inicio: paraInputDate(gincana.data_inicio),
+      data_fim: paraInputDate(gincana.data_fim),
+    });
+    setIsModalOpen(true);
+  };
+
+  const fecharModal = (aberto) => {
+    setIsModalOpen(aberto);
+    if (!aberto) setEditando(null);
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.nome.trim() || !form.ano) {
       toast.error('Nome e ano são obrigatórios.');
       return;
     }
+    // Comparação direta funciona: os dois valores vêm no formato YYYY-MM-DD.
+    if (form.data_inicio && form.data_fim && form.data_fim < form.data_inicio) {
+      toast.error('A data de término não pode ser anterior à de início.');
+      return;
+    }
+
+    const dados = {
+      nome: form.nome.trim(),
+      ano: Number(form.ano),
+      descricao: form.descricao.trim(),
+      data_inicio: paraISO(form.data_inicio),
+      data_fim: paraISO(form.data_fim),
+    };
+
     setIsSubmitting(true);
     try {
-      await gincanasService.criar({
-        nome: form.nome.trim(),
-        ano: Number(form.ano),
-        descricao: form.descricao.trim(),
-      });
-      toast.success('Gincana criada com sucesso!');
-      setIsModalOpen(false);
-      setForm({ nome: '', ano: new Date().getFullYear(), descricao: '' });
+      if (editando) {
+        await gincanasService.atualizar(editando._id, dados);
+        toast.success('Gincana atualizada!');
+      } else {
+        await gincanasService.criar(dados);
+        toast.success('Gincana criada com sucesso!');
+      }
+      fecharModal(false);
+      setForm(formVazio());
       await fetchGincanas();
-      await recarregarGincanas(); // atualiza o seletor da navbar
+      await recarregarGincanas(); // o seletor da navbar mostra nome e ano
     } catch (error) {
-      toast.error(error.message || 'Falha ao criar gincana.');
+      toast.error(error.message || (editando ? 'Falha ao atualizar gincana.' : 'Falha ao criar gincana.'));
     } finally {
       setIsSubmitting(false);
     }
@@ -98,7 +169,7 @@ const GerenciarGincanas = () => {
               <p className="text-gray-600 text-sm">Crie e gerencie as edições da gincana.</p>
             </div>
           </div>
-          <Button onClick={() => setIsModalOpen(true)} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white">
+          <Button onClick={abrirCriacao} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white">
             <Plus size={18} /> Nova Gincana
           </Button>
         </div>
@@ -107,48 +178,59 @@ const GerenciarGincanas = () => {
           <p className="text-gray-500">Nenhuma gincana cadastrada ainda.</p>
         ) : (
           <div className="grid gap-4">
-            {gincanas.map((g) => (
-              <Card key={g._id}>
-                <CardContent className="p-4 flex items-center justify-between gap-4 flex-wrap">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <h2 className="text-lg font-semibold text-gray-900 truncate">{g.nome}</h2>
-                      <span className="text-sm text-gray-500">({g.ano})</span>
-                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${statusColor(g.status)}`}>{g.status}</span>
+            {gincanas.map((g) => {
+              const periodo = periodoLegivel(g);
+              return (
+                <Card key={g._id}>
+                  <CardContent className="p-4 flex items-center justify-between gap-4 flex-wrap">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <h2 className="text-lg font-semibold text-gray-900 truncate">{g.nome}</h2>
+                        <span className="text-sm text-gray-500">({g.ano})</span>
+                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${statusColor(g.status)}`}>{g.status}</span>
+                      </div>
+                      {periodo && (
+                        <p className="text-sm text-gray-600 mt-1 flex items-center gap-1.5">
+                          <CalendarRange size={14} className="text-gray-400" /> {periodo}
+                        </p>
+                      )}
+                      {g.descricao && <p className="text-sm text-gray-600 mt-1">{g.descricao}</p>}
                     </div>
-                    {g.descricao && <p className="text-sm text-gray-600 mt-1">{g.descricao}</p>}
-                  </div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {g.status !== 'ATIVA' && (
-                      <Button variant="outline" size="sm" onClick={() => alterarStatus(g, 'ATIVA')} className="flex items-center gap-1">
-                        <CheckCircle size={16} /> Reativar
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Button variant="outline" size="sm" onClick={() => abrirEdicao(g)} className="flex items-center gap-1">
+                        <Pencil size={16} /> Editar
                       </Button>
-                    )}
-                    {g.status === 'ATIVA' && (
-                      <Button variant="outline" size="sm" onClick={() => alterarStatus(g, 'ENCERRADA')} className="flex items-center gap-1">
-                        <Power size={16} /> Encerrar
-                      </Button>
-                    )}
-                    {g.status !== 'ARQUIVADA' && (
-                      <Button variant="outline" size="sm" onClick={() => alterarStatus(g, 'ARQUIVADA')} className="flex items-center gap-1 text-gray-600">
-                        <Archive size={16} /> Arquivar
-                      </Button>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                      {g.status !== 'ATIVA' && (
+                        <Button variant="outline" size="sm" onClick={() => alterarStatus(g, 'ATIVA')} className="flex items-center gap-1">
+                          <CheckCircle size={16} /> Reativar
+                        </Button>
+                      )}
+                      {g.status === 'ATIVA' && (
+                        <Button variant="outline" size="sm" onClick={() => alterarStatus(g, 'ENCERRADA')} className="flex items-center gap-1">
+                          <Power size={16} /> Encerrar
+                        </Button>
+                      )}
+                      {g.status !== 'ARQUIVADA' && (
+                        <Button variant="outline" size="sm" onClick={() => alterarStatus(g, 'ARQUIVADA')} className="flex items-center gap-1 text-gray-600">
+                          <Archive size={16} /> Arquivar
+                        </Button>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         )}
       </div>
 
-      {/* Modal de criação */}
-      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+      {/* Modal de criação e edição — o mesmo formulário nos dois modos. */}
+      <Dialog open={isModalOpen} onOpenChange={fecharModal}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Nova Gincana</DialogTitle>
+            <DialogTitle>{editando ? 'Editar Gincana' : 'Nova Gincana'}</DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleCriar} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <Label htmlFor="nome">Nome</Label>
               <Input
@@ -169,6 +251,29 @@ const GerenciarGincanas = () => {
                 required
               />
             </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <Label htmlFor="data_inicio">Início (opcional)</Label>
+                <Input
+                  id="data_inicio"
+                  type="date"
+                  value={form.data_inicio}
+                  onChange={(e) => setForm({ ...form, data_inicio: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label htmlFor="data_fim">Término (opcional)</Label>
+                <Input
+                  id="data_fim"
+                  type="date"
+                  value={form.data_fim}
+                  onChange={(e) => setForm({ ...form, data_fim: e.target.value })}
+                />
+              </div>
+            </div>
+            <p className="text-xs text-gray-500 -mt-2">
+              O período é informativo: quem encerra a edição é o status, não a data de término.
+            </p>
             <div>
               <Label htmlFor="descricao">Descrição (opcional)</Label>
               <Textarea
@@ -179,11 +284,11 @@ const GerenciarGincanas = () => {
               />
             </div>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)} disabled={isSubmitting}>
+              <Button type="button" variant="outline" onClick={() => fecharModal(false)} disabled={isSubmitting}>
                 Cancelar
               </Button>
               <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white" disabled={isSubmitting}>
-                {isSubmitting ? 'Criando...' : 'Criar'}
+                {isSubmitting ? (editando ? 'Salvando...' : 'Criando...') : (editando ? 'Salvar' : 'Criar')}
               </Button>
             </DialogFooter>
           </form>

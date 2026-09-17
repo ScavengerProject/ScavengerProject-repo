@@ -398,10 +398,17 @@ describe('authPermissions - papel por escola', () => {
     expect(res.status).not.toHaveBeenCalled();
   });
 
-  it('403 quando o vínculo com a escola está inativo', async () => {
+  // INATIVO e BANIDO bloqueiam igual, mas com `codigo` PRÓPRIO: o front usa o
+  // código para escolher o texto da tela terminal, e tratar os dois como
+  // "perdi acesso" era o que mandava o usuário para /selecionar-escola — onde a
+  // escola recusada era a única da lista, reabrindo o laço escola <-> gincana.
+  it.each([
+    ['INATIVO', 'VINCULO_INATIVO'],
+    ['BANIDO', 'VINCULO_BANIDO'],
+  ])('403 com codigo %s quando o vínculo com a escola está %s', async (status, codigo) => {
     const usuario = await Usuario.create({
-      nome: 'Susp', email: 'susp@x.com', senha: '123', tipo: 'PROFESSOR',
-      vinculos: [{ escola_id: ESCOLA_A, tipo: 'PROFESSOR', status: 'SUSPENSO' }],
+      nome: `Bloq ${status}`, email: `bloq-${status.toLowerCase()}@x.com`, senha: '123', tipo: 'PROFESSOR',
+      vinculos: [{ escola_id: ESCOLA_A, tipo: 'PROFESSOR', status }],
     });
     const req = { headers: { 'x-escola-id': ESCOLA_A }, usuario: { id: usuario._id.toString(), tipo: 'PROFESSOR' } };
     const res = mockRes();
@@ -410,6 +417,7 @@ describe('authPermissions - papel por escola', () => {
     await resolverEscola(req, res, next);
 
     expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ codigo }));
     expect(next).not.toHaveBeenCalled();
   });
 
