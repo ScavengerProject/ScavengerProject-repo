@@ -15,6 +15,8 @@ import { provasService, equipesService, resultadosService, configuracoesService 
 import { toast } from "./ui/toast";
 import { useAuth } from "../hooks/useAuth";
 import { ehAdmin } from '../lib/perfis';
+import { cotasDaProva, textoDaCota, motivoDaRecusa } from '../lib/cotasProva';
+import InscreverMembrosEquipeModal from "./InscreverMembrosEquipeModal";
 
 const ProvaDetalhesModal = ({ prova, isOpen, onClose, onInscricaoSucesso }) => {
   const { usuario } = useAuth();
@@ -29,6 +31,11 @@ const ProvaDetalhesModal = ({ prova, isOpen, onClose, onInscricaoSucesso }) => {
   
   const [ocultarPontos, setOcultarPontos] = useState(false); 
   const [salvandoConfig, setSalvandoConfig] = useState(false);
+
+  // Inscrição de membros da equipe (coordenador). Num modal próprio: o de
+  // detalhes já é longo, e a lista da equipe apareceria abaixo da dobra,
+  // longe do botão que a abriu.
+  const [inscreverMembrosAberto, setInscreverMembrosAberto] = useState(false);
 
   useEffect(() => {
     if (isOpen && prova) {
@@ -165,6 +172,7 @@ const ProvaDetalhesModal = ({ prova, isOpen, onClose, onInscricaoSucesso }) => {
   const formatarPontuacao = (pontuacao) => {
     if (!pontuacao || Object.keys(pontuacao).length === 0) return "Pontuação não definida.";
     if (pontuacao.pontos_por_unidade && pontuacao.nome_unidade) return `${pontuacao.pontos_por_unidade} pontos por ${pontuacao.nome_unidade}`;
+    if (pontuacao.hasOwnProperty('quantidade_minima')) return `${pontuacao.pontuacao_fixa || 0} pontos ao atingir ${pontuacao.quantidade_minima} ${pontuacao.nome_unidade || 'unidades'}`;
     const pos = [];
     if (pontuacao["1"]) pos.push(`1º: ${pontuacao["1"]} pts`);
     if (pontuacao["2"]) pos.push(`2º: ${pontuacao["2"]} pts`);
@@ -173,8 +181,14 @@ const ProvaDetalhesModal = ({ prova, isOpen, onClose, onInscricaoSucesso }) => {
   };
 
   const statusInfo = traduzirStatus(prova.status);
-  const requisitos = prova.requisito_usuario || {};
-  const temCotas = Object.values(requisitos).some(c => Number(c) > 0);
+  const cotas = cotasDaProva(prova);
+  const temCotas = cotas.length > 0;
+  // Só existe quando a prova veio da listagem (que anexa a avaliação do
+  // servidor). Sem ele o modal não afirma nada sobre elegibilidade — melhor
+  // calar do que adivinhar o ano escolar pelo `usuario` do token, que vem sem
+  // turma para quem se cadastrou por convite.
+  const recusa = motivoDaRecusa(prova.minha_elegibilidade);
+  const recusaBloqueia = Boolean(recusa) && prova.minha_elegibilidade?.code !== 'JA_INSCRITO';
 
   const handleInscrever = async () => {
     try {
@@ -191,6 +205,11 @@ const ProvaDetalhesModal = ({ prova, isOpen, onClose, onInscricaoSucesso }) => {
   };
 
   const isAdmin = ehAdmin(usuario);
+  // O coordenador pode inscrever a própria equipe enquanto a prova aceita
+  // inscrições — mesma condição do botão de autoinscrição ao lado.
+  const podeInscreverEquipe = usuario?.tipo === 'COORDENADOR'
+    && temCotas
+    && prova.status !== 'CONCLUIDA';
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -212,6 +231,40 @@ const ProvaDetalhesModal = ({ prova, isOpen, onClose, onInscricaoSucesso }) => {
                 <h4 className="font-semibold">Prova Indisponível</h4>
               </div>
               <p className="text-sm text-red-800">Sem vagas disponíveis.</p>
+            </div>
+          )}
+
+          {/* Quem pode participar, explícito. Esta é a informação que decide se
+              o botão "Inscrever-se" vai funcionar — deixá-la fora do modal
+              transformava a inscrição em tentativa e erro. */}
+          {temCotas && (
+            <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+              <div className="flex items-center gap-2 text-slate-900 mb-3">
+                <Users className="h-5 w-5" />
+                <h4 className="font-semibold">Quem pode participar</h4>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {cotas.map((cota) => (
+                  <Badge
+                    key={cota.grupo}
+                    className={cota.restantes === 0
+                      ? 'bg-gray-200 text-gray-600'
+                      : 'bg-white text-slate-700 border border-slate-300'}
+                  >
+                    {textoDaCota(cota)}
+                  </Badge>
+                ))}
+              </div>
+              <p className="text-xs text-slate-600 mt-3">
+                Quem não aparece nesta lista não participa desta prova.
+              </p>
+
+              {recusaBloqueia && (
+                <div className="flex items-start gap-2 mt-3 pt-3 border-t border-slate-200 text-sm text-amber-800">
+                  <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                  <span>{recusa}</span>
+                </div>
+              )}
             </div>
           )}
 
@@ -341,20 +394,44 @@ const ProvaDetalhesModal = ({ prova, isOpen, onClose, onInscricaoSucesso }) => {
         <DialogFooter className="mt-6">
           <div className="flex items-center justify-between w-full gap-4">
             <Button variant="outline" onClick={onClose}>Fechar</Button>
-            {!jaInscrito && temCotas && prova.status !== 'CONCLUIDA' && (
-               <Button onClick={handleInscrever} disabled={inscrevendo} className="bg-blue-600 text-white">
-                  {inscrevendo ? "Inscrevendo..." : "Inscrever-se"}
-               </Button>
-            )}
-             {jaInscrito && (
-               <div className="flex items-center gap-2 px-4 py-2 bg-green-50 border border-green-200 rounded-lg">
-                <UserCheck className="h-5 w-5 text-green-600" />
-                <span className="text-sm font-medium text-green-800">Inscrito</span>
-              </div>
-            )}
+            <div className="flex items-center gap-3">
+              {podeInscreverEquipe && (
+                <Button
+                  variant="outline"
+                  onClick={() => setInscreverMembrosAberto(true)}
+                  className="border-blue-300 text-blue-700"
+                >
+                  <UserPlus className="h-4 w-4 mr-2" />
+                  Inscrever membros da equipe
+                </Button>
+              )}
+              {/* Sem o botão quando o servidor já avaliou e recusaria: o aviso
+                  acima explica o motivo, e oferecer um clique que só produz erro
+                  é o comportamento que esta tela tinha antes. */}
+              {!jaInscrito && temCotas && !recusaBloqueia && prova.status !== 'CONCLUIDA' && (
+                 <Button onClick={handleInscrever} disabled={inscrevendo} className="bg-blue-600 text-white">
+                    {inscrevendo ? "Inscrevendo..." : "Inscrever-se"}
+                 </Button>
+              )}
+               {jaInscrito && (
+                 <div className="flex items-center gap-2 px-4 py-2 bg-green-50 border border-green-200 rounded-lg">
+                  <UserCheck className="h-5 w-5 text-green-600" />
+                  <span className="text-sm font-medium text-green-800">Inscrito</span>
+                </div>
+              )}
+            </div>
           </div>
         </DialogFooter>
       </DialogContent>
+
+      {podeInscreverEquipe && (
+        <InscreverMembrosEquipeModal
+          prova={prova}
+          isOpen={inscreverMembrosAberto}
+          onClose={() => setInscreverMembrosAberto(false)}
+          onInscricaoSucesso={onInscricaoSucesso}
+        />
+      )}
     </Dialog>
   );
 };

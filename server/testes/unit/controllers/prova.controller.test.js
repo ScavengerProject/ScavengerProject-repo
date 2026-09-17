@@ -5,6 +5,8 @@ import Prova from '../../../src/models/Prova.js';
 import ProvaUsuario from '../../../src/models/ProvaUsuario.js';
 import Usuario from '../../../src/models/Usuario.js';
 import EquipeMembros from '../../../src/models/EquipeMembros.js';
+import Equipe from '../../../src/models/Equipe.js';
+import EquipeGincana from '../../../src/models/EquipeGincana.js';
 import {
   calcularStatusProva,
   criarProva,
@@ -46,7 +48,25 @@ afterEach(async () => {
   await ProvaUsuario.deleteMany({});
   await Usuario.deleteMany({});
   await EquipeMembros.deleteMany({});
+  await Equipe.deleteMany({});
+  await EquipeGincana.deleteMany({});
 });
+
+/**
+ * Equipe de verdade, coordenada por `coordenadorId` na gincana da prova.
+ *
+ * O coordenador só pode inscrever quem é membro de uma equipe que ELE coordena
+ * (ver `coordenaMembro`), então não basta o membro estar em uma equipe qualquer:
+ * os dois precisam estar na MESMA, e ela precisa participar da gincana da prova.
+ */
+const criarEquipeCoordenadaPor = async (coordenadorId, gincanaId = 'GINCANA_PRINCIPAL') => {
+  const equipe = await Equipe.create({
+    nome: `Equipe ${new mongoose.Types.ObjectId()}`, cor: '#111', gincana_id: gincanaId,
+  });
+  await EquipeGincana.create({ equipe_id: equipe._id, gincana_id: gincanaId });
+  await EquipeMembros.create({ equipe_id: equipe._id, usuario_id: coordenadorId, is_coordenador: true });
+  return equipe;
+};
 
 describe('calcularStatusProva (lógica pura de status por datas)', () => {
   it('retorna NAO_INICIADA quando a data de início é no futuro', () => {
@@ -432,8 +452,11 @@ describe('provaController - inscreverUsuarioNaProva (grupo/ano escolar por vínc
       vinculos: [{ escola_id: 'ESCOLA_DESTINO', tipo: 'ALUNO', turma: 'EF - 6º Ano' }],
     });
     // EquipeMembros da escola antiga não é removido numa transferência —
-    // é justamente essa a brecha que este teste cobre.
-    await EquipeMembros.create({ equipe_id: new mongoose.Types.ObjectId(), usuario_id: transferido._id, is_coordenador: false });
+    // é justamente essa a brecha que este teste cobre. O ex-membro continua na
+    // equipe do coordenador, então a recusa tem de vir do vínculo, não da
+    // autorização "é da minha equipe?".
+    const equipe = await criarEquipeCoordenadaPor(adminId);
+    await EquipeMembros.create({ equipe_id: equipe._id, usuario_id: transferido._id, is_coordenador: false });
 
     const req = {
       params: { id: prova._id.toString() },
@@ -462,6 +485,61 @@ describe('provaController - inscreverUsuarioNaProva (grupo/ano escolar por vínc
       params: { id: prova._id.toString() },
       body: {},
       usuario: { id: alunoLegado._id.toString(), tipo: 'ALUNO' },
+      escolaId,
+    };
+    const res = mockRes();
+
+    await inscreverUsuarioNaProva(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(201);
+  });
+
+  // Regressão: um ALUNO promovido a COORDENADOR (via gerenciamento de
+  // usuários) recebia "usuario_id é obrigatório" ao tentar se autoinscrever
+  // numa prova pela tela normal (que nunca envia usuario_id) — o controller
+  // tratava COORDENADOR igual ADMIN, exigindo o id de outra pessoa. Depois de
+  // corrigido isso, um segundo bug ficava exposto: determinarGrupo() não
+  // reconhecia COORDENADOR e retornava GRUPO_INDETERMINADO mesmo com a turma
+  // preenchida (alterarPapelUsuario já exige turma para coordenador).
+  it('coordenador se autoinscreve na prova sem informar usuario_id (bug da demo em escola)', async () => {
+    const escolaId = 'ESCOLA_X';
+    const prova = await criarProvaComCota();
+    const coordenador = await Usuario.create({
+      nome: 'Aluno Promovido a Coordenador', email: 'coord-promovido@x.com', senha: '123',
+      tipo: 'ALUNO', turma: null,
+      vinculos: [{ escola_id: escolaId, tipo: 'COORDENADOR', turma: 'EM - 1º Ano' }],
+    });
+    await EquipeMembros.create({ equipe_id: new mongoose.Types.ObjectId(), usuario_id: coordenador._id, is_coordenador: true });
+
+    const req = {
+      params: { id: prova._id.toString() },
+      body: {}, // a tela de inscrição nunca envia usuario_id — é sempre autoinscrição
+      usuario: { id: coordenador._id.toString(), tipo: 'COORDENADOR' },
+      escolaId,
+    };
+    const res = mockRes();
+
+    await inscreverUsuarioNaProva(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ ok: true }));
+  });
+
+  it('coordenador não consegue inscrever outra pessoa que não seja ele mesmo sem passar usuario_id, mas pode informar um usuario_id de um membro da equipe', async () => {
+    const escolaId = 'ESCOLA_X';
+    const prova = await criarProvaComCota();
+    const membro = await Usuario.create({
+      nome: 'Membro Da Equipe', email: 'membro-equipe@x.com', senha: '123',
+      tipo: 'ALUNO', turma: null,
+      vinculos: [{ escola_id: escolaId, tipo: 'ALUNO', turma: 'EF - 9º Ano' }],
+    });
+    const equipe = await criarEquipeCoordenadaPor(adminId);
+    await EquipeMembros.create({ equipe_id: equipe._id, usuario_id: membro._id, is_coordenador: false });
+
+    const req = {
+      params: { id: prova._id.toString() },
+      body: { usuario_id: membro._id.toString() },
+      usuario: { id: adminId, tipo: 'COORDENADOR' },
       escolaId,
     };
     const res = mockRes();

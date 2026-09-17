@@ -40,7 +40,7 @@ afterEach(async () => {
 });
 
 // Cria uma prova já CONCLUIDA (término no passado) com regras de pontuação.
-async function criarProvaConcluida(pontuacao, quesitos = []) {
+async function criarProvaConcluida(pontuacao, bonusCategorias = []) {
   return Prova.create({
     titulo: 'Prova Resultado',
     descricao: 'd',
@@ -48,7 +48,7 @@ async function criarProvaConcluida(pontuacao, quesitos = []) {
     data_inicio: new Date(Date.now() - 10 * umDia),
     data_fim: new Date(Date.now() - 2 * umDia),
     pontuacao,
-    quesitos_de_avaliacao: quesitos,
+    bonus_categorias: bonusCategorias,
     criado_por_usuario_id: avaliadorId,
   });
 }
@@ -140,6 +140,164 @@ describe('resultadoController - lancarResultados (cálculo de pontos)', () => {
     expect(resultado.detalhes_pontuacao).toMatch(/teto atingido: 50/i);
   });
 
+  it('LIMIAR: concede a pontuação fixa quando atinge o mínimo', async () => {
+    const prova = await criarProvaConcluida({ quantidade_minima: 30, pontuacao_fixa: 300, nome_unidade: 'alunos' });
+    const equipe = await criarEquipeComGincana('Caminhada');
+
+    const res = mockRes();
+    await lancarResultados(
+      { query: { provaId: prova._id.toString() }, body: { tipo: 'LIMIAR', resultados: [{ equipe_id: equipe._id.toString(), valor: '32' }] }, usuario: { id: avaliadorId } },
+      res
+    );
+
+    expect(res.status).toHaveBeenCalledWith(201);
+    const resultado = await Resultado.findOne({ prova_id: prova._id, equipe_id: equipe._id });
+    expect(resultado.pontuacao_obtida).toBe(300);
+    expect(resultado.detalhes_pontuacao).toMatch(/mínimo atingido/i);
+  });
+
+  it('LIMIAR: dá 0 pontos quando NÃO atinge o mínimo', async () => {
+    const prova = await criarProvaConcluida({ quantidade_minima: 30, pontuacao_fixa: 300, nome_unidade: 'alunos' });
+    const equipe = await criarEquipeComGincana('Caminhada2');
+
+    const res = mockRes();
+    await lancarResultados(
+      { query: { provaId: prova._id.toString() }, body: { tipo: 'LIMIAR', resultados: [{ equipe_id: equipe._id.toString(), valor: '25' }] }, usuario: { id: avaliadorId } },
+      res
+    );
+
+    expect(res.status).toHaveBeenCalledWith(201);
+    const resultado = await Resultado.findOne({ prova_id: prova._id, equipe_id: equipe._id });
+    expect(resultado.pontuacao_obtida).toBe(0);
+    expect(resultado.detalhes_pontuacao).toMatch(/NÃO atingido/i);
+  });
+
+  it('bonus_categorias: soma pontos por unidade de cada categoria, respeitando o teto', async () => {
+    const prova = await criarProvaConcluida(
+      { quantidade_minima: 30, pontuacao_fixa: 300, nome_unidade: 'alunos' },
+      [
+        { chave: 'EX_ALUNOS', nome: 'Ex-alunos', pontos_por_unidade: 20, teto_unidades: 5 },
+        { chave: 'PAIS_MAES', nome: 'Pais/Mães', pontos_por_unidade: 20, teto_unidades: 5 },
+      ]
+    );
+    const equipe = await criarEquipeComGincana('Caminhada3');
+
+    const res = mockRes();
+    await lancarResultados(
+      {
+        query: { provaId: prova._id.toString() },
+        body: {
+          tipo: 'LIMIAR',
+          resultados: [{ equipe_id: equipe._id.toString(), valor: '32', quesitos: { EX_ALUNOS: 7, PAIS_MAES: 3 } }],
+        },
+        usuario: { id: avaliadorId },
+      },
+      res
+    );
+
+    expect(res.status).toHaveBeenCalledWith(201);
+    const resultado = await Resultado.findOne({ prova_id: prova._id, equipe_id: equipe._id });
+    // Base: 300 (mínimo atingido). Ex-alunos: min(7,5)*20=100. Pais/Mães: min(3,5)*20=60.
+    expect(resultado.pontuacao_obtida).toBe(460);
+    expect(resultado.detalhes_pontuacao).toMatch(/Ex-alunos \(7 × 20pts = 100pts \(teto aplicado\)\)/);
+    expect(resultado.detalhes_pontuacao).toMatch(/Pais\/Mães \(3 × 20pts = 60pts\)/);
+  });
+
+  // RANKING + bônus na mesma prova nunca tinha sido exercitado junto: a
+  // pontuação da posição e a das categorias vêm de ramos diferentes do cálculo.
+  it('RANKING: soma a pontuação da posição E as categorias de bônus', async () => {
+    const prova = await criarProvaConcluida(
+      { '1': 100, '2': 70, '3': 50 },
+      [{ chave: 'EX_ALUNOS', nome: 'Ex-alunos envolvidos', pontos_por_unidade: 20, teto_unidades: 5 }]
+    );
+    const azul = await criarEquipeComGincana('Azul');
+    const vermelha = await criarEquipeComGincana('Vermelha');
+
+    const res = mockRes();
+    await lancarResultados(
+      {
+        query: { provaId: prova._id.toString() },
+        body: { tipo: 'RANKING', resultados: [
+          { equipe_id: azul._id.toString(), valor: '1', quesitos: { EX_ALUNOS: '3' } },
+          { equipe_id: vermelha._id.toString(), valor: '2', quesitos: { EX_ALUNOS: '5' } },
+        ] },
+        usuario: { id: avaliadorId },
+      },
+      res
+    );
+
+    expect(res.status).toHaveBeenCalledWith(201);
+    const rAzul = await Resultado.findOne({ prova_id: prova._id, equipe_id: azul._id });
+    expect(rAzul.pontuacao_obtida).toBe(160); // 100 (1ª) + 3×20
+    const egAzul = await EquipeGincana.findOne({ equipe_id: azul._id });
+    expect(egAzul.pontos_acumulados).toBe(160);
+
+    const rVermelha = await Resultado.findOne({ prova_id: prova._id, equipe_id: vermelha._id });
+    expect(rVermelha.pontuacao_obtida).toBe(170); // 70 (2ª) + 5×20
+  });
+
+  // `0` não é "campo em branco": é a equipe que não atingiu o mínimo (ou não
+  // trouxe nenhuma unidade). A validação de obrigatoriedade testava a
+  // veracidade do valor, então um único 0 derrubava o lançamento inteiro com
+  // 500 — nenhuma das outras equipes era gravada.
+  it('LIMIAR: aceita quantidade 0 e ainda pontua os bônus da equipe', async () => {
+    const prova = await criarProvaConcluida(
+      { quantidade_minima: 30, pontuacao_fixa: 300, nome_unidade: 'alunos' },
+      [{ chave: 'EX_ALUNOS', nome: 'Ex-alunos', pontos_por_unidade: 20, teto_unidades: 5 }]
+    );
+    const presente = await criarEquipeComGincana('Presente');
+    const ausente = await criarEquipeComGincana('Ausente');
+
+    const res = mockRes();
+    await lancarResultados(
+      {
+        query: { provaId: prova._id.toString() },
+        body: { tipo: 'LIMIAR', resultados: [
+          { equipe_id: presente._id.toString(), valor: 40, quesitos: { EX_ALUNOS: '2' } },
+          { equipe_id: ausente._id.toString(), valor: 0, quesitos: { EX_ALUNOS: '3' } },
+        ] },
+        usuario: { id: avaliadorId },
+      },
+      res
+    );
+
+    expect(res.status).toHaveBeenCalledWith(201);
+    const rPresente = await Resultado.findOne({ prova_id: prova._id, equipe_id: presente._id });
+    expect(rPresente.pontuacao_obtida).toBe(340); // 300 + 2×20
+    const rAusente = await Resultado.findOne({ prova_id: prova._id, equipe_id: ausente._id });
+    expect(rAusente.pontuacao_obtida).toBe(60); // sem base, mas 3×20 de bônus
+    expect(rAusente.detalhes_pontuacao).toMatch(/NÃO atingido/i);
+  });
+
+  it('PROPORCIONAL: aceita quantidade 0', async () => {
+    const prova = await criarProvaConcluida({ pontos_por_unidade: 2, nome_unidade: 'agasalhos' });
+    const equipe = await criarEquipeComGincana('Zerada');
+
+    const res = mockRes();
+    await lancarResultados(
+      { query: { provaId: prova._id.toString() }, body: { tipo: 'PROPORCIONAL', resultados: [{ equipe_id: equipe._id.toString(), valor: 0 }] }, usuario: { id: avaliadorId } },
+      res
+    );
+
+    expect(res.status).toHaveBeenCalledWith(201);
+    const resultado = await Resultado.findOne({ prova_id: prova._id, equipe_id: equipe._id });
+    expect(resultado.pontuacao_obtida).toBe(0);
+  });
+
+  it('continua recusando o lançamento sem valor nenhum', async () => {
+    const prova = await criarProvaConcluida({ quantidade_minima: 30, pontuacao_fixa: 300 });
+    const equipe = await criarEquipeComGincana('SemValor');
+
+    const res = mockRes();
+    await lancarResultados(
+      { query: { provaId: prova._id.toString() }, body: { tipo: 'LIMIAR', resultados: [{ equipe_id: equipe._id.toString(), valor: '' }] }, usuario: { id: avaliadorId } },
+      res
+    );
+
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining('Dados incompletos') }));
+  });
+
   it('relançar resultados reverte os pontos anteriores (sem dobrar)', async () => {
     const prova = await criarProvaConcluida({ '1': 100 });
     const equipe = await criarEquipeComGincana('Recalc');
@@ -187,5 +345,92 @@ describe('resultadoController - listarResultadosDaProva', () => {
     expect(lista).toHaveLength(2);
     expect(lista[0].pontos_obtidos).toBe(100); // ordenado desc
     expect(lista[0].equipe_nome).toBe('Primeiro');
+  });
+
+  // Reabrir o lançamento precisa devolver O QUE FOI DIGITADO, não o que o
+  // cálculo produziu: antes só voltava o primeiro número do texto de
+  // `detalhes_pontuacao`, então as quantidades de bônus reapareciam vazias e
+  // salvar de novo zerava os pontos de bônus da equipe.
+  it('devolve a quantidade da unidade e as quantidades de bônus informadas', async () => {
+    const prova = await criarProvaConcluida(
+      { pontos_por_unidade: 2, nome_unidade: 'agasalhos' },
+      [{ chave: 'EX_ALUNOS', nome: 'Ex-alunos', pontos_por_unidade: 20, teto_unidades: 5 }]
+    );
+    const equipe = await criarEquipeComGincana('Azul');
+
+    await lancarResultados(
+      {
+        query: { provaId: prova._id.toString() },
+        body: {
+          tipo: 'PROPORCIONAL',
+          resultados: [{ equipe_id: equipe._id.toString(), valor: 20, quesitos: { EX_ALUNOS: '3' } }],
+        },
+        usuario: { id: avaliadorId },
+      },
+      mockRes()
+    );
+
+    const res = mockRes();
+    await listarResultadosDaProva({ query: { provaId: prova._id.toString() } }, res);
+
+    const [linha] = res.json.mock.calls[0][0];
+    expect(linha.valor).toBe('20');
+    expect(linha.quesitos).toEqual({ EX_ALUNOS: '3' });
+    expect(linha.pontos_obtidos).toBe(100); // 20×2 + 3×20
+  });
+
+  it('guarda a quantidade informada, e não a limitada pelo teto', async () => {
+    const prova = await criarProvaConcluida(
+      { pontos_por_unidade: 2, nome_unidade: 'agasalhos' },
+      [{ chave: 'EX_ALUNOS', nome: 'Ex-alunos', pontos_por_unidade: 20, teto_unidades: 5 }]
+    );
+    const equipe = await criarEquipeComGincana('Vermelha');
+
+    await lancarResultados(
+      {
+        query: { provaId: prova._id.toString() },
+        body: {
+          tipo: 'PROPORCIONAL',
+          resultados: [{ equipe_id: equipe._id.toString(), valor: 10, quesitos: { EX_ALUNOS: '7' } }],
+        },
+        usuario: { id: avaliadorId },
+      },
+      mockRes()
+    );
+
+    const res = mockRes();
+    await listarResultadosDaProva({ query: { provaId: prova._id.toString() } }, res);
+
+    const [linha] = res.json.mock.calls[0][0];
+    // O campo reabre com o 7 digitado; o teto continua valendo no cálculo.
+    expect(linha.quesitos).toEqual({ EX_ALUNOS: '7' });
+    expect(linha.pontos_obtidos).toBe(120); // 10×2 + min(7,5)×20
+  });
+
+  // Compatibilidade: lançamentos gravados antes dos campos de entrada só têm o
+  // texto de `detalhes_pontuacao`. Sem a leitura desse texto, toda prova já
+  // lançada com bônus continuaria reabrindo zerada.
+  it('recupera a entrada de um resultado antigo, sem os campos novos', async () => {
+    const prova = await criarProvaConcluida(
+      { pontos_por_unidade: 2, nome_unidade: 'agasalhos' },
+      [{ chave: 'EX_ALUNOS', nome: 'Ex-alunos', pontos_por_unidade: 20, teto_unidades: 5 }]
+    );
+    const equipe = await criarEquipeComGincana('Antiga');
+
+    await Resultado.create({
+      gincana_id: 'GINCANA_PRINCIPAL',
+      prova_id: prova._id,
+      equipe_id: equipe._id,
+      pontuacao_obtida: 100,
+      detalhes_pontuacao: '20 agasalhos + Ex-alunos (3 × 20pts = 60pts)',
+      avaliado_por_usuario_id: avaliadorId,
+    });
+
+    const res = mockRes();
+    await listarResultadosDaProva({ query: { provaId: prova._id.toString() } }, res);
+
+    const [linha] = res.json.mock.calls[0][0];
+    expect(linha.valor).toBe('20');
+    expect(linha.quesitos).toEqual({ EX_ALUNOS: '3' });
   });
 });

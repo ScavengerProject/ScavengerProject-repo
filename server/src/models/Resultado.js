@@ -25,6 +25,26 @@ const resultadoSchema = new mongoose.Schema({
   detalhes_pontuacao: {
     type: String, 
   },
+
+  // ENTRADA ORIGINAL do lançamento — o que o avaliador digitou, não o que o
+  // cálculo produziu. Existe para o modal de lançamento reabrir exatamente como
+  // foi enviado: até aqui o único registro da entrada era o texto de
+  // `detalhes_pontuacao`, de onde a listagem extraía o primeiro número com
+  // regex, e as quantidades de bônus não voltavam de jeito nenhum — reabrir o
+  // lançamento mostrava "Bônus: 0 pts" para uma prova lançada com bônus, e
+  // salvar de novo apagava os pontos de verdade.
+  //
+  // Guarda a quantidade INFORMADA, sem o teto aplicado (o teto é do cálculo,
+  // ver lancarResultados): o campo precisa reaparecer com o número digitado.
+  valor_informado: {
+    type: String,
+    default: null,
+  },
+  bonus_informado: {
+    type: Map,
+    of: Number,
+    default: undefined,
+  },
   submetido_em: {
     type: Date,
     default: Date.now,

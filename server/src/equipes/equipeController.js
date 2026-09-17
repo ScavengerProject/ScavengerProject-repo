@@ -9,7 +9,10 @@ import {
     filtroEscola,
     filtroEscolaComPerfil,
     projecaoUsuarioNaEscola,
-    comVinculoDaEscola,
+    usuarioDaEscola,
+    getVinculo,
+    aplicarVinculo,
+    conflitoMultiEscola,
 } from '../escolas/escolaHelpers.js';
 
 // Resolve o escopo da gincana ativa a partir da requisição (injetado pelo
@@ -25,6 +28,48 @@ const escopoGincana = (req) => req.gincanaId || 'GINCANA_PRINCIPAL';
 const contarMembrosValidos = async (equipeId) => {
     const registros = await EquipeMembros.find({ equipe_id: equipeId }).populate('usuario_id', '_id');
     return registros.filter((reg) => reg.usuario_id).length;
+};
+
+/**
+ * Formata uma equipe (pelo Equipe._id mestre) no mesmo formato de listarEquipes,
+ * incluindo a lista de coordenadores e o limite máximo.
+ *
+ * É a ÚNICA forma de serializar uma equipe para o front: AdminEquipes troca o
+ * item da lista pelo objeto devolvido, então todo campo ausente vira `undefined`
+ * na tela. Montar o payload à mão (o que criar/atualizar/atribuirCoordenador
+ * faziam) omitia `coordenadores` e `max_coordenadores` e fazia uma equipe com 3
+ * coordenadores aparecer como "coordenador não definido (0/1)" — e o modal de
+ * limite, partindo desse 1, tomava 409 do servidor, que contava os 3 reais.
+ *
+ * Também filtra por `gincana_id`: sem isso, uma equipe presente em mais de uma
+ * edição podia devolver os pontos/coordenador da edição errada.
+ */
+const formatarEquipeComCoordenadores = async (equipeId, gincanaId) => {
+    const rec = await EquipeGincana.findOne({ equipe_id: equipeId, gincana_id: gincanaId })
+        .populate('equipe_id', 'nome cor')
+        .populate('coordenador_usuario_id', 'nome email');
+
+    if (!rec || !rec.equipe_id) return null;
+
+    const [total_membros, registrosCoord] = await Promise.all([
+        contarMembrosValidos(equipeId),
+        EquipeMembros.find({ equipe_id: equipeId, is_coordenador: true }).populate('usuario_id', 'nome email'),
+    ]);
+
+    const coordenadores = registrosCoord
+        .filter((m) => m.usuario_id)
+        .map((m) => ({ id: m.usuario_id._id, nome: m.usuario_id.nome, email: m.usuario_id.email }));
+
+    return {
+        id: rec.equipe_id._id,
+        nome: rec.equipe_id.nome,
+        cor: rec.equipe_id.cor,
+        pontos_acumulados: rec.pontos_acumulados,
+        coordenador: rec.coordenador_usuario_id,
+        coordenadores,
+        max_coordenadores: rec.max_coordenadores ?? 1,
+        total_membros,
+    };
 };
 
 /**
@@ -57,20 +102,11 @@ export const criarEquipe = async (req, res) => {
             gincana_id: escopoGincana(req),
         });
 
-        // 5. Busca e Popula o objeto final para retorno
-        // (Ainda populamos o coordenador, que será null, para manter a consistência)
-        const equipeCriadaPop = await EquipeGincana.findOne({ equipe_id: equipeSalva._id })
-            .populate('equipe_id', 'nome cor')
-            .populate('coordenador_usuario_id', 'nome email');
-
-        const equipeFormatada = {
-            id: equipeCriadaPop.equipe_id._id,
-            nome: equipeCriadaPop.equipe_id.nome,
-            cor: equipeCriadaPop.equipe_id.cor,
-            pontos_acumulados: equipeCriadaPop.pontos_acumulados,
-            coordenador: equipeCriadaPop.coordenador_usuario_id, // (Será null)
-            total_membros: 0, // Inicia com 0 membros
-        };
+        // 5. Monta o objeto final no MESMO formato de listarEquipes. O front
+        // substitui o item da lista por este objeto, então um payload parcial
+        // (sem `coordenadores`/`max_coordenadores`) faz a tela mostrar a equipe
+        // como se não tivesse coordenador algum.
+        const equipeFormatada = await formatarEquipeComCoordenadores(equipeSalva._id, escopoGincana(req));
 
         res.status(201).json({
             message: 'Equipe criada com sucesso. Coordenador pendente.',
@@ -287,7 +323,7 @@ export const listarTodosMembros = async (req, res) => {
         // misturados com os da atual.
         const equipeIdsDaGincana = await EquipeGincana.find({ gincana_id: escopoGincana(req) }).distinct('equipe_id');
         const membros = await EquipeMembros.find({ equipe_id: { $in: equipeIdsDaGincana } })
-            .populate('usuario_id', 'nome email tipo turma')
+            .populate('usuario_id', 'nome email tipo turma vinculos')
             .populate('equipe_id', 'nome cor')
             .sort('usuario_id.nome');
 
@@ -298,12 +334,14 @@ export const listarTodosMembros = async (req, res) => {
         membros.forEach(membro => {
             if (membro.usuario_id && membro.usuario_id._id && !usuariosProcessados.has(membro.usuario_id._id.toString())) {
                 usuariosProcessados.add(membro.usuario_id._id.toString());
+                // Papel/turma DESTA escola (ver usuarioDaEscola).
+                const usuario = usuarioDaEscola(membro.usuario_id, req.escolaId);
                 usuariosUnicos.push({
-                    _id: membro.usuario_id._id,
-                    nome: membro.usuario_id.nome,
-                    email: membro.usuario_id.email,
-                    tipo: membro.usuario_id.tipo,
-                    turma: membro.usuario_id.turma,
+                    _id: usuario._id,
+                    nome: usuario.nome,
+                    email: usuario.email,
+                    tipo: usuario.tipo,
+                    turma: usuario.turma,
                 });
             }
         });
@@ -395,7 +433,7 @@ export const listarMembrosPorEquipe = async (req, res) => {
         const registrosMembros = await EquipeMembros.find({ equipe_id: equipeId })
             // CORRIGIDO: Retirado o .select('is_coordenador usuario_id') daqui,
             // pois o find() já retorna o objeto inteiro, e o select dentro do populate é suficiente.
-            .populate('usuario_id', 'nome email tipo turma');
+            .populate('usuario_id', 'nome email tipo turma vinculos');
 
         // Se a busca falhar por um ID mal formado, ela cai no catch com CastError.
         if (!registrosMembros) {
@@ -404,7 +442,8 @@ export const listarMembrosPorEquipe = async (req, res) => {
 
         // 3. Formata os dados para o frontend
         const membros = registrosMembros.map(reg => {
-            const usuario = reg.usuario_id;
+            // Papel/turma DESTA escola (ver usuarioDaEscola).
+            const usuario = usuarioDaEscola(reg.usuario_id, req.escolaId);
 
             if (!usuario) return null;
 
@@ -479,7 +518,7 @@ export const visualizarEquipe = async (req, res) => {
         const [equipe, membrosDaEquipe] = await Promise.all([
             Equipe.findById(equipeId),
             EquipeMembros.find({ equipe_id: equipeId })
-                .populate('usuario_id', 'nome email tipo turma')
+                .populate('usuario_id', 'nome email tipo turma vinculos')
         ]);
 
         if (!equipe) return res.status(404).json({ message: 'Equipe não encontrada.' });
@@ -494,7 +533,8 @@ export const visualizarEquipe = async (req, res) => {
             // Mantém a estrutura completa com _id e usuario_id populado + flag de coordenador
             membros: membrosDaEquipe.map(membro => ({
                 _id: membro._id,
-                usuario_id: membro.usuario_id,
+                // Papel/turma DESTA escola (ver usuarioDaEscola).
+                usuario_id: usuarioDaEscola(membro.usuario_id, req.escolaId),
                 equipe_id: membro.equipe_id,
                 is_coordenador: membro.is_coordenador,
             }))
@@ -699,21 +739,12 @@ export const atualizarEquipe = async (req, res) => {
         updates.push(equipeContexto.save());
         await Promise.all(updates);
 
-        // 6. Busca a equipe atualizada e populada para o frontend
-        const equipeFinalPop = await EquipeGincana.findOne({ equipe_id: equipeId })
-            .populate('equipe_id', 'nome cor')
-            .populate('coordenador_usuario_id', 'nome email');
-        // Membros são vinculados pelo _id da Equipe mestra (Equipe._id), não pelo da EquipeGincana.
-        const total_membros = await contarMembrosValidos(equipeId);
-
-        const equipeFormatada = {
-            id: equipeId,
-            nome: equipeFinalPop.equipe_id.nome,
-            cor: equipeFinalPop.equipe_id.cor,
-            pontos_acumulados: equipeFinalPop.pontos_acumulados,
-            coordenador: equipeFinalPop.coordenador_usuario_id,
-            total_membros: total_membros,
-        };
+        // 6. Busca a equipe atualizada no MESMO formato de listarEquipes. Editar
+        // nome/cor não toca em coordenador algum, mas o front troca o item da
+        // lista por este objeto: devolver um payload parcial fazia a equipe
+        // aparecer sem coordenadores e com o limite zerado na tela (o banco
+        // seguia correto, e só o modal de limite denunciava a divergência).
+        const equipeFormatada = await formatarEquipeComCoordenadores(equipeId, escopoGincana(req));
 
         res.status(200).json({ message: 'Equipe atualizada com sucesso.', equipe: equipeFormatada });
 
@@ -825,21 +856,9 @@ export const atribuirCoordenador = async (req, res) => {
         // Executa todas as operações em paralelo
         await Promise.all(updates);
 
-        // 4) Monta resposta populada para o frontend (igual ao padrão que você já usa)
-        const equipeFinalPop = await EquipeGincana.findOne({ equipe_id: equipeId })
-            .populate('equipe_id', 'nome cor')
-            .populate('coordenador_usuario_id', 'nome email');
-        // Membros são vinculados pelo _id da Equipe mestra (Equipe._id), não pelo da EquipeGincana.
-        const total_membros = await contarMembrosValidos(equipeId);
-
-        const equipeFormatada = {
-            id: equipeId,
-            nome: equipeFinalPop.equipe_id.nome,
-            cor: equipeFinalPop.equipe_id.cor,
-            pontos_acumulados: equipeFinalPop.pontos_acumulados,
-            coordenador: equipeFinalPop.coordenador_usuario_id, // objeto populado ou null
-            total_membros: total_membros,
-        };
+        // 4) Monta resposta no MESMO formato de listarEquipes (o front substitui
+        // o item da lista por ela).
+        const equipeFormatada = await formatarEquipeComCoordenadores(equipeId, escopoGincana(req));
 
         return res.status(200).json({ message: 'Coordenador atribuído/atualizado com sucesso.', equipe: equipeFormatada });
 
@@ -955,10 +974,7 @@ export const listarUsuariosElegiveisCoordenador = async (req, res) => {
             ...filtroEscolaComPerfil(req.escolaId, 'ALUNO'),
         }).select('nome email tipo turma vinculos _id'))
             // Mesmo formato da agregação acima: papel e turma desta escola.
-            .map((u) => {
-                const { vinculos, ...resto } = comVinculoDaEscola(u, req.escolaId);
-                return resto;
-            });
+            .map((u) => usuarioDaEscola(u, req.escolaId));
 
         const usuariosMap = new Map();
 
@@ -1146,39 +1162,6 @@ export const meuVinculoNaGincana = async (req, res) => {
 };
 
 /**
- * Formata uma equipe (pelo Equipe._id mestre) no mesmo formato de listarEquipes,
- * incluindo a lista de coordenadores e o limite máximo. Reutilizado pelos
- * endpoints de gestão de coordenadores.
- */
-const formatarEquipeComCoordenadores = async (equipeId, gincanaId) => {
-    const rec = await EquipeGincana.findOne({ equipe_id: equipeId, gincana_id: gincanaId })
-        .populate('equipe_id', 'nome cor')
-        .populate('coordenador_usuario_id', 'nome email');
-
-    if (!rec || !rec.equipe_id) return null;
-
-    const [total_membros, registrosCoord] = await Promise.all([
-        contarMembrosValidos(equipeId),
-        EquipeMembros.find({ equipe_id: equipeId, is_coordenador: true }).populate('usuario_id', 'nome email'),
-    ]);
-
-    const coordenadores = registrosCoord
-        .filter((m) => m.usuario_id)
-        .map((m) => ({ id: m.usuario_id._id, nome: m.usuario_id.nome, email: m.usuario_id.email }));
-
-    return {
-        id: rec.equipe_id._id,
-        nome: rec.equipe_id.nome,
-        cor: rec.equipe_id.cor,
-        pontos_acumulados: rec.pontos_acumulados,
-        coordenador: rec.coordenador_usuario_id,
-        coordenadores,
-        max_coordenadores: rec.max_coordenadores ?? 1,
-        total_membros,
-    };
-};
-
-/**
  * [POST] Adiciona um coordenador à equipe (respeitando o limite máximo).
  * Rota: /api/equipes/:id/coordenadores
  * Quem exerce: ADMIN
@@ -1212,18 +1195,56 @@ export const adicionarCoordenador = async (req, res) => {
             return res.status(409).json({ message: 'Usuário já pertence a outra equipe.' });
         }
 
-        // Promove a COORDENADOR (caso ainda não seja).
-        if (usuario.tipo !== 'COORDENADOR') {
-            usuario.tipo = 'COORDENADOR';
-            await usuario.save();
+        // Atribuir a equipe e conceder o papel são UMA coisa só: quem coordena
+        // uma equipe é coordenador, ponto. Antes isto escrevia `Usuario.tipo`
+        // (papel BASE), que `resolverEscola` ignora — o papel efetivo vem de
+        // `Usuario.vinculos[]` (ver papelNaEscola). Resultado: a pessoa ficava
+        // com is_coordenador=true e sem passar em nenhum autorizar('COORDENADOR'),
+        // e só virava coordenador de verdade se um admin também trocasse o papel
+        // dela na tela de usuários. É esse segundo passo que deixa de existir.
+        if (usuario.tipo === 'SUPER_ADMIN') {
+            return res.status(400).json({
+                message: 'O SUPER_ADMIN é um perfil global e não assume o papel de coordenador de equipe.',
+            });
         }
 
-        // Cria/atualiza o vínculo como coordenador.
+        const vinculoEscola = getVinculo(usuario, req.escolaId);
+
+        // COORDENADOR é perfil de escola única — a mesma checagem que a troca de
+        // papel faz, para não prender alguém em duas escolas por este caminho.
+        // Vem antes da turma: não faz sentido cobrar um campo de quem não pode
+        // assumir o perfil de jeito nenhum.
+        const conflito = conflitoMultiEscola(usuario, req.escolaId, 'COORDENADOR');
+        if (conflito) {
+            return res.status(409).json({ message: conflito, codigo: 'PERFIL_ESCOLA_UNICA' });
+        }
+
+        // Coordenador tem turma obrigatória, igual ao aluno (mesma regra de
+        // criarUsuario/alterarPapelUsuario). Sem ela a pessoa vira coordenador
+        // mas não consegue se inscrever em prova nenhuma: determinarGrupo()
+        // usa a turma para achar a cota e devolveria GRUPO_INDETERMINADO.
+        const turmaEfetiva = vinculoEscola?.turma ?? usuario.turma;
+        if (!turmaEfetiva) {
+            return res.status(400).json({
+                message: 'Turma é obrigatória para coordenadores. '
+                    + 'Defina a turma deste usuário antes de atribuí-lo como coordenador.',
+            });
+        }
+
+        // A relação vem ANTES do papel de propósito: não há transação aqui, e se
+        // a segunda escrita falhar é melhor sobrar alguém numa equipe sem
+        // permissão a mais do que alguém com permissão de coordenador e sem
+        // equipe — que é justamente o estado quebrado que se quer eliminar.
         await EquipeMembros.findOneAndUpdate(
             { equipe_id: equipeId, usuario_id },
             { $set: { is_coordenador: true, equipe_gincana_id: equipeContexto._id } },
             { upsert: true, new: true }
         );
+
+        if (vinculoEscola?.tipo !== 'COORDENADOR') {
+            aplicarVinculo(usuario, req.escolaId, { tipo: 'COORDENADOR' });
+            await usuario.save();
+        }
 
         // Se a equipe ainda não tinha coordenador principal, define este.
         if (!equipeContexto.coordenador_usuario_id) {
@@ -1255,11 +1276,23 @@ export const removerCoordenador = async (req, res) => {
         const vinculo = await EquipeMembros.findOne({ equipe_id: equipeId, usuario_id: usuarioId, is_coordenador: true });
         if (!vinculo) return res.status(404).json({ message: 'Coordenador não encontrado nesta equipe.' });
 
-        // Remove o vínculo e reverte o tipo para ALUNO (deixa de ser coordenador).
-        await Promise.all([
-            EquipeMembros.deleteOne({ _id: vinculo._id }),
-            Usuario.findByIdAndUpdate(usuarioId, { $set: { tipo: 'ALUNO' } }),
-        ]);
+        // Remove da equipe e devolve o papel de ALUNO na ESCOLA ATIVA — o papel
+        // acompanha a relação com a equipe nos dois sentidos, senão a pessoa
+        // continuaria vendo as telas de coordenador sem equipe nenhuma (o
+        // mesmo estado quebrado que adicionarCoordenador passou a evitar).
+        //
+        // Antes isto era `$set: { tipo: 'ALUNO' }` no papel BASE: depois do
+        // multi-escola não rebaixava ninguém, e num install legado (onde o
+        // papel base ainda decide) rebaixava a ALUNO até quem era PROFESSOR.
+        await EquipeMembros.deleteOne({ _id: vinculo._id });
+
+        const usuario = await Usuario.findById(usuarioId);
+        if (usuario
+            && usuario.tipo !== 'SUPER_ADMIN'
+            && getVinculo(usuario, req.escolaId)?.tipo === 'COORDENADOR') {
+            aplicarVinculo(usuario, req.escolaId, { tipo: 'ALUNO' });
+            await usuario.save();
+        }
 
         // Se era o coordenador principal, reatribui a outro coordenador restante (ou null).
         if (String(equipeContexto.coordenador_usuario_id) === String(usuarioId)) {

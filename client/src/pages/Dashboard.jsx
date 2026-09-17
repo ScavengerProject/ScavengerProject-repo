@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
-import { Trophy, Users, Calendar, Target, Award, CheckCircle2 } from "lucide-react";
+import { Trophy, Users, Calendar, Target, Award, CheckCircle2, ClipboardList } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { provasService, equipesService } from "../services/api";
 import { toast } from "../components/ui/toast";
@@ -404,6 +404,21 @@ const Dashboard = () => {
                         </Button>
                       )}
                     </>
+                  )}
+
+                  {/* Atalho para as próprias inscrições. Fica aqui, e não no
+                      menu lateral, que já está longo — e é neste card que a
+                      pessoa está olhando provas. Admin não participa de prova,
+                      então para ele o botão não faz sentido. */}
+                  {!ehAdmin(usuario) && (
+                    <Button
+                      variant="outline"
+                      className="w-full border-blue-300 text-blue-700 hover:bg-blue-50 h-11 sm:h-10 text-base sm:text-sm"
+                      onClick={() => navigate('/minhas-inscricoes')}
+                    >
+                      <ClipboardList className="h-4 w-4 mr-2" />
+                      Minhas inscrições
+                    </Button>
                   )}
                 </CardContent>
               </Card>

@@ -192,18 +192,31 @@ export const resolverEscola = async (req, res, next) => {
 
     const vinculo = getVinculo(usuario, escola._id);
     if (vinculo && vinculo.status !== 'ATIVO') {
+      // Cada motivo de recusa tem um `codigo` próprio porque o front faz coisas
+      // DIFERENTES com cada um. Um código só para todos foi justamente o que
+      // produziu o laço escola <-> gincana: tudo virava "perdi acesso", o
+      // api.js limpava o escopo e mandava escolher escola de novo, e a escola
+      // recusada continuava sendo a única escolhível.
+      //
       // PENDENTE é uma solicitação em análise (código sem aprovação automática,
-      // ou transferência aguardando o ADMIN de destino) — código próprio para
-      // o front não tratar como "perdi acesso" (VINCULO_INATIVO) e mandar para
-      // /selecionar-escola em loop; ele deve ir para uma tela de espera.
+      // ou transferência aguardando o ADMIN de destino): tela de espera.
       if (vinculo.status === 'PENDENTE') {
         return res.status(403).json({
           message: 'Seu vínculo com esta escola ainda está aguardando aprovação.',
           codigo: 'VINCULO_PENDENTE',
         });
       }
+      // BANIDO é decisão disciplinar e definitiva; INATIVO é desativação
+      // administrativa e reversível. Os dois bloqueiam igual aqui — o que muda
+      // é o que a pessoa lê na tela terminal (ver client/src/pages/AcessoBloqueado.jsx).
+      if (vinculo.status === 'BANIDO') {
+        return res.status(403).json({
+          message: 'Seu acesso a esta escola foi encerrado por decisão da administração.',
+          codigo: 'VINCULO_BANIDO',
+        });
+      }
       return res.status(403).json({
-        message: 'Seu acesso a esta escola está inativo.',
+        message: 'Seu acesso a esta escola está desativado.',
         codigo: 'VINCULO_INATIVO',
       });
     }

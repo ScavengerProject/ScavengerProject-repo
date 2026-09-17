@@ -6,6 +6,7 @@ import { Button } from "../components/ui/button";
 import { Plus, ArrowLeft } from "lucide-react";
 import ModalCriarPenalidade from "../components/ModalCriarPenalidade";
 import { penalidadesService } from "../services/api";
+import { toast } from "../components/ui/toast";
 
 export default function Penalidades() {
   const navigate = useNavigate();
@@ -22,7 +23,7 @@ export default function Penalidades() {
       setPenalidades(data);
     } catch (err) {
       console.error(err);
-      alert(`Erro ao carregar penalidades: ${err.message}`);
+      toast.error(`Erro ao carregar penalidades: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -37,13 +38,9 @@ export default function Penalidades() {
     setOpenModal(true);
   };
 
-  const handleSubmitPenalidade = async (penalidade) => {
-    try {
-      carregarPenalidades(); // Atualiza lista
-    } catch (err) {
-      console.error(err);
-      alert(`Erro ao criar penalidade: ${err.message}`);
-    }
+  // O modal ja cria a penalidade e notifica o sucesso; aqui so recarregamos a lista.
+  const handleSubmitPenalidade = () => {
+    carregarPenalidades();
   };
 
   const handleVoltar = () => {

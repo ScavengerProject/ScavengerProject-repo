@@ -5,6 +5,33 @@ import Equipe from '../models/Equipe.js';
 import mongoose from 'mongoose';
 import { calcularStatusProva } from '../provas/provaController.js';
 
+const escaparRegex = (texto) => String(texto).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * Recupera as quantidades de bônus de um resultado ANTIGO, lendo o texto de
+ * `detalhes_pontuacao`.
+ *
+ * Só existe por compatibilidade: os lançamentos feitos antes de
+ * `bonus_informado` não têm as quantidades em lugar nenhum além dessa frase,
+ * que o próprio `lancarResultados` montou no formato
+ * `+ <nome> (<qtd> × <pts>pts = ...)`. Sem isto, toda prova já lançada com
+ * bônus continuaria reabrindo zerada — e um novo salvamento apagaria os pontos.
+ *
+ * Não é caminho de escrita: resultado salvo a partir daqui já grava o campo.
+ */
+const bonusDosDetalhes = (detalhes, bonusCategorias = []) => {
+  const texto = detalhes || '';
+  const quesitos = {};
+
+  for (const categoria of bonusCategorias) {
+    const padrao = new RegExp(`\\+ ${escaparRegex(categoria.nome)} \\((\\d+) `);
+    const achado = texto.match(padrao);
+    if (achado) quesitos[categoria.chave] = achado[1];
+  }
+
+  return quesitos;
+};
+
 /**
  * [GET] Lista os resultados de uma prova específica
  */
@@ -21,7 +48,7 @@ export const listarResultadosDaProva = async (req, res) => {
       Resultado.find({ prova_id: provaId })
         .sort({ pontuacao_obtida: -1 })
         .populate('equipe_id', 'nome cor'),
-      Prova.findById(provaId).select('pontuacao') // Busca as regras de pontuação
+      Prova.findById(provaId).select('pontuacao bonus_categorias') // Regras de pontuação e categorias de bônus
     ]);
 
     // Verificar se há resultados com IDs de EquipeGincana (erro antigo) e corrigir
@@ -71,7 +98,11 @@ export const listarResultadosDaProva = async (req, res) => {
 
     // 2. Determina o tipo de pontuação (para saber como extrair o 'valor')
     const regras = prova.pontuacao || {};
-    const tipo = regras.pontos_por_unidade ? 'PROPORCIONAL' : 'RANKING';
+    const tipo = regras.pontos_por_unidade
+      ? 'PROPORCIONAL'
+      : Object.prototype.hasOwnProperty.call(regras, 'quantidade_minima')
+        ? 'LIMIAR'
+        : 'RANKING';
 
     // 3. Formata a resposta, incluindo o 'valor' original
     const resultadosFormatados = resultados.map((r, index) => {
@@ -93,16 +124,14 @@ export const listarResultadosDaProva = async (req, res) => {
         return null;
       }
 
-      let valor;
+      // A entrada original vem do campo salvo; o texto de `detalhes_pontuacao`
+      // só é lido para os lançamentos anteriores a `valor_informado`
+      // (ex: "1ª Posição" -> "1", "50 doações" -> "50").
+      const valor = r.valor_informado ?? ((r.detalhes_pontuacao || '').match(/^(\d+)/)?.[1] || '');
 
-      // Extrai o input original do texto 'detalhes_pontuacao'
-      if (tipo === 'RANKING') {
-        // Ex: "1ª Posição" -> extrai "1"
-        valor = r.detalhes_pontuacao.match(/^(\d+)/)?.[1] || '';
-      } else {
-        // Ex: "50 doações" -> extrai "50"
-        valor = r.detalhes_pontuacao.match(/^(\d+)/)?.[1] || '';
-      }
+      const quesitos = r.bonus_informado
+        ? Object.fromEntries([...r.bonus_informado].map(([chave, qtd]) => [chave, String(qtd)]))
+        : bonusDosDetalhes(r.detalhes_pontuacao, prova.bonus_categorias);
 
       return {
         posicao: index + 1,
@@ -112,6 +141,9 @@ export const listarResultadosDaProva = async (req, res) => {
         pontos_obtidos: r.pontuacao_obtida,
         detalhes: r.detalhes_pontuacao,
         valor: valor,
+        // Quantidades por categoria de bônus, na forma que o modal usa nos
+        // inputs (chave -> string).
+        quesitos,
       };
     }).filter(r => r !== null); // Remove resultados com equipes inválidas
 
@@ -153,8 +185,8 @@ export const lancarResultados = async (req, res) => {
     }
     const regrasPontuacao = prova.pontuacao || {};
 
-    // Extrair configuração dos quesitos da prova
-    const quesitosMarcados = prova.quesitos_de_avaliacao || [];
+    // Categorias de bônus configuradas na prova (ex-alunos, pais/mães, ...)
+    const bonusCategorias = prova.bonus_categorias || [];
 
     const resultadosAntigos = await Resultado.find({ prova_id: provaId }).session(session);
     if (resultadosAntigos.length > 0) {
@@ -226,7 +258,13 @@ export const lancarResultados = async (req, res) => {
     }
 
     for (const res of resultados) {
-      if (!res.equipe_id || !res.valor) {
+      // `0` é um valor VÁLIDO (e não "ausente"): numa prova de tudo ou nada é
+      // exatamente a equipe que não atingiu o mínimo, e numa proporcional é a
+      // que não trouxe nenhuma unidade — ambas podem ainda pontuar por bônus.
+      // Testar com `!res.valor` derrubava o lançamento INTEIRO com 500, e
+      // nenhuma das outras equipes era gravada.
+      const valorAusente = res.valor === undefined || res.valor === null || String(res.valor).trim() === '';
+      if (!res.equipe_id || valorAusente) {
         throw new Error(`Dados incompletos para resultado: equipe_id e valor são obrigatórios`);
       }
 
@@ -266,16 +304,31 @@ export const lancarResultados = async (req, res) => {
           detalhes_pontuacao = `${quantidade} ${regrasPontuacao.nome_unidade || 'unidades'} (teto atingido: ${limitePorcoes} pts)`;
         }
       }
-
-      // Calcular pontuação dos quesitos
-      const quesitosEquipe = res.quesitos || {};
-      if (quesitosMarcados.includes('TEMPO') && quesitosEquipe.TEMPO) {
-        pontuacao_quesitos += Number(quesitosEquipe.TEMPO) || 0;
-        detalhes_pontuacao += ` + Quesito Tempo (${quesitosEquipe.TEMPO}pts)`;
+      else if (tipo === 'LIMIAR') {
+        const quantidade = Number(res.valor) || 0;
+        const minimo = Number(regrasPontuacao.quantidade_minima) || 0;
+        const atingiu = quantidade >= minimo;
+        pontuacao_base = atingiu ? (Number(regrasPontuacao.pontuacao_fixa) || 0) : 0;
+        detalhes_pontuacao = `${quantidade} ${regrasPontuacao.nome_unidade || 'unidades'} (mínimo ${atingiu ? 'atingido' : 'NÃO atingido'})`;
       }
-      if (quesitosMarcados.includes('PRODUTIVIDADE') && quesitosEquipe.PRODUTIVIDADE) {
-        pontuacao_quesitos += Number(quesitosEquipe.PRODUTIVIDADE) || 0;
-        detalhes_pontuacao += ` + Quesito Produtividade (${quesitosEquipe.PRODUTIVIDADE}pts)`;
+
+      // Calcular pontuação das categorias de bônus (ex-alunos, pais/mães, ...),
+      // cada uma com teto de unidades aplicado no servidor.
+      const quesitosEquipe = res.quesitos || {};
+      // Quantidades como foram informadas (sem teto): é o que o modal precisa
+      // reexibir quando o lançamento for reaberto.
+      const bonusInformado = {};
+      for (const categoria of bonusCategorias) {
+        const quantidadeInformada = Number(quesitosEquipe[categoria.chave]) || 0;
+        if (quantidadeInformada > 0) bonusInformado[categoria.chave] = quantidadeInformada;
+        const teto = categoria.teto_unidades;
+        const unidadesValidas = (teto != null) ? Math.min(quantidadeInformada, teto) : quantidadeInformada;
+        const pontosCategoria = unidadesValidas * (Number(categoria.pontos_por_unidade) || 0);
+        if (pontosCategoria > 0 || quantidadeInformada > 0) {
+          pontuacao_quesitos += pontosCategoria;
+          const tetoAplicado = teto != null && quantidadeInformada > teto ? ' (teto aplicado)' : '';
+          detalhes_pontuacao += ` + ${categoria.nome} (${quantidadeInformada} × ${categoria.pontos_por_unidade}pts = ${pontosCategoria}pts${tetoAplicado})`;
+        }
       }
 
       const pontuacao_total = pontuacao_base + pontuacao_quesitos;
@@ -288,6 +341,8 @@ export const lancarResultados = async (req, res) => {
           equipe_id: equipeObjId,
           pontuacao_obtida: pontuacao_total,
           detalhes_pontuacao: detalhes_pontuacao,
+          valor_informado: String(res.valor),
+          bonus_informado: bonusInformado,
           avaliado_por_usuario_id: avaliadorId,
           submetido_em: new Date(),
         });

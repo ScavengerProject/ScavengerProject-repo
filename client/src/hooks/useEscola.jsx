@@ -5,6 +5,13 @@ import { useAuth } from './useAuth.jsx';
 
 const EscolaContext = createContext(null);
 
+/**
+ * Uma escola pode ser aberta quando o vínculo não está bloqueado. Espelha
+ * `vinculoBloqueado` do backend (server/src/models/Usuario.js): INATIVO e
+ * BANIDO barram; PENDENTE não, porque ele tem tela de espera própria.
+ */
+const selecionavel = (escola) => !escola?.meu_vinculo_bloqueado;
+
 const STORAGE_KEY = 'escolaAtivaId';
 // Chave do escopo de gincana: precisa ser limpa ao trocar de escola, senão o
 // próximo request iria com uma gincana que não pertence à nova escola.
@@ -23,6 +30,12 @@ const STORAGE_KEY_GINCANA = 'gincanaAtivaId';
  *     que fazia o sistema abrir com o perfil "errado" depois de um vínculo novo.
  *  2. Aplica no useAuth o papel do usuário NAQUELA escola (`meu_tipo`), já que
  *     o papel do token é apenas o papel base.
+ *  3. Separa as escolas SELECIONÁVEIS das BLOQUEADAS (`meu_vinculo_bloqueado`,
+ *     vindo do backend: vínculo INATIVO ou BANIDO). Uma escola bloqueada nunca
+ *     pode virar a escola ativa — ela responde 403 em toda rota com escopo — e
+ *     selecioná-la era exatamente o laço escola <-> gincana: com uma escola só,
+ *     o ramo de auto-seleção abaixo a escolhia sozinho, /selecionar-gincana
+ *     levava 403 e o api.js devolvia o usuário para cá, em recarga infinita.
  *
  * Deve ficar aninhado DENTRO do AuthProvider e FORA do GincanaProvider — a
  * gincana ativa só faz sentido dentro de uma escola.
@@ -49,11 +62,16 @@ export const EscolaProvider = ({ children }) => {
   const setEscolaAtiva = useCallback((id, destino) => {
     if (!id) return;
     if (id === escolaAtivaId && !destino) return;
+    // Trava final contra o laço: mesmo que alguma tela ofereça uma escola
+    // bloqueada, ela nunca vira o escopo ativo — persistir esse id é o que
+    // reabre o ciclo 403 -> limpar escopo -> voltar para cá.
+    const alvo = minhasEscolas.find((e) => e._id === id);
+    if (alvo && !selecionavel(alvo)) return;
     localStorage.setItem(STORAGE_KEY, id);
     localStorage.removeItem(STORAGE_KEY_GINCANA);
     setEscolaAtivaIdState(id);
     navigate(destino || '/selecionar-gincana', { replace: true });
-  }, [escolaAtivaId, navigate]);
+  }, [escolaAtivaId, minhasEscolas, navigate]);
 
   // Volta para a tela de seleção (usado pelo "trocar de escola").
   const limparEscolaAtiva = useCallback(() => {
@@ -69,7 +87,10 @@ export const EscolaProvider = ({ children }) => {
       const lista = await escolasService.minhas();
       setMinhasEscolas(lista || []);
 
-      const idsValidos = (lista || []).map((e) => e._id);
+      // Só as escolas que o usuário realmente consegue abrir entram na conta.
+      // PENDENTE continua aqui de propósito: ela PRECISA ser selecionável para
+      // a pessoa chegar em /aguardando-aprovacao (ver codigo VINCULO_PENDENTE).
+      const idsValidos = (lista || []).filter(selecionavel).map((e) => e._id);
       const atualPersistida = localStorage.getItem(STORAGE_KEY);
 
       if (atualPersistida && idsValidos.includes(atualPersistida)) {
@@ -112,6 +133,12 @@ export const EscolaProvider = ({ children }) => {
 
   const escolaAtiva = minhasEscolas.find((e) => e._id === escolaAtivaId) || null;
 
+  // Duas listas derivadas: o que a tela de seleção oferece e o que ela (ou a
+  // tela terminal) precisa EXPLICAR. Sem a segunda, quem tem só uma escola e
+  // foi banido dela veria "Nenhuma escola disponível", sem saber o motivo.
+  const escolasDisponiveis = minhasEscolas.filter(selecionavel);
+  const escolasBloqueadas = minhasEscolas.filter((e) => !selecionavel(e));
+
   // Papel do usuário nesta escola: é ele que vale nas telas, não o do token.
   useEffect(() => {
     if (escolaAtiva?.meu_tipo) {
@@ -121,6 +148,13 @@ export const EscolaProvider = ({ children }) => {
 
   const value = {
     minhasEscolas,
+    escolasDisponiveis,
+    escolasBloqueadas,
+    // Não sobrou nenhuma escola aberta e existe pelo menos uma bloqueada: é o
+    // fim de linha do usuário desativado/banido, e o App manda para
+    // /acesso-bloqueado em vez da seleção (que não teria o que oferecer).
+    acessoBloqueado: carregado && !loading
+      && escolasDisponiveis.length === 0 && escolasBloqueadas.length > 0,
     escolaAtivaId,
     escolaAtiva,
     perfilNaEscola: escolaAtiva?.meu_tipo || null,

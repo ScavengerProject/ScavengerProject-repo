@@ -1,62 +1,34 @@
 import React, { useEffect, useState } from 'react';
 import { Button } from '../components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
+import { Card, CardContent } from '../components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../components/ui/dialog';
-import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Textarea } from '../components/ui/textarea';
 import { toast } from '../components/ui/toast';
-import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import MainLayout from '../components/MainLayout';
-import { emprestimosService, equipesService, provasService } from '../services/api';
-import { ArrowLeft, Plus, X, Clock } from 'lucide-react';
+import { emprestimosService } from '../services/api';
+import { X, Clock, Info } from 'lucide-react';
 import { ehAdmin } from '../lib/perfis';
 
 export default function AdminEmprestimos() {
-  const navigate = useNavigate();
   const { usuario, logout } = useAuth();
   const [emprestimos, setEmprestimos] = useState([]);
-  const [usuariosDisponiveis, setUsuariosDisponiveis] = useState([]);
-  const [equipes, setEquipes] = useState([]);
-  const [provas, setProvas] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [openCriar, setOpenCriar] = useState(false);
   const [openEncerrar, setOpenEncerrar] = useState(false);
   const [encerrarId, setEncerrarId] = useState(null);
   const [justificativaEncerramento, setJustificativaEncerramento] = useState('');
   const [filtroStatus, setFiltroStatus] = useState('ATIVO');
 
-  // Formulário para criar empréstimo
-  const [formCriar, setFormCriar] = useState({
-    usuario_id: '',
-    equipe_destino_id: '',
-    prova_id: '',
-    inicio: '',
-    fim: '',
-  });
-
-  // Carregar dados necessários
+  // Esta tela é só de acompanhamento: o ADMIN não cria empréstimo, então não
+  // precisa mais das listas de equipes, provas e alunos que alimentavam o
+  // formulário de criação.
   const carregarDados = async () => {
     try {
       setLoading(true);
-      
-      // Listar empréstimos
       const emprestimosList = await emprestimosService.listar(filtroStatus);
       setEmprestimos(emprestimosList || []);
-
-      // Listar equipes para o dropdown
-      const equipesPublicas = await equipesService.listarEquipesGincana();
-      setEquipes(equipesPublicas || []);
-
-      // Listar provas para o dropdown
-      const provasList = await provasService.listar();
-      setProvas(provasList || []);
-
-      // Listar usuários disponíveis (membros de equipes)
-      const usuariosList = await equipesService.listarTodosMembros();
-      setUsuariosDisponiveis(usuariosList || []);
     } catch (e) {
       toast.error(e?.message || 'Erro ao carregar dados');
     } finally {
@@ -67,36 +39,6 @@ export default function AdminEmprestimos() {
   useEffect(() => {
     carregarDados();
   }, [filtroStatus]);
-
-  const criarEmprestimo = async () => {
-    try {
-      if (!formCriar.usuario_id || !formCriar.equipe_destino_id || !formCriar.prova_id) {
-        toast.error('Preenchimento obrigatório: aluno, equipe destino e prova');
-        return;
-      }
-
-      await emprestimosService.criar(
-        formCriar.usuario_id,
-        formCriar.equipe_destino_id,
-        formCriar.prova_id,
-        formCriar.inicio ? new Date(formCriar.inicio).toISOString() : undefined,
-        formCriar.fim ? new Date(formCriar.fim).toISOString() : undefined
-      );
-
-      toast.success('Empréstimo criado com sucesso');
-      setOpenCriar(false);
-      setFormCriar({
-        usuario_id: '',
-        equipe_destino_id: '',
-        prova_id: '',
-        inicio: '',
-        fim: '',
-      });
-      await carregarDados();
-    } catch (e) {
-      toast.error(e?.message || 'Erro ao criar empréstimo');
-    }
-  };
 
   const confirmarEncerramento = (id) => {
     setEncerrarId(id);
@@ -120,12 +62,6 @@ export default function AdminEmprestimos() {
   const formatarData = (data) => {
     if (!data) return '—';
     return new Date(data).toLocaleString('pt-BR');
-  };
-
-  // Obter nome do usuário pelo ID
-  const obterNomeUsuario = (userId) => {
-    const usr = usuariosDisponiveis.find(u => u._id === userId);
-    return usr ? usr.nome : '—';
   };
 
   if (loading) {
@@ -160,13 +96,18 @@ export default function AdminEmprestimos() {
               )}
             </p>
           </div>
-          <Button
-            size="sm"
-            className="bg-blue-600 hover:bg-blue-700 text-white"
-            onClick={() => setOpenCriar(true)}
-          >
-            <Plus className="h-4 w-4 mr-2" /> Novo Empréstimo
-          </Button>
+        </div>
+
+        {/* O ADMIN não empresta alunos: ele decide as solicitações. O empréstimo
+            em si nasce do acordo entre os dois coordenadores. */}
+        <div className="mb-6 flex items-start gap-2 rounded border border-blue-200 bg-blue-50 p-3">
+          <Info className="mt-0.5 h-4 w-4 shrink-0 text-blue-700" />
+          <p className="text-sm text-blue-900">
+            Empréstimos são criados pelos coordenadores: um solicita reforço, você
+            aprova a solicitação em <strong>Aprovar Solicitações</strong> e o
+            coordenador que ofertou combina com o solicitante. Aqui você acompanha
+            os empréstimos em vigor e pode encerrá-los.
+          </p>
         </div>
         {/* Filtros */}
         <div className="mb-6 flex gap-4 items-center">
@@ -280,137 +221,6 @@ export default function AdminEmprestimos() {
             ))
           )}
         </div>
-
-      {/* Dialog: Criar Empréstimo */}
-      <Dialog open={openCriar} onOpenChange={setOpenCriar}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Criar Novo Empréstimo</DialogTitle>
-            <DialogDescription>
-              Autorize o empréstimo temporário de um aluno para uma prova específica.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4">
-            {/* Aluno */}
-            <div className="space-y-2">
-              <Label htmlFor="aluno" className="text-gray-700">
-                Aluno <span className="text-red-500">*</span>
-              </Label>
-              <Select
-                value={formCriar.usuario_id}
-                onValueChange={(value) =>
-                  setFormCriar({ ...formCriar, usuario_id: value })
-                }
-              >
-                <SelectTrigger id="selectAlunoEmprestimo">
-                  <SelectValue placeholder="Selecione um aluno" />
-                </SelectTrigger>
-                <SelectContent>
-                  {usuariosDisponiveis.map((usr) => (
-                    <SelectItem key={usr._id} value={usr._id}>
-                      {usr.nome}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-gray-500">
-                Selecione o aluno que será emprestado para outra equipe
-              </p>
-            </div>
-
-            {/* Equipe Destino */}
-            <div className="space-y-2">
-              <Label htmlFor="equipe" className="text-gray-700">
-                Equipe Destino <span className="text-red-500">*</span>
-              </Label>
-              <Select
-                value={formCriar.equipe_destino_id}
-                onValueChange={(value) =>
-                  setFormCriar({ ...formCriar, equipe_destino_id: value })
-                }
-              >
-                <SelectTrigger id="selectEquipeDestinoEmprestimo">
-                  <SelectValue placeholder="Selecione uma equipe" />
-                </SelectTrigger>
-                <SelectContent>
-                  {equipes.map((eq) => (
-                    <SelectItem key={eq._id} value={eq._id}>
-                      {eq.nome}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Prova */}
-            <div className="space-y-2">
-              <Label htmlFor="prova" className="text-gray-700">
-                Prova <span className="text-red-500">*</span>
-              </Label>
-              <Select
-                value={formCriar.prova_id}
-                onValueChange={(value) =>
-                  setFormCriar({ ...formCriar, prova_id: value })
-                }
-              >
-                <SelectTrigger id="selectProvaEmprestimo">
-                  <SelectValue placeholder="Selecione uma prova" />
-                </SelectTrigger>
-                <SelectContent>
-                  {provas.map((prova) => (
-                    <SelectItem key={prova._id} value={prova._id}>
-                      {prova.titulo}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Data Início */}
-            <div className="space-y-2">
-              <Label htmlFor="inicio" className="text-gray-700">
-                Data de Início (opcional)
-              </Label>
-              <Input
-                id="inicio"
-                type="datetime-local"
-                value={formCriar.inicio}
-                onChange={(e) =>
-                  setFormCriar({ ...formCriar, inicio: e.target.value })
-                }
-              />
-            </div>
-
-            {/* Data Fim */}
-            <div className="space-y-2">
-              <Label htmlFor="fim" className="text-gray-700">
-                Data de Fim (opcional)
-              </Label>
-              <Input
-                id="fim"
-                type="datetime-local"
-                value={formCriar.fim}
-                onChange={(e) =>
-                  setFormCriar({ ...formCriar, fim: e.target.value })
-                }
-              />
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setOpenCriar(false)}>
-              Cancelar
-            </Button>
-            <Button
-              className="bg-blue-600 hover:bg-blue-700 text-white"
-              onClick={criarEmprestimo}
-            >
-              Criar Empréstimo
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Dialog: Encerrar Empréstimo */}
       <Dialog open={openEncerrar} onOpenChange={setOpenEncerrar}>
