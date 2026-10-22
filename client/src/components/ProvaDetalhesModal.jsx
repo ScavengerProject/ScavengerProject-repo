@@ -16,6 +16,7 @@ import { toast } from "./ui/toast";
 import { useAuth } from "../hooks/useAuth";
 import { ehAdmin } from '../lib/perfis';
 import { cotasDaProva, textoDaCota, motivoDaRecusa } from '../lib/cotasProva';
+import { descreverPontuacao } from '../lib/pontuacaoProva';
 import InscreverMembrosEquipeModal from "./InscreverMembrosEquipeModal";
 
 const ProvaDetalhesModal = ({ prova, isOpen, onClose, onInscricaoSucesso }) => {
@@ -169,16 +170,7 @@ const ProvaDetalhesModal = ({ prova, isOpen, onClose, onInscricaoSucesso }) => {
     return map[formato] || formato;
   };
 
-  const formatarPontuacao = (pontuacao) => {
-    if (!pontuacao || Object.keys(pontuacao).length === 0) return "Pontuação não definida.";
-    if (pontuacao.pontos_por_unidade && pontuacao.nome_unidade) return `${pontuacao.pontos_por_unidade} pontos por ${pontuacao.nome_unidade}`;
-    if (pontuacao.hasOwnProperty('quantidade_minima')) return `${pontuacao.pontuacao_fixa || 0} pontos ao atingir ${pontuacao.quantidade_minima} ${pontuacao.nome_unidade || 'unidades'}`;
-    const pos = [];
-    if (pontuacao["1"]) pos.push(`1º: ${pontuacao["1"]} pts`);
-    if (pontuacao["2"]) pos.push(`2º: ${pontuacao["2"]} pts`);
-    if (pontuacao["3"]) pos.push(`3º: ${pontuacao["3"]} pts`);
-    return pos.length > 0 ? pos.join(' | ') : "Regras não especificadas.";
-  };
+  const formatarPontuacao = (pontuacao) => descreverPontuacao(pontuacao) || "Pontuação não definida.";
 
   const statusInfo = traduzirStatus(prova.status);
   const cotas = cotasDaProva(prova);

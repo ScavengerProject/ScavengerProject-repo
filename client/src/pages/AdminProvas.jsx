@@ -34,6 +34,7 @@ import ProvaElegibilidadeForm from "../components/ProvaElegibilidadeForm";
 import ProvaSequenciamentoForm from "../components/ProvaSequenciamentoForm";
 import ProvaParticipantesForm from "../components/ProvaParticipantesForm";
 import LancarResultadoModal from "../components/LancarResultadoModal";
+import { tipoDaPontuacao, descreverPontuacao } from "../lib/pontuacaoProva";
 
 // Gera uma chave estável a partir do nome digitado pelo admin (ex: "Ex-alunos" -> "EX_ALUNOS").
 const gerarChaveBonus = (nome) => {
@@ -331,17 +332,7 @@ const AdminProvas = () => {
       };
     }
 
-    const pontuacaoData = prova.pontuacao || {};
-    let tipoSalvo = 'RANKING'; // Padrão
-
-    // Se tiver a chave 'pontos_por_unidade', é do tipo proporcional; se tiver
-    // 'quantidade_minima', é do tipo limiar (tudo ou nada).
-    if (pontuacaoData.hasOwnProperty('pontos_por_unidade')) {
-      tipoSalvo = 'PROPORCIONAL';
-    } else if (pontuacaoData.hasOwnProperty('quantidade_minima')) {
-      tipoSalvo = 'LIMIAR';
-    }
-    setTipoPontuacao(tipoSalvo);
+    setTipoPontuacao(tipoDaPontuacao(prova.pontuacao));
 
     setFormData({
       titulo: prova.titulo,
@@ -462,35 +453,6 @@ const AdminProvas = () => {
     const exigeOrdem = sequenciamento.exigir_ordem ? ' (ordem obrigatória)' : '';
     
     return `${etapas.length} etapa(s) - ${obrigatorias} obrigatória(s)${exigeOrdem}`;
-  };
-
-  //formatar pontuação
-  const formatarPontuacao = (pontuacao) => {
-    if (!pontuacao || Object.keys(pontuacao).length === 0) {
-      return null; // Não mostra nada se não estiver configurado
-    }
-
-    // Tipo Proporcional
-    if (pontuacao.pontos_por_unidade && pontuacao.nome_unidade) {
-      return `${pontuacao.pontos_por_unidade} pts por ${pontuacao.nome_unidade}`;
-    }
-
-    // Tipo Limiar (tudo ou nada)
-    if (pontuacao.hasOwnProperty('quantidade_minima')) {
-      return `${pontuacao.pontuacao_fixa || 0} pts ao atingir ${pontuacao.quantidade_minima} ${pontuacao.nome_unidade || 'unidades'}`;
-    }
-
-    // Tipo Ranking (1º, 2º, 3º)
-    const posicoes = [];
-    if (pontuacao["1"]) posicoes.push(`1º: ${pontuacao["1"]} pts`);
-    if (pontuacao["2"]) posicoes.push(`2º: ${pontuacao["2"]} pts`);
-    if (pontuacao["3"]) posicoes.push(`3º: ${pontuacao["3"]} pts`);
-
-    if (posicoes.length > 0) {
-      return posicoes.join(' | ');
-    }
-
-    return "Pontuação configurada";
   };
 
   return (
@@ -1088,10 +1050,10 @@ const AdminProvas = () => {
                           <p className="text-xs sm:text-sm text-gray-900 break-words">{formatarRequisitos(prova.requisito_usuario)}</p>
                         </div>
                       )}
-                      {formatarPontuacao(prova.pontuacao) && (
+                      {descreverPontuacao(prova.pontuacao) && (
                             <div className="col-span-2">
                               <p className="text-xs text-gray-500 uppercase font-semibold">Pontuação</p>
-                              <p className="text-xs sm:text-sm text-gray-900 break-words">{formatarPontuacao(prova.pontuacao)}</p>
+                              <p className="text-xs sm:text-sm text-gray-900 break-words">{descreverPontuacao(prova.pontuacao)}</p>
                             </div>
                            )}
                     </div>

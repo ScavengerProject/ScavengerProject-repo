@@ -20,6 +20,7 @@ import { Label } from "./ui/label";
 import { Loader, Trash2, Plus, Trophy } from "lucide-react";
 import { equipesService, resultadosService } from "../services/api";
 import { toast } from "./ui/toast";
+import { tipoDaPontuacao, NOME_TIPO_PONTUACAO } from "../lib/pontuacaoProva";
 
 // Nome da equipe em texto escuro com a cor numa bolinha ao lado. Pintar o
 // próprio texto com a cor da equipe deixava equipes claras (ex: branca)
@@ -45,10 +46,7 @@ const LancarResultadoModal = ({ prova, isOpen, onClose }) => {
   useEffect(() => {
     if (isOpen && prova) {
       // 1. Define o tipo de pontuação
-      const regras = prova.pontuacao || {};
-      const tipoDetectado = regras.pontos_por_unidade
-        ? 'PROPORCIONAL'
-        : regras.hasOwnProperty('quantidade_minima') ? 'LIMIAR' : 'RANKING';
+      const tipoDetectado = tipoDaPontuacao(prova.pontuacao);
       setTipoPontuacao(tipoDetectado);
 
       // 2. Reseta o formulário
@@ -187,9 +185,7 @@ const LancarResultadoModal = ({ prova, isOpen, onClose }) => {
   if (!prova) return null;
 
   const idsEquipesSelecionadas = resultados.map(r => r.equipe_id).filter(Boolean);
-  const nomeTipoPontuacao = tipoPontuacao === 'RANKING'
-    ? 'Por Posição'
-    : tipoPontuacao === 'LIMIAR' ? 'Tudo ou Nada' : 'Por Unidade';
+  const nomeTipoPontuacao = NOME_TIPO_PONTUACAO[tipoPontuacao];
 
   const regrasPontuacao = prova.pontuacao || {};
   const pontosPorUnidade = Number(regrasPontuacao.pontos_por_unidade) || 0;

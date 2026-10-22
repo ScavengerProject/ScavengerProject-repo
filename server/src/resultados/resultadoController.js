@@ -4,6 +4,7 @@ import EquipeGincana from '../models/EquipeGincana.js';
 import Equipe from '../models/Equipe.js';
 import mongoose from 'mongoose';
 import { calcularStatusProva } from '../provas/provaController.js';
+import { tipoDaPontuacao } from '../provas/tipoPontuacao.js';
 
 const escaparRegex = (texto) => String(texto).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -97,12 +98,7 @@ export const listarResultadosDaProva = async (req, res) => {
     }
 
     // 2. Determina o tipo de pontuação (para saber como extrair o 'valor')
-    const regras = prova.pontuacao || {};
-    const tipo = regras.pontos_por_unidade
-      ? 'PROPORCIONAL'
-      : Object.prototype.hasOwnProperty.call(regras, 'quantidade_minima')
-        ? 'LIMIAR'
-        : 'RANKING';
+    const tipo = tipoDaPontuacao(prova.pontuacao);
 
     // 3. Formata a resposta, incluindo o 'valor' original
     const resultadosFormatados = resultados.map((r, index) => {

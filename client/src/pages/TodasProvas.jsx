@@ -11,6 +11,7 @@ import ProvaDetalhesModal from "../components/ProvaDetalhesModal";
 import MainLayout from "../components/MainLayout";
 import { ehAdmin } from '../lib/perfis';
 import { cotasDaProva, textoDaCota, motivoDaRecusa } from '../lib/cotasProva';
+import { descreverPontuacao } from '../lib/pontuacaoProva';
 
 const TodasProvas = () => {
   const navigate = useNavigate();
@@ -129,62 +130,10 @@ const TodasProvas = () => {
     };
     return formatoMap[formato] || formato;
   };
-  // Traduir pontuação
-  const formatarPontuacao = (pontuacao) => {
-    if (!pontuacao || Object.keys(pontuacao).length === 0) {
-      return null; // Não mostra nada se não estiver configurado
-    }
-
-    const isAdmin = ehAdmin(usuario);
-    const podeMostrarPontos = isAdmin || mostrarNotasRanking;
-
-    // Tipo Proporcional
-    if (pontuacao.pontos_por_unidade && pontuacao.nome_unidade) {
-      if (podeMostrarPontos) {
-        return `${pontuacao.pontos_por_unidade} pts por ${pontuacao.nome_unidade}`;
-      } else {
-        return `Pontos por ${pontuacao.nome_unidade}`;
-      }
-    }
-
-    // Tipo Limiar (tudo ou nada)
-    if (pontuacao.hasOwnProperty('quantidade_minima')) {
-      if (podeMostrarPontos) {
-        return `${pontuacao.pontuacao_fixa || 0} pts ao atingir ${pontuacao.quantidade_minima} ${pontuacao.nome_unidade || 'unidades'}`;
-      }
-      return `Mínimo de ${pontuacao.quantidade_minima} ${pontuacao.nome_unidade || 'unidades'}`;
-    }
-
-    // Tipo Ranking (1º, 2º, 3º)
-    const posicoes = [];
-    if (pontuacao["1"]) {
-      if (podeMostrarPontos) {
-        posicoes.push(`1º: ${pontuacao["1"]} pts`);
-      } else {
-        posicoes.push(`1º lugar`);
-      }
-    }
-    if (pontuacao["2"]) {
-      if (podeMostrarPontos) {
-        posicoes.push(`2º: ${pontuacao["2"]} pts`);
-      } else {
-        posicoes.push(`2º lugar`);
-      }
-    }
-    if (pontuacao["3"]) {
-      if (podeMostrarPontos) {
-        posicoes.push(`3º: ${pontuacao["3"]} pts`);
-      } else {
-        posicoes.push(`3º lugar`);
-      }
-    }
-
-    if (posicoes.length > 0) {
-      return posicoes.join(' | ');
-    }
-
-    return null; // Nenhum formato conhecido
-  };
+  // Resumo da pontuação; os valores só aparecem para admin ou quando o
+  // admin liberou as notas do ranking.
+  const formatarPontuacao = (pontuacao) =>
+    descreverPontuacao(pontuacao, { mostrarPontos: ehAdmin(usuario) || mostrarNotasRanking });
 
   return (
     <MainLayout usuario={usuario} onLogout={logout}>
