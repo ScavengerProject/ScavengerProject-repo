@@ -436,7 +436,7 @@ function App() {
           path="/equipes/penalidades"
           element={
             isAuthenticated
-              ? (['COORDENADOR','ALUNO','PROFESSOR'].includes(usuario.tipo) ? <PenalidadesEquipe /> : <Navigate to="/" replace />)
+              ? (['COORDENADOR','ALUNO','PROFESSOR','PAI/MÃE'].includes(usuario.tipo) ? <PenalidadesEquipe /> : <Navigate to="/" replace />)
               : <Navigate to="/login" replace />
           }
         />

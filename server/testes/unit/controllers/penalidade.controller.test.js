@@ -133,6 +133,52 @@ describe('penalidadesController - listarPenalidades', () => {
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.json.mock.calls[0][0]).toHaveLength(2);
   });
+
+  async function montarDuasEquipesPenalizadas() {
+    const minha = await Equipe.create({ nome: 'Minha', cor: '#111' });
+    const egMinha = await EquipeGincana.create({ equipe_id: minha._id, gincana_id: 'GINCANA_1' });
+    const outra = await Equipe.create({ nome: 'Outra', cor: '#222' });
+    const egOutra = await EquipeGincana.create({ equipe_id: outra._id, gincana_id: 'GINCANA_1' });
+    await Penalidade.create({ nome: 'PEN-MINHA', gincana_id: 'GINCANA_1', equipe_gincana_id: egMinha._id, pontos_removidos: 5 });
+    await Penalidade.create({ nome: 'PEN-OUTRA', gincana_id: 'GINCANA_1', equipe_gincana_id: egOutra._id, pontos_removidos: 7 });
+    return { minha, outra };
+  }
+
+  it.each(['ALUNO', 'PROFESSOR', 'PAI/MÃE'])('%s só vê as penalidades da própria equipe', async (tipo) => {
+    const { minha } = await montarDuasEquipesPenalizadas();
+    const membro = new mongoose.Types.ObjectId();
+    await EquipeMembros.create({ equipe_id: minha._id, usuario_id: membro });
+
+    const res = mockRes();
+    await listarPenalidades({ usuario: { id: membro.toString(), tipo }, gincanaId: 'GINCANA_1' }, res);
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    const corpo = res.json.mock.calls[0][0];
+    expect(corpo.map((p) => p.nome)).toEqual(['PEN-MINHA']);
+  });
+
+  it('participante sem equipe na gincana não vê penalidade nenhuma', async () => {
+    await montarDuasEquipesPenalizadas();
+
+    const res = mockRes();
+    await listarPenalidades({ usuario: { id: new mongoose.Types.ObjectId().toString(), tipo: 'ALUNO' }, gincanaId: 'GINCANA_1' }, res);
+
+    expect(res.json.mock.calls[0][0]).toEqual([]);
+  });
+
+  it('a equipe de uma edição anterior não abre as penalidades de outra equipe', async () => {
+    await montarDuasEquipesPenalizadas();
+    // Membro só de uma equipe da edição passada: o vínculo antigo nunca é removido.
+    const antiga = await Equipe.create({ nome: 'Antiga', cor: '#333' });
+    await EquipeGincana.create({ equipe_id: antiga._id, gincana_id: 'GINCANA_0' });
+    const membro = new mongoose.Types.ObjectId();
+    await EquipeMembros.create({ equipe_id: antiga._id, usuario_id: membro });
+
+    const res = mockRes();
+    await listarPenalidades({ usuario: { id: membro.toString(), tipo: 'ALUNO' }, gincanaId: 'GINCANA_1' }, res);
+
+    expect(res.json.mock.calls[0][0]).toEqual([]);
+  });
 });
 
 // GET /penalidades/equipes é a rota de origem para o formulário de penalidade

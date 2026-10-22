@@ -236,7 +236,7 @@ export default function Sidebar({ usuario, isOpen, onToggle, isMobile }) {
       description: 'Ver penalidades',
       path: '/equipes/penalidades',
       color: 'red',
-      show: ['COORDENADOR', 'ALUNO', 'PROFESSOR'].includes(usuario?.tipo)
+      show: ['COORDENADOR', 'ALUNO', 'PROFESSOR', 'PAI/MÃE'].includes(usuario?.tipo)
     },
     {
       id: 'feedbacks-admin',
