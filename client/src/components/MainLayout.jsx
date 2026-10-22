@@ -8,25 +8,34 @@ import FeedbackFAB from './EnviarFeedbackModal';
 import EscolaSelector from './EscolaSelector';
 import GincanaSelector from './GincanaSelector';
 
+const CONSULTA_MOBILE = '(max-width: 1023px)';
+const ehMobile = () => typeof window !== 'undefined' && !!window.matchMedia?.(CONSULTA_MOBILE).matches;
+
+// Cada página monta o próprio MainLayout, então o estado do menu nasceria de
+// novo a cada navegação. Guardado aqui, o menu que o usuário fechou no desktop
+// continua fechado na próxima página.
+let sidebarAbertaNoDesktop = true;
+
 export default function MainLayout({ usuario, onLogout, children }) {
   const navigate = useNavigate();
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [isMobile, setIsMobile] = useState(false);
+  // Estado inicial já calculado pela largura da tela: começar "aberto" e só
+  // fechar num efeito fazia o menu aparecer espremendo a página e se recolher
+  // a cada navegação no celular.
+  const [isMobile, setIsMobile] = useState(ehMobile);
+  const [sidebarOpen, setSidebarOpen] = useState(() => !ehMobile() && sidebarAbertaNoDesktop);
   const isCoordenador = usuario?.tipo === 'COORDENADOR';
 
-  // Detectar se é mobile
+  // matchMedia, e não `resize`: no celular o teclado e a barra de endereço
+  // disparam resize o tempo todo, e cada um fechava o menu.
   useEffect(() => {
-    const checkMobile = () => {
-      const mobile = window.innerWidth < 1024;
-      setIsMobile(mobile);
-      if (mobile) {
-        setSidebarOpen(false); // Fechar sidebar automaticamente no mobile
-      }
+    const consulta = window.matchMedia?.(CONSULTA_MOBILE);
+    if (!consulta) return undefined;
+    const aoMudar = (e) => {
+      setIsMobile(e.matches);
+      setSidebarOpen(e.matches ? false : sidebarAbertaNoDesktop);
     };
-    
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
+    consulta.addEventListener('change', aoMudar);
+    return () => consulta.removeEventListener('change', aoMudar);
   }, []);
 
   const handleLogout = () => {
@@ -35,7 +44,9 @@ export default function MainLayout({ usuario, onLogout, children }) {
   };
 
   const toggleSidebar = () => {
-    setSidebarOpen(!sidebarOpen);
+    const aberta = !sidebarOpen;
+    if (!isMobile) sidebarAbertaNoDesktop = aberta;
+    setSidebarOpen(aberta);
   };
 
   return (
@@ -43,7 +54,7 @@ export default function MainLayout({ usuario, onLogout, children }) {
       {/* Overlay para mobile quando sidebar está aberto */}
       {isMobile && sidebarOpen && (
         <div 
-          className="fixed inset-0 bg-black bg-opacity-50 z-30"
+          className="fixed inset-0 bg-black/50 z-30"
           onClick={toggleSidebar}
         />
       )}
@@ -85,11 +96,13 @@ export default function MainLayout({ usuario, onLogout, children }) {
             </div>
 
             <div className="flex items-center gap-2 sm:gap-3 md:gap-4 shrink-0">
-              {/* Seletor de Escola ativa (tenant) — oculto para quem só tem uma */}
-              <EscolaSelector />
-
-              {/* Seletor de Gincana ativa (workspace), dentro da escola ativa */}
-              <GincanaSelector />
+              {/* Seletores de Escola (oculto para quem só tem uma) e de Gincana.
+                  No celular eles vão para o topo do menu lateral: aqui
+                  empurravam o sino e o Sair para fora da tela. */}
+              <div className="hidden sm:flex items-center gap-2 sm:gap-3 min-w-0">
+                <EscolaSelector />
+                <GincanaSelector />
+              </div>
 
               {/* Dropdown de Notificações */}
               <NotificacoesDropdown />
@@ -118,7 +131,7 @@ export default function MainLayout({ usuario, onLogout, children }) {
         </nav>
 
         {/* Page Content */}
-        <main className="flex-1 overflow-auto">
+        <main className={`flex-1 overflow-auto ${isCoordenador ? 'pb-24' : ''}`}>
           {children}
         </main>
       </div>

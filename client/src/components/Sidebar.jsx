@@ -7,6 +7,8 @@ import {
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { ehAdmin, ehSuperAdmin } from '../lib/perfis';
+import EscolaSelector from './EscolaSelector';
+import GincanaSelector from './GincanaSelector';
 
 export default function Sidebar({ usuario, isOpen, onToggle, isMobile }) {
   const navigate = useNavigate();
@@ -284,9 +286,9 @@ export default function Sidebar({ usuario, isOpen, onToggle, isMobile }) {
       {/* Sidebar */}
       <aside
         className={`
-          ${isMobile ? 'fixed' : 'sticky'} top-0 h-screen bg-white border-r border-gray-200 
+          ${isMobile ? 'fixed' : 'sticky'} top-0 h-dvh bg-white border-r border-gray-200 
           transition-all duration-300 ease-in-out z-40 shrink-0
-          ${isOpen ? (isMobile ? 'w-80' : 'w-72') : 'w-0'}
+          ${isOpen ? (isMobile ? 'w-[85vw] max-w-80' : 'w-72') : 'w-0 invisible'}
           ${isOpen ? 'overflow-y-auto' : 'overflow-hidden'}
         `}
       >
@@ -307,6 +309,13 @@ export default function Sidebar({ usuario, isOpen, onToggle, isMobile }) {
               </button>
             </div>
           )}
+
+          {/* Seletores de escola e gincana: no celular saem da barra do topo
+              (não cabem lá) e ficam aqui. */}
+          <div className="sm:hidden mb-6 space-y-2 empty:hidden">
+            <EscolaSelector larguraTrigger="w-full" />
+            <GincanaSelector larguraTrigger="w-full" />
+          </div>
 
           {/* Navigation Items */}
           <nav className="space-y-2">

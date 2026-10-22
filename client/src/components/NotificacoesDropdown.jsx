@@ -141,7 +141,7 @@ export default function NotificacoesDropdown() {
 
       {/* Dropdown de Notificações */}
       {isDropdownOpen && (
-        <div className="fixed sm:absolute right-0 left-0 sm:left-auto top-[60px] sm:top-auto sm:right-0 sm:mt-2 w-full sm:w-96 max-w-full sm:max-w-[384px] bg-white rounded-none sm:rounded-lg shadow-xl border-t sm:border border-gray-200 z-50 max-h-[calc(100vh-60px)] sm:max-h-[600px] flex flex-col">
+        <div className="fixed sm:absolute right-0 left-0 sm:left-auto top-16 sm:top-auto sm:right-0 sm:mt-2 w-full sm:w-96 max-w-full sm:max-w-[384px] bg-white rounded-none sm:rounded-lg shadow-xl border-t sm:border border-gray-200 z-50 max-h-[calc(100dvh-4rem)] sm:max-h-[600px] flex flex-col">
           {/* Header do Dropdown */}
           <div className="flex items-center justify-between p-3 sm:p-4 border-b border-gray-200">
             <h3 className="text-base sm:text-lg font-semibold text-gray-900">Notificações</h3>
@@ -149,7 +149,7 @@ export default function NotificacoesDropdown() {
               variant="ghost"
               size="sm"
               onClick={() => setIsDropdownOpen(false)}
-              className="h-6 w-6 p-0"
+              className="h-8 w-8 p-0"
             >
               <X size={16} />
             </Button>
@@ -205,7 +205,7 @@ export default function NotificacoesDropdown() {
                           {!notificacao.lida && (
                             <button
                               onClick={(e) => handleMarcarComoLida(notificacao._id, e)}
-                              className="shrink-0 p-1 hover:bg-blue-100 rounded transition"
+                              className="shrink-0 p-2 -m-1 hover:bg-blue-100 rounded transition"
                               title="Marcar como lida"
                             >
                               <X size={14} className="text-gray-500" />

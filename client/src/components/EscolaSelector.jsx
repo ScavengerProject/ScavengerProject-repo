@@ -16,7 +16,7 @@ import { useEscola } from '../hooks/useEscola';
  * Fica oculto quando o usuário tem apenas uma escola — o caso comum de quem não
  * atua em mais de uma — para não poluir a navbar com um seletor de uma opção só.
  */
-export default function EscolaSelector() {
+export default function EscolaSelector({ larguraTrigger = "w-40 lg:w-52" }) {
   const { minhasEscolas, escolaAtivaId, setEscolaAtiva, loading } = useEscola();
 
   if (!loading && (!minhasEscolas || minhasEscolas.length <= 1)) {
@@ -31,7 +31,7 @@ export default function EscolaSelector() {
         onValueChange={setEscolaAtiva}
         disabled={loading}
       >
-        <SelectTrigger className="h-9 w-40 sm:w-52" title="Escola ativa">
+        <SelectTrigger className={`h-9 ${larguraTrigger}`} title="Escola ativa">
           <SelectValue placeholder={loading ? 'Carregando...' : 'Selecionar escola'} />
         </SelectTrigger>
         <SelectContent>
