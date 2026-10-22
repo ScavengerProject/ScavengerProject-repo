@@ -610,7 +610,7 @@ const AdminProvas = () => {
                     <Label className="text-gray-900 font-medium">
                       Status
                     </Label>
-                    <div className="flex items-center justify-between rounded-md border border-gray-300 bg-gray-50 px-3 py-2">
+                    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-md border border-gray-300 bg-gray-50 px-3 py-2">
                       <span className="text-gray-900 font-medium">
                         {traduzirStatus(calcularStatusProva(formData.data_inicio, formData.data_fim))}
                       </span>
@@ -714,7 +714,7 @@ const AdminProvas = () => {
                   {/* 2b. Inputs para TIPO PROPORCIONAL */}
                   {tipoPontuacao === 'PROPORCIONAL' && (
                     <div className="grid gap-4 pt-2">
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         {/* Pontos */}
                         <div className="grid gap-1">
                           <Label htmlFor="pontos_unidade" className="text-sm font-normal text-gray-700">Pontos por Unidade</Label>
@@ -805,7 +805,7 @@ const AdminProvas = () => {
                   {/* 2c. Inputs para TIPO LIMIAR (tudo ou nada) */}
                   {tipoPontuacao === 'LIMIAR' && (
                     <div className="grid gap-4 pt-2">
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="grid gap-1">
                           <Label htmlFor="quantidade_minima_pontuacao" className="text-sm font-normal text-gray-700">
                             Quantidade Mínima
@@ -864,8 +864,8 @@ const AdminProvas = () => {
                     </p>
                     <div className="grid gap-3 p-3 border border-gray-300 rounded-md bg-gray-50">
                       {formData.bonus_categorias.map((categoria, index) => (
-                        <div key={index} className="grid grid-cols-[2fr_1fr_1fr_auto] gap-2 items-end p-2 bg-white border border-gray-200 rounded-md">
-                          <div className="grid gap-1">
+                        <div key={index} className="grid grid-cols-2 sm:grid-cols-[2fr_1fr_1fr_auto] gap-2 items-end p-2 bg-white border border-gray-200 rounded-md">
+                          <div className="grid gap-1 col-span-2 sm:col-span-1">
                             <Label className="text-xs font-normal text-gray-700">Nome</Label>
                             <Input
                               type="text"
@@ -904,7 +904,7 @@ const AdminProvas = () => {
                             size="icon"
                             onClick={() => removerCategoriaBonus(index)}
                             disabled={submitting}
-                            className="border-gray-300 hover:bg-red-50 hover:text-red-600"
+                            className="border-gray-300 hover:bg-red-50 hover:text-red-600 col-span-2 justify-self-end sm:col-span-1"
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>

@@ -1,5 +1,12 @@
 import React, { useState, useEffect } from "react";
-import { Card, CardHeader, CardTitle, CardContent } from "./ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "./ui/dialog";
 import { Label } from "./ui/label";
 import { Input } from "./ui/input";
 import { Button } from "./ui/button";
@@ -13,7 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "./ui/select";
-import { X, Gavel, CheckCircle, XCircle } from "lucide-react";
+import { Gavel, CheckCircle, XCircle } from "lucide-react";
 
 export default function ModalCriarPenalidade({ open, onClose, onSubmit }) {
   const [equipes, setEquipes] = useState([]);
@@ -117,22 +124,22 @@ export default function ModalCriarPenalidade({ open, onClose, onSubmit }) {
     }
   };
 
-  if (!open) return null;
-
+  // Usa o Dialog compartilhado: o modal feito à mão não tinha margem nem
+  // rolagem, e no celular o teclado escondia a descrição e os botões.
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-      <Card className="w-full max-w-lg bg-white shadow-xl rounded-2xl">
-        <CardHeader className="flex flex-row items-center justify-between border-b-2 border-gray-100 pb-3">
-          <CardTitle className="flex items-center gap-2 text-red-700 text-lg font-semibold">
+    <Dialog open={open} onOpenChange={(aberto) => { if (!aberto) onClose(); }}>
+      <DialogContent className="bg-white">
+        <DialogHeader className="border-b-2 border-gray-100 pb-3">
+          <DialogTitle className="flex items-center gap-2 text-red-700 text-lg font-semibold">
             <Gavel size={22} />
             Criar Penalidade
-          </CardTitle>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-700" aria-label="Fechar">
-            <X size={22} />
-          </button>
-        </CardHeader>
+          </DialogTitle>
+          <DialogDescription className="sr-only">
+            Escolha a equipe, os pontos a remover e o motivo da penalidade.
+          </DialogDescription>
+        </DialogHeader>
 
-        <CardContent className="mt-4 space-y-4">
+        <div className="space-y-4">
           <div>
             <Label>Equipe *</Label>
             <Select onValueChange={handleEquipeChange} value={form.equipeId}>
@@ -199,12 +206,13 @@ export default function ModalCriarPenalidade({ open, onClose, onSubmit }) {
             />
           </div>
 
-          <div className="flex justify-end gap-3 pt-4 border-t mt-4">
-            <Button variant="outline" onClick={onClose}>Cancelar</Button>
-            <Button onClick={handleSubmit} className="bg-red-600 hover:bg-red-700 text-white">Confirmar Penalidade</Button>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+        </div>
+
+        <DialogFooter className="pt-4 border-t">
+          <Button variant="outline" onClick={onClose}>Cancelar</Button>
+          <Button onClick={handleSubmit} className="bg-red-600 hover:bg-red-700 text-white">Confirmar Penalidade</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

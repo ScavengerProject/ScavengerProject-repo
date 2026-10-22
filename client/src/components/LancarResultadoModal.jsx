@@ -242,7 +242,7 @@ const LancarResultadoModal = ({ prova, isOpen, onClose }) => {
   const renderCategoriasBonus = (index, quesitosDaLinha) => {
     if (bonusCategorias.length === 0) return null;
     return (
-      <div className="grid grid-cols-2 gap-3 p-3 bg-white border border-gray-300 rounded-md">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-white border border-gray-300 rounded-md">
         {bonusCategorias.map((categoria) => (
           <div key={categoria.chave} className="grid gap-1.5">
             <Label htmlFor={`bonus-${categoria.chave}-${index}`} className="text-xs">
@@ -289,13 +289,13 @@ const LancarResultadoModal = ({ prova, isOpen, onClose }) => {
             
             {/* 1. TIPO DE LANÇAMENTO */}
             <div className="p-3 bg-gray-100 border border-gray-300 rounded-md space-y-1">
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-1 sm:gap-4">
                 <div className="col-span-1">
                   <Label className="text-gray-900 font-medium my-auto">
                     Tipo de Lançamento:
                   </Label>
                 </div>
-                <div className="col-span-2">
+                <div className="sm:col-span-2">
                   <p className="text-gray-900 font-semibold my-auto">
                     {nomeTipoPontuacao}
                   </p>
@@ -326,9 +326,11 @@ const LancarResultadoModal = ({ prova, isOpen, onClose }) => {
                   <div key={index} className="space-y-3 p-3 bg-gray-50 border border-gray-200 rounded-md">
 
                     {/* LINHA PRINCIPAL */}
-                    <div className="flex items-end gap-2">
+                    {/* No celular a equipe desce para uma linha própria: lado a
+                        lado com posição, total e lixeira, o seletor sumia. */}
+                    <div className="flex flex-wrap sm:flex-nowrap items-end gap-2">
                       {/* CAMPO DE POSIÇÃO */}
-                      <div className="w-28 grid gap-1.5">
+                      <div className="w-24 sm:w-28 grid gap-1.5">
                         <Label className="text-sm">Posição</Label>
                         <div className="h-10 px-3 py-2 border border-gray-300 bg-gray-200 rounded-md flex items-center justify-center">
                           <span className="font-bold text-gray-800">{posicao}º Lugar</span>
@@ -336,7 +338,7 @@ const LancarResultadoModal = ({ prova, isOpen, onClose }) => {
                       </div>
 
                       {/* SELETOR DE EQUIPE */}
-                      <div className="flex-1 grid gap-1.5">
+                      <div className="order-last basis-full sm:order-none sm:basis-0 sm:flex-1 min-w-0 grid gap-1.5">
                         <Label htmlFor={`equipe-${index}`} className="text-sm">Equipe</Label>
                         <Select
                           value={res.equipe_id}
@@ -357,7 +359,7 @@ const LancarResultadoModal = ({ prova, isOpen, onClose }) => {
                       </div>
 
                       {/* TOTAL DE PONTOS */}
-                      <div className="w-32 grid gap-1.5">
+                      <div className="flex-1 sm:flex-none sm:w-32 grid gap-1.5">
                         <Label className="text-sm">Total de Pontos</Label>
                         <div className="h-10 px-3 py-2 border border-gray-300 bg-blue-100 rounded-md flex items-center justify-center">
                           <span className="font-bold text-blue-800">{pontosTotais} pts</span>
@@ -405,7 +407,7 @@ const LancarResultadoModal = ({ prova, isOpen, onClose }) => {
                   <div key={index} className="space-y-3 p-3 bg-gray-50 border border-gray-200 rounded-md">
 
                     {/* LINHA PRINCIPAL */}
-                    <div className="grid grid-cols-3 gap-x-4 gap-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-4 gap-y-3">
 
                       {/* Seletor de Equipe */}
                       <div className="col-span-1 grid gap-1.5">
@@ -515,7 +517,7 @@ const LancarResultadoModal = ({ prova, isOpen, onClose }) => {
                   <div key={index} className="space-y-3 p-3 bg-gray-50 border border-gray-200 rounded-md">
 
                     {/* LINHA PRINCIPAL */}
-                    <div className="grid grid-cols-3 gap-x-4 gap-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-4 gap-y-3">
 
                       {/* Seletor de Equipe */}
                       <div className="col-span-1 grid gap-1.5">
@@ -610,7 +612,7 @@ const LancarResultadoModal = ({ prova, isOpen, onClose }) => {
                   <div key={index} className="space-y-3 p-3 bg-gray-50 border border-gray-200 rounded-md">
 
                     {/* LINHA PRINCIPAL */}
-                    <div className="grid grid-cols-3 gap-x-4 gap-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-4 gap-y-3">
 
                       {/* Seletor de Equipe */}
                       <div className="col-span-1 grid gap-1.5">

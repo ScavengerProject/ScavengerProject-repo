@@ -283,7 +283,7 @@ const ProvaDetalhesModal = ({ prova, isOpen, onClose, onInscricaoSucesso }) => {
           </div>
 
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
               <div className="flex items-center gap-2 text-yellow-900">
                 <Trophy className="h-5 w-5" />
                 <h4 className="font-semibold">
@@ -293,7 +293,7 @@ const ProvaDetalhesModal = ({ prova, isOpen, onClose, onInscricaoSucesso }) => {
 
               {/* CHECKBOX DO ADMIN */}
               {isAdmin && prova.status === 'CONCLUIDA' && (
-                <div className="flex items-center space-x-2 bg-yellow-100 px-3 py-1.5 rounded-md border border-yellow-300 ml-4">
+                <div className="flex items-center space-x-2 bg-yellow-100 px-3 py-1.5 rounded-md border border-yellow-300">
                   <Checkbox 
                     id="ocultarPontosBtn" 
                     checked={ocultarPontos}
@@ -338,20 +338,20 @@ const ProvaDetalhesModal = ({ prova, isOpen, onClose, onInscricaoSucesso }) => {
                               'bg-white border-yellow-200' 
                             }`}
                           >
-                            <div className="flex items-center gap-3 flex-1">
-                              <span className="font-bold text-lg min-w-8 text-yellow-700">
+                            <div className="flex items-center gap-3 flex-1 min-w-0">
+                              <span className="font-bold text-lg min-w-8 text-yellow-700 shrink-0">
                                 {resultado.posicao || index + 1}º
                               </span>
-                              <div className="flex items-center gap-2 flex-1">
-                                <span className="font-semibold text-gray-900">{resultado.equipe_nome}</span>
+                              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 flex-1 min-w-0">
+                                <span className="font-semibold text-gray-900 break-words min-w-0">{resultado.equipe_nome}</span>
                                 {equipeUsuario && String(resultado.equipe_id) === String(equipeUsuario._id || equipeUsuario.id) && (
-                                  <Badge className="bg-blue-100 text-blue-700 text-xs ml-2">Sua Equipe</Badge>
+                                  <Badge className="bg-blue-100 text-blue-700 text-xs">Sua Equipe</Badge>
                                 )}
                               </div>
                             </div>
                             
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-medium text-gray-700 min-w-[80px] text-right">
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span className="text-sm font-medium text-gray-700 text-right">
                                 {(() => {
                                   const rId = resultado.equipe_id ? String(resultado.equipe_id._id || resultado.equipe_id) : "";
                                   const uId = equipeUsuario ? String(equipeUsuario._id || equipeUsuario.id || "") : "";
@@ -384,14 +384,16 @@ const ProvaDetalhesModal = ({ prova, isOpen, onClose, onInscricaoSucesso }) => {
         </div>
 
         <DialogFooter className="mt-6">
-          <div className="flex items-center justify-between w-full gap-4">
-            <Button variant="outline" onClick={onClose}>Fechar</Button>
-            <div className="flex items-center gap-3">
+          {/* No celular os botões empilham em largura total (com "Fechar" por
+              último); lado a lado passavam de 400px. */}
+          <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between w-full gap-3 sm:gap-4">
+            <Button variant="outline" onClick={onClose} className="w-full sm:w-auto">Fechar</Button>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
               {podeInscreverEquipe && (
                 <Button
                   variant="outline"
                   onClick={() => setInscreverMembrosAberto(true)}
-                  className="border-blue-300 text-blue-700"
+                  className="border-blue-300 text-blue-700 w-full sm:w-auto"
                 >
                   <UserPlus className="h-4 w-4 mr-2" />
                   Inscrever membros da equipe
@@ -401,12 +403,12 @@ const ProvaDetalhesModal = ({ prova, isOpen, onClose, onInscricaoSucesso }) => {
                   acima explica o motivo, e oferecer um clique que só produz erro
                   é o comportamento que esta tela tinha antes. */}
               {!jaInscrito && temCotas && !recusaBloqueia && prova.status !== 'CONCLUIDA' && (
-                 <Button onClick={handleInscrever} disabled={inscrevendo} className="bg-blue-600 text-white">
+                 <Button onClick={handleInscrever} disabled={inscrevendo} className="bg-blue-600 text-white w-full sm:w-auto">
                     {inscrevendo ? "Inscrevendo..." : "Inscrever-se"}
                  </Button>
               )}
                {jaInscrito && (
-                 <div className="flex items-center gap-2 px-4 py-2 bg-green-50 border border-green-200 rounded-lg">
+                 <div className="flex items-center justify-center gap-2 px-4 py-2 bg-green-50 border border-green-200 rounded-lg">
                   <UserCheck className="h-5 w-5 text-green-600" />
                   <span className="text-sm font-medium text-green-800">Inscrito</span>
                 </div>
