@@ -155,7 +155,7 @@ export default function SelecionarEquipe() {
                 {minhaEquipeNaLista && (
                   <Button
                     onClick={() => navigate('/')}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white inline-flex items-center gap-2"
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white inline-flex items-center gap-2 h-auto min-h-10 whitespace-normal text-left"
                   >
                     <CheckCircle2 size={16} />
                     Continuar como {minhaEquipeNaLista.nome}

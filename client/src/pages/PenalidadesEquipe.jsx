@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../hooks/useAuth";
 import MainLayout from "../components/MainLayout";
+import ListaPenalidades from "../components/ListaPenalidades";
 
 import { penalidadesService } from "../services/api";
 import { toast } from "../components/ui/toast";
@@ -40,34 +41,13 @@ export default function Penalidades() {
         </div>
 
         {/* Conteúdo: tabela de penalidades */}
-        <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
+        <div className="bg-white rounded-xl shadow-lg p-3 sm:p-6 border border-gray-200">
           {loading ? (
             <p className="text-gray-600">Carregando penalidades...</p>
           ) : penalidades.length === 0 ? (
             <p className="text-gray-600">Sua equipe não recebeu nenhuma penalidade até o momento.</p>
           ) : (
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-gray-200">
-                  <th className="p-2">Equipe</th>
-                  <th className="p-2">Participante</th>
-                  <th className="p-2">Pontos Removidos</th>
-                  <th className="p-2">Descrição</th>
-                  <th className="p-2">Criado em</th>
-                </tr>
-              </thead>
-              <tbody>
-                {penalidades.map((p) => (
-                  <tr key={p.id} className="border-b border-gray-100">
-                    <td className="p-2">{p.equipe?.nome || "Equipe sem nome"}</td>
-                    <td className="p-2">{p.participante?.nome || "-"}</td>
-                    <td className="p-2">{p.pontos_removidos}</td>
-                    <td className="p-2">{p.descricao}</td>
-                    <td className="p-2">{new Date(p.criado_em).toLocaleString()}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <ListaPenalidades penalidades={penalidades} />
           )}
         </div>
       </div>

@@ -146,7 +146,7 @@ const TodasProvas = () => {
     <MainLayout usuario={usuario} onLogout={logout}>
       <div className="container mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-6 md:py-8">
         <div className="mb-8">
-          <h2 className="text-3xl font-bold text-gray-900 mb-2">Todas as Provas</h2>
+          <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Todas as Provas</h2>
           <p className="text-gray-600">
             {ehAdmin(usuario) 
               ? `Visualizando todas as ${provas.length} provas cadastradas`
@@ -226,7 +226,7 @@ const TodasProvas = () => {
                     <Card
                       key={prova._id}
                       onClick={() => abrirDetalhesProva(prova)}
-                      className="bg-white border-gray-200 shadow-md hover:shadow-xl transition-all cursor-pointer hover:scale-105"
+                      className="bg-white border-gray-200 shadow-md hover:shadow-xl transition-all cursor-pointer sm:hover:scale-105"
                     >
                       <CardHeader>
                         <div className="flex items-start justify-between mb-2">

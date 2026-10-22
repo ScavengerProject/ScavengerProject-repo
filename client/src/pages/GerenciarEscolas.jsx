@@ -446,7 +446,7 @@ const GerenciarEscolas = () => {
               <p className="text-sm text-gray-500 py-4">Nenhum usuário vinculado a esta escola.</p>
             ) : (
               usuariosVinculados.map((u) => (
-                <div key={u._id} className="flex items-center justify-between gap-3 py-2">
+                <div key={u._id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3 py-2">
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-gray-900 truncate">{u.nome}</p>
                     <p className="text-xs text-gray-600 truncate">
@@ -454,7 +454,7 @@ const GerenciarEscolas = () => {
                       {(u.vinculos?.length || 0) > 1 && ` · atua em ${u.vinculos.length} escolas`}
                     </p>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex items-center justify-end gap-2 shrink-0">
                     {u.tipo === 'SUPER_ADMIN' ? (
                       <span className="text-xs font-semibold px-2 py-1 rounded-full bg-purple-100 text-purple-800">
                         SUPER_ADMIN

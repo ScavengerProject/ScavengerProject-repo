@@ -95,7 +95,7 @@ const GerenciarEquipe = () => {
     <MainLayout usuario={usuario} onLogout={logout}>
       <div className="container mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-6 md:py-8">
         <div className="mb-8">
-          <h2 className="text-3xl font-bold text-gray-900 mb-2">Gerenciar Equipe: {equipeInfo?.nome}</h2>
+          <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2 break-words">Gerenciar Equipe: {equipeInfo?.nome}</h2>
           <p className="text-gray-600">Visualize os membros atuais.</p>
         </div>
 
@@ -111,12 +111,12 @@ const GerenciarEquipe = () => {
             <CardContent className="space-y-3">
               {membros.length > 0 ? (
                 membros.map((membro) => (
-                  <div key={membro._id} className="flex items-center justify-between p-3 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">
-                     <div className="flex items-center gap-4">
-                      <div className="p-2 bg-white rounded-full border">
+                  <div key={membro._id} className="flex items-center justify-between gap-2 p-3 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">
+                     <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+                      <div className="p-2 bg-white rounded-full border shrink-0">
                         <User className="h-6 w-6 text-green-600" />
                       </div>
-                      <div>
+                      <div className="min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <p className="font-semibold text-gray-900">{membro.usuario_id?.nome || '—'}</p>
                           {membro.is_coordenador && (
@@ -125,7 +125,7 @@ const GerenciarEquipe = () => {
                             </span>
                           )}
                         </div>
-                        <p className="text-sm text-gray-600">{membro.usuario_id?.email || '—'}</p>
+                        <p className="text-sm text-gray-600 break-all">{membro.usuario_id?.email || '—'}</p>
                       </div>
                     </div>
                     {!membro.is_coordenador && (

@@ -169,8 +169,8 @@ export default function CoordOferecerMembros() {
             solicitacoes.map((sol) => (
               <Card key={sol._id} className="bg-white border-gray-200 shadow-md hover:shadow-lg transition-shadow">
                 <CardContent className="py-4">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1 space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                    <div className="flex-1 min-w-0 space-y-3">
                       {/* Equipe Solicitante */}
                       <div>
                         <p className="font-semibold text-gray-900 text-lg">
@@ -346,7 +346,7 @@ export default function CoordOferecerMembros() {
                         <span className="pointer-events-none">
                           <Checkbox checked={selecionado} onCheckedChange={() => {}} />
                         </span>
-                        <div className="flex-1">
+                        <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-gray-900">
                             {membro.nome || '—'}
                             {membro.is_coordenador && (
@@ -355,7 +355,7 @@ export default function CoordOferecerMembros() {
                               </span>
                             )}
                           </p>
-                          <p className="text-xs text-gray-600">
+                          <p className="text-xs text-gray-600 break-all">
                             {membro.turma || 'Sem turma'} • {membro.email}
                           </p>
                         </div>
@@ -382,9 +382,9 @@ export default function CoordOferecerMembros() {
                   {bloqueados.map((membro) => (
                     <div key={membro.id} className="flex items-start gap-3 p-2 rounded">
                       <Lock className="h-4 w-4 text-gray-400 mt-1 shrink-0" />
-                      <div className="flex-1">
+                      <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-gray-700">{membro.nome || '—'}</p>
-                        <p className="text-xs text-gray-500">
+                        <p className="text-xs text-gray-500 break-all">
                           {membro.turma || 'Sem turma'} • {membro.email}
                         </p>
                         <p className="text-xs text-gray-600 mt-0.5">{membro.motivo}</p>

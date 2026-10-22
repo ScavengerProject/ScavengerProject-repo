@@ -328,9 +328,9 @@ const AdminEquipes = () => {
     return (
     <MainLayout usuario={usuario} onLogout={logout}>
       <div className="container mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-6 md:py-8">
-                <div className="flex items-center justify-between mb-6">
-                    <div>
-                        <h2 className="text-3xl font-bold text-gray-900 mb-2">Equipes da Gincana</h2>
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+                    <div className="min-w-0">
+                        <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Equipes da Gincana</h2>
                         <p className="text-gray-600">Crie, coordene e gerencie os participantes das equipes</p>
                     </div>
                     
@@ -598,10 +598,10 @@ const AdminEquipes = () => {
                                 <p className="text-gray-500 text-center py-4">Nenhum membro encontrado.</p>
                             ) : (
                                 membrosView.map(membro => (
-                                    <div key={membro.id} className="flex items-center justify-between p-3 border rounded-md shadow-sm">
-                                        <div>
-                                            <p className="font-semibold text-gray-800">{membro.nome}</p>
-                                            <p className="text-sm text-gray-500">{membro.email} - ({membro.tipo})</p>
+                                    <div key={membro.id} className="flex items-center justify-between gap-2 p-3 border rounded-md shadow-sm">
+                                        <div className="min-w-0">
+                                            <p className="font-semibold text-gray-800 break-words">{membro.nome}</p>
+                                            <p className="text-sm text-gray-500 break-all">{membro.email} - ({membro.tipo})</p>
                                         </div>
                                         {membro.isCoordenador && (
                                             <span className="text-xs font-semibold px-2 py-1 bg-green-100 text-green-700 rounded-full">
