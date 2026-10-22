@@ -35,6 +35,8 @@ import ProvaSequenciamentoForm from "../components/ProvaSequenciamentoForm";
 import ProvaParticipantesForm from "../components/ProvaParticipantesForm";
 import LancarResultadoModal from "../components/LancarResultadoModal";
 import { tipoDaPontuacao, descreverPontuacao } from "../lib/pontuacaoProva";
+import { filtrarProvasPorBusca } from "../lib/buscaProvas";
+import BuscaProvas from "../components/BuscaProvas";
 
 // Gera uma chave estável a partir do nome digitado pelo admin (ex: "Ex-alunos" -> "EX_ALUNOS").
 const gerarChaveBonus = (nome) => {
@@ -124,6 +126,7 @@ const AdminProvas = () => {
   const [provaParaResultado, setProvaParaResultado] = useState(null);
   const [mostrarNotasRanking, setMostrarNotasRanking] = useState(false);
   const [salvandoConfiguracao, setSalvandoConfiguracao] = useState(false);
+  const [busca, setBusca] = useState("");
   
   const [formData, setFormData] = useState({
     titulo: "",
@@ -1006,6 +1009,11 @@ const AdminProvas = () => {
           </Card>
         )}
 
+        {/* Busca */}
+        {!loading && provas.length > 0 && (
+          <BuscaProvas valor={busca} onChange={setBusca} className="mb-4" />
+        )}
+
         {/* Provas List */}
         {!loading && (
           <div className="grid gap-4">
@@ -1015,8 +1023,14 @@ const AdminProvas = () => {
                   <p className="text-gray-600">Nenhuma prova cadastrada. Crie sua primeira prova!</p>
                 </CardContent>
               </Card>
+            ) : filtrarProvasPorBusca(provas, busca).length === 0 ? (
+              <Card className="bg-white border-gray-200 shadow-md">
+                <CardContent className="flex items-center justify-center py-12">
+                  <p className="text-gray-600">Nenhuma prova encontrada para "{busca}".</p>
+                </CardContent>
+              </Card>
             ) : (
-              provas.map((prova) => (
+              filtrarProvasPorBusca(provas, busca).map((prova) => (
                 <Card key={prova._id} className="bg-white border-gray-200 shadow-md hover:shadow-lg transition-shadow">
                   <CardHeader>
                     <div className="flex flex-col sm:flex-row items-start justify-between gap-3">

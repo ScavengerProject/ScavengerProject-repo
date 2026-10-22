@@ -12,6 +12,8 @@ import MainLayout from "../components/MainLayout";
 import { ehAdmin } from '../lib/perfis';
 import { cotasDaProva, textoDaCota, motivoDaRecusa } from '../lib/cotasProva';
 import { descreverPontuacao } from '../lib/pontuacaoProva';
+import { filtrarProvasPorBusca } from '../lib/buscaProvas';
+import BuscaProvas from '../components/BuscaProvas';
 
 const TodasProvas = () => {
   const navigate = useNavigate();
@@ -21,6 +23,7 @@ const TodasProvas = () => {
   const [provaSelecionada, setProvaSelecionada] = useState(null);
   const [modalAberto, setModalAberto] = useState(false);
   const [filtroStatus, setFiltroStatus] = useState('TODOS');
+  const [busca, setBusca] = useState('');
   const [mostrarNotasRanking, setMostrarNotasRanking] = useState(false);
 
   useEffect(() => {
@@ -93,10 +96,14 @@ const TodasProvas = () => {
     return true;
   });
 
+  // A busca vem antes do status para que as contagens dos botões de status
+  // reflitam o que foi buscado.
+  const provasBuscadas = filtrarProvasPorBusca(provasDisponiveis, busca);
+
   // Aplicar filtro de status
   const provasFiltradas = filtroStatus === 'TODOS' 
-    ? provasDisponiveis 
-    : provasDisponiveis.filter(p => p.status === filtroStatus);
+    ? provasBuscadas 
+    : provasBuscadas.filter(p => p.status === filtroStatus);
 
   // Ordenar por data de início
   const provasOrdenadas = [...provasFiltradas].sort((a, b) => 
@@ -157,6 +164,9 @@ const TodasProvas = () => {
           </div>
         ) : (
           <>
+            {/* Busca */}
+            <BuscaProvas valor={busca} onChange={setBusca} className="mb-4" />
+
             {/* Filtros */}
             <div className="mb-6 flex items-center gap-3 flex-wrap">
               <div className="flex items-center gap-2">
@@ -169,7 +179,7 @@ const TodasProvas = () => {
                 onClick={() => setFiltroStatus('TODOS')}
                 className={filtroStatus === 'TODOS' ? 'bg-blue-600 text-white' : 'border-gray-300'}
               >
-                Todas ({provasDisponiveis.length})
+                Todas ({provasBuscadas.length})
               </Button>
               <Button
                 variant={filtroStatus === 'EM_ANDAMENTO' ? 'default' : 'outline'}
@@ -177,7 +187,7 @@ const TodasProvas = () => {
                 onClick={() => setFiltroStatus('EM_ANDAMENTO')}
                 className={filtroStatus === 'EM_ANDAMENTO' ? 'bg-green-600 text-white' : 'border-gray-300'}
               >
-                Em Andamento ({provasDisponiveis.filter(p => p.status === 'EM_ANDAMENTO').length})
+                Em Andamento ({provasBuscadas.filter(p => p.status === 'EM_ANDAMENTO').length})
               </Button>
               <Button
                 variant={filtroStatus === 'NAO_INICIADA' ? 'default' : 'outline'}
@@ -185,7 +195,7 @@ const TodasProvas = () => {
                 onClick={() => setFiltroStatus('NAO_INICIADA')}
                 className={filtroStatus === 'NAO_INICIADA' ? 'bg-gray-600 text-white' : 'border-gray-300'}
               >
-                Não Iniciadas ({provasDisponiveis.filter(p => p.status === 'NAO_INICIADA').length})
+                Não Iniciadas ({provasBuscadas.filter(p => p.status === 'NAO_INICIADA').length})
               </Button>
               <Button
                 variant={filtroStatus === 'CONCLUIDA' ? 'default' : 'outline'}
@@ -193,7 +203,7 @@ const TodasProvas = () => {
                 onClick={() => setFiltroStatus('CONCLUIDA')}
                 className={filtroStatus === 'CONCLUIDA' ? 'bg-blue-600 text-white' : 'border-gray-300'}
               >
-                Concluídas ({provasDisponiveis.filter(p => p.status === 'CONCLUIDA').length})
+                Concluídas ({provasBuscadas.filter(p => p.status === 'CONCLUIDA').length})
               </Button>
             </div>
 
@@ -202,7 +212,9 @@ const TodasProvas = () => {
               {provasOrdenadas.length === 0 ? (
                 <div className="col-span-full text-center py-12">
                   <Trophy className="h-16 w-16 mx-auto mb-4 text-gray-300" />
-                  <p className="text-gray-600 text-lg">Nenhuma prova encontrada com este filtro</p>
+                  <p className="text-gray-600 text-lg">
+                    {busca ? `Nenhuma prova encontrada para "${busca}"` : 'Nenhuma prova encontrada com este filtro'}
+                  </p>
                 </div>
               ) : (
                 provasOrdenadas.map((prova) => {
