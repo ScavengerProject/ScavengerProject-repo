@@ -497,7 +497,7 @@ const AdminProvas = () => {
                   Criar Nova Prova
                 </Button>
               </DialogTrigger>
-            <DialogContent className="sm:max-w-[600px] bg-white border-gray-300 max-h-[90vh] overflow-y-auto">
+            <DialogContent className="sm:max-w-[600px] bg-white border-gray-300">
               <DialogHeader>
                 <DialogTitle className="text-gray-900">
                   {editingProva ? "Editar Prova" : "Criar Nova Prova"}

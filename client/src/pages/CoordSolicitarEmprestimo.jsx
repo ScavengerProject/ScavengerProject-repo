@@ -305,7 +305,7 @@ export default function CoordSolicitarEmprestimo() {
 
         {/* Dialog: Criar Solicitação */}
         <Dialog open={openCriar} onOpenChange={setOpenCriar}>
-          <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="sm:max-w-2xl">
             <DialogHeader>
               <DialogTitle>Nova Solicitação de Empréstimo</DialogTitle>
               <DialogDescription>

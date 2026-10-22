@@ -144,7 +144,7 @@ const InscreverMembrosEquipeModal = ({ prova, isOpen, onClose, onInscricaoSucess
 
   return (
     <Dialog open={isOpen} onOpenChange={(aberto) => { if (!aberto) onClose(); }}>
-      <DialogContent className="sm:max-w-[640px] bg-white border-gray-300 max-h-[85vh] flex flex-col">
+      <DialogContent className="sm:max-w-[640px] bg-white border-gray-300 max-h-[calc(100dvh-2rem)] flex flex-col">
         <DialogHeader>
           <DialogTitle className="text-xl text-gray-900 flex items-center gap-2">
             <Users className="h-5 w-5 text-blue-600" />

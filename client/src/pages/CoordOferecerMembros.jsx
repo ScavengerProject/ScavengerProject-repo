@@ -245,7 +245,7 @@ export default function CoordOferecerMembros() {
 
       {/* Dialog: Ofertar Membros */}
       <Dialog open={openOfertar} onOpenChange={setOpenOfertar}>
-        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>Ofertar Membros</DialogTitle>
             <DialogDescription>

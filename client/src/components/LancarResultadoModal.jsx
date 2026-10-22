@@ -269,7 +269,7 @@ const LancarResultadoModal = ({ prova, isOpen, onClose }) => {
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-3xl bg-white border-gray-300 max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-3xl bg-white border-gray-300">
         <DialogHeader>
           <DialogTitle className="text-gray-900">
             Lançar Resultados: <span className="font-normal">{prova.titulo}</span>

@@ -205,7 +205,7 @@ const ProvaDetalhesModal = ({ prova, isOpen, onClose, onInscricaoSucesso }) => {
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[700px] bg-white border-gray-300 max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[700px] bg-white border-gray-300">
         <DialogHeader>
           <DialogTitle className="text-2xl text-gray-900">{prova.titulo}</DialogTitle>
           <DialogDescription className="text-gray-600 flex items-center gap-2 mt-2">

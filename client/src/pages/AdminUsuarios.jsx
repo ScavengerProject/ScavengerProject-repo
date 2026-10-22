@@ -606,7 +606,7 @@ const AdminUsuarios = () => {
 
       {/* Modal de Criar/Editar */}
       <Dialog open={modalAberto} onOpenChange={setModalAberto}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>{modoEdicao ? 'Editar Usuário' : 'Novo Usuário'}</DialogTitle>
             <DialogDescription>

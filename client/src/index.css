@@ -3,7 +3,13 @@
 html, body {
   margin: 0;
   padding: 0;
-  overflow-x: hidden; /* Evitar scroll horizontal */
+}
+
+/* Rede de segurança contra rolagem lateral. Fica só no html e com `clip`:
+   `overflow-x: hidden` no body/#root os transformava em contêineres de
+   rolagem, e o `sticky` da barra do topo e do menu lateral parava de grudar. */
+html {
+  overflow-x: clip;
 }
 
 * {
@@ -20,21 +26,14 @@ body {
   max-width: 100vw;
 }
 
-/* Garantir que nenhum elemento saia da viewport */
 #root {
   width: 100%;
-  max-width: 100vw;
-  overflow-x: hidden;
 }
 
-/* Melhorias para mobile */
+/* Melhorias para mobile. Sem mínimo global de 44px para button/a: CSS fora
+   de camada vence as classes do Tailwind v4, e isso inchava checkbox, switch
+   e o X dos modais. O tamanho de toque é dado pelo próprio componente. */
 @media (max-width: 640px) {
-  /* Aumentar área de toque de botões e links */
-  button, a {
-    min-height: 44px;
-    min-width: 44px;
-  }
-  
   /* Melhorar legibilidade de texto */
   body {
     font-size: 16px;
