@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 
 vi.mock('./ui/toast', () => ({
   toast: { error: vi.fn(), success: vi.fn() },
@@ -88,6 +88,21 @@ describe('LancarResultadoModal', () => {
     // 3ª posição que estava salva.
     expect(screen.getByText(/^70 pts$/)).toBeInTheDocument();
     expect(screen.queryByText(/^50 pts$/)).not.toBeInTheDocument();
+  });
+
+  // O nome era pintado com a cor da equipe: a equipe branca sumia no fundo branco.
+  it('mostra a equipe com texto escuro e a cor numa bolinha ao lado', async () => {
+    listarEquipesMock.mockResolvedValue([{ _id: 'eq1', nome: 'Equipe Branca', cor: '#ffffff' }]);
+    listarResultadosMock.mockResolvedValue([
+      { equipe_id: 'eq1', equipe_nome: 'Equipe Branca', valor: '20', quesitos: {}, pontos_obtidos: 40 },
+    ]);
+
+    abrir();
+
+    const gatilho = await screen.findByRole('combobox');
+    const nome = await within(gatilho).findByText('Equipe Branca');
+    expect(nome).not.toHaveStyle({ color: 'rgb(255, 255, 255)' });
+    expect(nome.previousElementSibling).toHaveStyle({ backgroundColor: 'rgb(255, 255, 255)' });
   });
 
   it('abre vazio quando a prova ainda não tem lançamento', async () => {

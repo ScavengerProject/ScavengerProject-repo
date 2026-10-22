@@ -21,6 +21,19 @@ import { Loader, Trash2, Plus, Trophy } from "lucide-react";
 import { equipesService, resultadosService } from "../services/api";
 import { toast } from "./ui/toast";
 
+// Nome da equipe em texto escuro com a cor numa bolinha ao lado. Pintar o
+// próprio texto com a cor da equipe deixava equipes claras (ex: branca)
+// praticamente invisíveis no fundo branco.
+const OpcaoEquipe = ({ equipe }) => (
+  <span className="flex items-center gap-2 min-w-0">
+    <span
+      className="h-3 w-3 rounded-full border border-gray-400 shrink-0"
+      style={{ backgroundColor: equipe.cor || '#ccc' }}
+    />
+    <span className="truncate">{equipe.nome}</span>
+  </span>
+);
+
 const LancarResultadoModal = ({ prova, isOpen, onClose }) => {
   const [tipoPontuacao, setTipoPontuacao] = useState('RANKING');
   const [equipes, setEquipes] = useState([]); 
@@ -332,8 +345,8 @@ const LancarResultadoModal = ({ prova, isOpen, onClose }) => {
                           </SelectTrigger>
                           <SelectContent className="bg-white border-gray-300">
                             {equipesDisponiveis.map(eq => (
-                              <SelectItem key={eq._id} value={eq._id} style={{ color: eq.cor || 'black' }}>
-                                {eq.nome}
+                              <SelectItem key={eq._id} value={eq._id}>
+                                <OpcaoEquipe equipe={eq} />
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -407,8 +420,8 @@ const LancarResultadoModal = ({ prova, isOpen, onClose }) => {
                           </SelectTrigger>
                           <SelectContent className="bg-white border-gray-300">
                             {equipesDisponiveis.map(eq => (
-                              <SelectItem key={eq._id} value={eq._id} style={{ color: eq.cor || 'black' }}>
-                                {eq.nome}
+                              <SelectItem key={eq._id} value={eq._id}>
+                                <OpcaoEquipe equipe={eq} />
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -517,8 +530,8 @@ const LancarResultadoModal = ({ prova, isOpen, onClose }) => {
                           </SelectTrigger>
                           <SelectContent className="bg-white border-gray-300">
                             {equipesDisponiveis.map(eq => (
-                              <SelectItem key={eq._id} value={eq._id} style={{ color: eq.cor || 'black' }}>
-                                {eq.nome}
+                              <SelectItem key={eq._id} value={eq._id}>
+                                <OpcaoEquipe equipe={eq} />
                               </SelectItem>
                             ))}
                           </SelectContent>
