@@ -208,7 +208,7 @@ export default function ModalCriarPenalidade({ open, onClose, onSubmit }) {
 
         </div>
 
-        <DialogFooter className="pt-4 border-t">
+        <DialogFooter className="pt-4 border-t border-gray-200">
           <Button variant="outline" onClick={onClose}>Cancelar</Button>
           <Button onClick={handleSubmit} className="bg-red-600 hover:bg-red-700 text-white">Confirmar Penalidade</Button>
         </DialogFooter>
