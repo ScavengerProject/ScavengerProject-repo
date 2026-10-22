@@ -24,7 +24,7 @@ const STORAGE_KEY = 'gincanaAtivaId';
  */
 export const GincanaProvider = ({ children }) => {
   const navigate = useNavigate();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, loading: sessaoCarregando } = useAuth();
   const { escolaAtivaId } = useEscola();
   const [minhasGincanas, setMinhasGincanas] = useState([]);
   const [gincanaAtivaId, setGincanaAtivaIdState] = useState(
@@ -122,6 +122,9 @@ export const GincanaProvider = ({ children }) => {
   }, []);
 
   useEffect(() => {
+    // Sessão ainda sendo lida (F5): não é logout, não pode apagar a gincana
+    // escolhida. Mesmo motivo do EscolaProvider.
+    if (sessaoCarregando) return;
     // Só busca depois que a escola ativa estiver resolvida: sem o header
     // X-Escola-Id o backend cairia no fallback e listaria a escola errada.
     if (isAuthenticated && escolaAtivaId) {
@@ -132,7 +135,7 @@ export const GincanaProvider = ({ children }) => {
       setCarregado(false);
       if (!isAuthenticated) localStorage.removeItem(STORAGE_KEY);
     }
-  }, [isAuthenticated, escolaAtivaId, carregarGincanas]);
+  }, [sessaoCarregando, isAuthenticated, escolaAtivaId, carregarGincanas]);
 
   const gincanaAtiva = minhasGincanas.find((g) => g._id === gincanaAtivaId) || null;
 

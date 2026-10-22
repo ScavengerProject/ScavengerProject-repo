@@ -11,8 +11,9 @@ vi.mock('../services/api', () => ({
 }));
 
 let isAuthenticated = true;
+let authCarregando = false;
 vi.mock('./useAuth.jsx', () => ({
-  useAuth: () => ({ isAuthenticated }),
+  useAuth: () => ({ isAuthenticated, loading: authCarregando }),
 }));
 
 let escolaAtivaId = 'ESC_1';
@@ -29,6 +30,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   localStorage.clear();
   isAuthenticated = true;
+  authCarregando = false;
   escolaAtivaId = 'ESC_1';
   // Padrão dos testes que não exercitam o ramo de "disponíveis".
   gincanasService.disponiveis.mockResolvedValue([]);
@@ -37,6 +39,28 @@ beforeEach(() => {
 describe('useGincana', () => {
   it('lança erro quando usado fora do GincanaProvider', () => {
     expect(() => renderHook(() => useGincana())).toThrow(/GincanaProvider/);
+  });
+
+  // Regressão: no F5 a sessão ainda não foi lida e isAuthenticated começa false;
+  // isso não pode ser tratado como logout e apagar a gincana escolhida.
+  it('não apaga a gincana escolhida enquanto a sessão ainda está sendo restaurada', async () => {
+    localStorage.setItem('gincanaAtivaId', 'GINC_2');
+    gincanasService.minhas.mockResolvedValueOnce([
+      { _id: 'GINC_1', nome: 'Uma', encerrada: false },
+      { _id: 'GINC_2', nome: 'Outra', encerrada: false },
+    ]);
+    isAuthenticated = false;
+    authCarregando = true;
+
+    const { result, rerender } = renderHook(() => useGincana(), { wrapper });
+    expect(localStorage.getItem('gincanaAtivaId')).toBe('GINC_2');
+
+    isAuthenticated = true;
+    authCarregando = false;
+    rerender();
+    await waitFor(() => expect(result.current.carregado).toBe(true));
+
+    expect(result.current.gincanaAtivaId).toBe('GINC_2');
   });
 
   it('não busca gincanas antes de haver uma escola ativa', async () => {
