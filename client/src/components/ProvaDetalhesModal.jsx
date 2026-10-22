@@ -338,20 +338,23 @@ const ProvaDetalhesModal = ({ prova, isOpen, onClose, onInscricaoSucesso }) => {
                               'bg-white border-yellow-200' 
                             }`}
                           >
-                            <div className="flex items-center gap-3 flex-1 min-w-0">
+                            {/* Base pelo conteúdo e sem min-w-0: o nome nunca fica mais
+                                estreito que a própria palavra, quem encolhe é a coluna de
+                                pontos ("Pontos ocultados" quebra em duas linhas). */}
+                            <div className="flex items-center gap-3 flex-[1_1_auto]">
                               <span className="font-bold text-lg min-w-8 text-yellow-700 shrink-0">
                                 {resultado.posicao || index + 1}º
                               </span>
-                              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 flex-1 min-w-0">
-                                <span className="font-semibold text-gray-900 break-words min-w-0">{resultado.equipe_nome}</span>
+                              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 flex-1">
+                                <span className="font-semibold text-gray-900 break-words">{resultado.equipe_nome}</span>
                                 {equipeUsuario && String(resultado.equipe_id) === String(equipeUsuario._id || equipeUsuario.id) && (
                                   <Badge className="bg-blue-100 text-blue-700 text-xs">Sua Equipe</Badge>
                                 )}
                               </div>
                             </div>
                             
-                            <div className="flex items-center gap-2 shrink-0">
-                              <span className="text-sm font-medium text-gray-700 text-right">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="text-sm font-medium text-gray-700 text-right whitespace-nowrap">
                                 {(() => {
                                   const rId = resultado.equipe_id ? String(resultado.equipe_id._id || resultado.equipe_id) : "";
                                   const uId = equipeUsuario ? String(equipeUsuario._id || equipeUsuario.id || "") : "";
@@ -360,14 +363,14 @@ const ProvaDetalhesModal = ({ prova, isOpen, onClose, onInscricaoSucesso }) => {
                                   if (isAdmin) return `${resultado.pontos_obtidos || 0} pts`;
 
                                   if (ocultarPontos) {
-                                    return <span className="text-gray-500 italic text-sm">Pontos ocultados</span>;
+                                    return <span className="text-gray-500 italic text-sm whitespace-normal">Pontos ocultados</span>;
                                   }
 
                                   if (eMinhaEquipe || mostrarNotasRanking) {
                                     return `${resultado.pontos_obtidos || 0} pts`;
                                   }
 
-                                  return <span className="text-gray-500 italic text-sm">Pontos ocultados</span>;
+                                  return <span className="text-gray-500 italic text-sm whitespace-normal">Pontos ocultados</span>;
                                 })()}
                               </span>
                               {index === 0 && <Trophy className="h-5 w-5 text-yellow-600 ml-1" />}

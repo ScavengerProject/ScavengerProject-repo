@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../co
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../components/ui/dialog';
 import { Loader, Trash2, Check, X, Home, ArrowLeft, UserPlus, User } from 'lucide-react';
 import { equipesService } from '../services/api';
+import { emailQuebravel } from '../lib/utils';
 
 const GerenciarEquipe = () => {
   const navigate = useNavigate();
@@ -113,7 +114,7 @@ const GerenciarEquipe = () => {
                 membros.map((membro) => (
                   <div key={membro._id} className="flex items-center justify-between gap-2 p-3 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">
                      <div className="flex items-center gap-3 sm:gap-4 min-w-0">
-                      <div className="p-2 bg-white rounded-full border shrink-0">
+                      <div className="p-2 bg-white rounded-full border border-gray-200 shrink-0">
                         <User className="h-6 w-6 text-green-600" />
                       </div>
                       <div className="min-w-0">
@@ -125,7 +126,7 @@ const GerenciarEquipe = () => {
                             </span>
                           )}
                         </div>
-                        <p className="text-sm text-gray-600 break-all">{membro.usuario_id?.email || '—'}</p>
+                        <p className="text-sm text-gray-600 break-words">{emailQuebravel(membro.usuario_id?.email) || '—'}</p>
                       </div>
                     </div>
                     {!membro.is_coordenador && (

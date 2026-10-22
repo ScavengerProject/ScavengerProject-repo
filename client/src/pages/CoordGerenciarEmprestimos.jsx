@@ -11,6 +11,7 @@ import { useAuth } from '../hooks/useAuth';
 import MainLayout from '../components/MainLayout';
 import { emprestimosService } from '../services/api';
 import { ArrowLeft, Users, Clock, X, ArrowRight, ArrowLeft as ArrowLeftIcon } from 'lucide-react';
+import { emailQuebravel } from '../lib/utils';
 
 export default function CoordGerenciarEmprestimos() {
   const navigate = useNavigate();
@@ -223,8 +224,8 @@ export default function CoordGerenciarEmprestimos() {
                         <p className="font-semibold text-gray-900 text-lg">
                           {emp.usuario_id?.nome || '—'}
                         </p>
-                        <p className="text-sm text-gray-600 break-all">
-                          {emp.usuario_id?.email || '—'} • {emp.usuario_id?.turma || 'Sem turma'}
+                        <p className="text-sm text-gray-600 break-words">
+                          {emailQuebravel(emp.usuario_id?.email) || '—'} • {emp.usuario_id?.turma || 'Sem turma'}
                         </p>
                       </div>
 

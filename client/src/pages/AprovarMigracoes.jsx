@@ -9,6 +9,7 @@ import { useAuth } from '../hooks/useAuth';
 import MainLayout from '../components/MainLayout';
 import { migracoesService } from '../services/api';
 import { Check, X, Clock, ArrowRight } from 'lucide-react';
+import { emailQuebravel } from '../lib/utils';
 
 export default function AprovarMigracoes() {
   const { usuario, logout } = useAuth();
@@ -111,7 +112,7 @@ export default function AprovarMigracoes() {
                           {sol.usuario_id?.nome || '—'}
                         </p>
                         {sol.usuario_id?.email && (
-                          <p className="text-sm text-gray-600 break-all">{sol.usuario_id.email}</p>
+                          <p className="text-sm text-gray-600 break-words">{emailQuebravel(sol.usuario_id.email)}</p>
                         )}
                       </div>
 

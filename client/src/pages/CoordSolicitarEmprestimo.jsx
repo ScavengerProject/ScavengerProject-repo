@@ -380,7 +380,7 @@ export default function CoordSolicitarEmprestimo() {
               {/* Níveis Escolares */}
               <div className="space-y-2">
                 <Label className="text-gray-700">Níveis Escolares (opcional)</Label>
-                <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto p-2 border rounded">
+                <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto p-2 border border-gray-200 rounded">
                   {niveisEscolares.map((nivel) => (
                     <div key={nivel} className="flex items-center gap-2">
                       <Checkbox

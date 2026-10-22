@@ -208,7 +208,7 @@ export default function SelecionarEquipe() {
                 return (
                   <li
                     key={id}
-                    className="border rounded-xl p-4 flex flex-col gap-3"
+                    className="border border-gray-200 rounded-xl p-4 flex flex-col gap-3"
                     style={minha ? { borderColor: cor } : undefined}
                   >
                     <div className="flex items-start gap-3 min-w-0">
