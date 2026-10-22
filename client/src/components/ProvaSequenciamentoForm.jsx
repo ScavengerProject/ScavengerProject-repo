@@ -126,16 +126,16 @@ export default function ProvaSequenciamentoForm({ sequenciamento, onChange }) {
               {etapas.map((etapa, index) => (
                 <div
                   key={index}
-                  className="flex items-center gap-2 p-3 bg-white border border-gray-200 rounded-lg"
+                  className="flex flex-wrap sm:flex-nowrap items-center gap-2 p-3 bg-white border border-gray-200 rounded-lg"
                 >
                   {/* Ordem */}
-                  <div className="flex items-center justify-center w-8 h-8 bg-purple-100 text-purple-700 font-bold rounded">
+                  <div className="flex items-center justify-center w-8 h-8 shrink-0 bg-purple-100 text-purple-700 font-bold rounded">
                     {etapa.ordem}
                   </div>
 
                   {/* Descrição */}
-                  <div className="flex-1">
-                    <p className="text-sm text-gray-900">{etapa.descricao}</p>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-gray-900 break-words">{etapa.descricao}</p>
                     <div className="flex items-center gap-1 mt-1">
                       {etapa.obrigatoria ? (
                         <>
@@ -151,8 +151,9 @@ export default function ProvaSequenciamentoForm({ sequenciamento, onChange }) {
                     </div>
                   </div>
 
-                  {/* Controles */}
-                  <div className="flex items-center gap-1">
+                  {/* Controles: no celular descem para uma linha própria, senão
+                      espremiam a descrição até sumir. */}
+                  <div className="flex items-center justify-end gap-1 basis-full sm:basis-auto shrink-0">
                     {/* Mover para cima */}
                     <Button
                       type="button"

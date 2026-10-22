@@ -140,8 +140,22 @@ export const criarPenalidade = async (req, res) => {
 
 
 /**
- * [GET] Lista todas as penalidades
- * ADMIN vê todas, COORDENADOR vê apenas das equipes que coordena
+ * EquipeGincana (desta gincana) da equipe de que o usuário é membro.
+ * O filtro pelas equipes DA gincana evita pegar o vínculo de uma edição
+ * anterior, que nunca é removido (mesmo motivo de `buscarMinhaEquipeId`).
+ */
+const equipesGincanaDoMembro = async (usuarioId, gincanaId) => {
+  const equipeIdsDaGincana = await EquipeGincana.find({ gincana_id: gincanaId }).distinct('equipe_id');
+  const equipeIdsDoMembro = await EquipeMembros
+    .find({ usuario_id: usuarioId, equipe_id: { $in: equipeIdsDaGincana } })
+    .distinct('equipe_id');
+  return EquipeGincana.find({ gincana_id: gincanaId, equipe_id: { $in: equipeIdsDoMembro } }).select('_id');
+};
+
+/**
+ * [GET] Lista as penalidades da gincana ativa
+ * ADMIN vê todas, COORDENADOR vê as das equipes que coordena e os demais
+ * participantes só as da própria equipe.
  */
 export const listarPenalidades = async (req, res) => {
   try {
@@ -149,12 +163,14 @@ export const listarPenalidades = async (req, res) => {
     const gincanaId = escopoGincana(req);
     let query = { gincana_id: gincanaId };
 
-    // Se for COORDENADOR, filtra apenas penalidades das equipes que ele coordena
     if (usuarioAtual.tipo === 'COORDENADOR') {
       // Encontra as EquipeGincana que o coordenador gerencia (via is_coordenador).
       const equipesCoordenadas = await getEquipesGincanaDoCoordenador(usuarioAtual.id, { gincanaId });
       const equipeGincanaIds = equipesCoordenadas.map(eg => eg._id);
       query.equipe_gincana_id = { $in: equipeGincanaIds };
+    } else if (!['ADMIN', 'SUPER_ADMIN'].includes(usuarioAtual.tipo)) {
+      const equipesDoMembro = await equipesGincanaDoMembro(usuarioAtual.id, gincanaId);
+      query.equipe_gincana_id = { $in: equipesDoMembro.map(eg => eg._id) };
     }
 
     const penalidades = await Penalidade.find(query)

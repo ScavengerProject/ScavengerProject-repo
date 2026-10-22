@@ -142,7 +142,7 @@ export default function SolicitarMigracao() {
               <p className="text-gray-600">Você ainda não enviou solicitações.</p>
             )}
             {minhasSolicitacoes.map((s) => (
-              <div key={s._id} className="p-3 rounded-lg border bg-gray-50">
+              <div key={s._id} className="p-3 rounded-lg border border-gray-200 bg-gray-50">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="font-semibold text-gray-900">

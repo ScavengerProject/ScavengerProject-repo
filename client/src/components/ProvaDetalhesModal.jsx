@@ -16,6 +16,7 @@ import { toast } from "./ui/toast";
 import { useAuth } from "../hooks/useAuth";
 import { ehAdmin } from '../lib/perfis';
 import { cotasDaProva, textoDaCota, motivoDaRecusa } from '../lib/cotasProva';
+import { descreverPontuacao } from '../lib/pontuacaoProva';
 import InscreverMembrosEquipeModal from "./InscreverMembrosEquipeModal";
 
 const ProvaDetalhesModal = ({ prova, isOpen, onClose, onInscricaoSucesso }) => {
@@ -169,16 +170,7 @@ const ProvaDetalhesModal = ({ prova, isOpen, onClose, onInscricaoSucesso }) => {
     return map[formato] || formato;
   };
 
-  const formatarPontuacao = (pontuacao) => {
-    if (!pontuacao || Object.keys(pontuacao).length === 0) return "Pontuação não definida.";
-    if (pontuacao.pontos_por_unidade && pontuacao.nome_unidade) return `${pontuacao.pontos_por_unidade} pontos por ${pontuacao.nome_unidade}`;
-    if (pontuacao.hasOwnProperty('quantidade_minima')) return `${pontuacao.pontuacao_fixa || 0} pontos ao atingir ${pontuacao.quantidade_minima} ${pontuacao.nome_unidade || 'unidades'}`;
-    const pos = [];
-    if (pontuacao["1"]) pos.push(`1º: ${pontuacao["1"]} pts`);
-    if (pontuacao["2"]) pos.push(`2º: ${pontuacao["2"]} pts`);
-    if (pontuacao["3"]) pos.push(`3º: ${pontuacao["3"]} pts`);
-    return pos.length > 0 ? pos.join(' | ') : "Regras não especificadas.";
-  };
+  const formatarPontuacao = (pontuacao) => descreverPontuacao(pontuacao) || "Pontuação não definida.";
 
   const statusInfo = traduzirStatus(prova.status);
   const cotas = cotasDaProva(prova);
@@ -213,7 +205,7 @@ const ProvaDetalhesModal = ({ prova, isOpen, onClose, onInscricaoSucesso }) => {
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[700px] bg-white border-gray-300 max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[700px] bg-white border-gray-300">
         <DialogHeader>
           <DialogTitle className="text-2xl text-gray-900">{prova.titulo}</DialogTitle>
           <DialogDescription className="text-gray-600 flex items-center gap-2 mt-2">
@@ -291,7 +283,7 @@ const ProvaDetalhesModal = ({ prova, isOpen, onClose, onInscricaoSucesso }) => {
           </div>
 
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
               <div className="flex items-center gap-2 text-yellow-900">
                 <Trophy className="h-5 w-5" />
                 <h4 className="font-semibold">
@@ -301,7 +293,7 @@ const ProvaDetalhesModal = ({ prova, isOpen, onClose, onInscricaoSucesso }) => {
 
               {/* CHECKBOX DO ADMIN */}
               {isAdmin && prova.status === 'CONCLUIDA' && (
-                <div className="flex items-center space-x-2 bg-yellow-100 px-3 py-1.5 rounded-md border border-yellow-300 ml-4">
+                <div className="flex items-center space-x-2 bg-yellow-100 px-3 py-1.5 rounded-md border border-yellow-300">
                   <Checkbox 
                     id="ocultarPontosBtn" 
                     checked={ocultarPontos}
@@ -346,20 +338,23 @@ const ProvaDetalhesModal = ({ prova, isOpen, onClose, onInscricaoSucesso }) => {
                               'bg-white border-yellow-200' 
                             }`}
                           >
-                            <div className="flex items-center gap-3 flex-1">
-                              <span className="font-bold text-lg min-w-8 text-yellow-700">
+                            {/* Base pelo conteúdo e sem min-w-0: o nome nunca fica mais
+                                estreito que a própria palavra, quem encolhe é a coluna de
+                                pontos ("Pontos ocultados" quebra em duas linhas). */}
+                            <div className="flex items-center gap-3 flex-[1_1_auto]">
+                              <span className="font-bold text-lg min-w-8 text-yellow-700 shrink-0">
                                 {resultado.posicao || index + 1}º
                               </span>
-                              <div className="flex items-center gap-2 flex-1">
-                                <span className="font-semibold text-gray-900">{resultado.equipe_nome}</span>
+                              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 flex-1">
+                                <span className="font-semibold text-gray-900 break-words">{resultado.equipe_nome}</span>
                                 {equipeUsuario && String(resultado.equipe_id) === String(equipeUsuario._id || equipeUsuario.id) && (
-                                  <Badge className="bg-blue-100 text-blue-700 text-xs ml-2">Sua Equipe</Badge>
+                                  <Badge className="bg-blue-100 text-blue-700 text-xs">Sua Equipe</Badge>
                                 )}
                               </div>
                             </div>
                             
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-medium text-gray-700 min-w-[80px] text-right">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="text-sm font-medium text-gray-700 text-right whitespace-nowrap">
                                 {(() => {
                                   const rId = resultado.equipe_id ? String(resultado.equipe_id._id || resultado.equipe_id) : "";
                                   const uId = equipeUsuario ? String(equipeUsuario._id || equipeUsuario.id || "") : "";
@@ -368,14 +363,14 @@ const ProvaDetalhesModal = ({ prova, isOpen, onClose, onInscricaoSucesso }) => {
                                   if (isAdmin) return `${resultado.pontos_obtidos || 0} pts`;
 
                                   if (ocultarPontos) {
-                                    return <span className="text-gray-500 italic text-sm">Pontos ocultados</span>;
+                                    return <span className="text-gray-500 italic text-sm whitespace-normal">Pontos ocultados</span>;
                                   }
 
                                   if (eMinhaEquipe || mostrarNotasRanking) {
                                     return `${resultado.pontos_obtidos || 0} pts`;
                                   }
 
-                                  return <span className="text-gray-500 italic text-sm">Pontos ocultados</span>;
+                                  return <span className="text-gray-500 italic text-sm whitespace-normal">Pontos ocultados</span>;
                                 })()}
                               </span>
                               {index === 0 && <Trophy className="h-5 w-5 text-yellow-600 ml-1" />}
@@ -392,14 +387,16 @@ const ProvaDetalhesModal = ({ prova, isOpen, onClose, onInscricaoSucesso }) => {
         </div>
 
         <DialogFooter className="mt-6">
-          <div className="flex items-center justify-between w-full gap-4">
-            <Button variant="outline" onClick={onClose}>Fechar</Button>
-            <div className="flex items-center gap-3">
+          {/* No celular os botões empilham em largura total (com "Fechar" por
+              último); lado a lado passavam de 400px. */}
+          <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between w-full gap-3 sm:gap-4">
+            <Button variant="outline" onClick={onClose} className="w-full sm:w-auto">Fechar</Button>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
               {podeInscreverEquipe && (
                 <Button
                   variant="outline"
                   onClick={() => setInscreverMembrosAberto(true)}
-                  className="border-blue-300 text-blue-700"
+                  className="border-blue-300 text-blue-700 w-full sm:w-auto"
                 >
                   <UserPlus className="h-4 w-4 mr-2" />
                   Inscrever membros da equipe
@@ -409,12 +406,12 @@ const ProvaDetalhesModal = ({ prova, isOpen, onClose, onInscricaoSucesso }) => {
                   acima explica o motivo, e oferecer um clique que só produz erro
                   é o comportamento que esta tela tinha antes. */}
               {!jaInscrito && temCotas && !recusaBloqueia && prova.status !== 'CONCLUIDA' && (
-                 <Button onClick={handleInscrever} disabled={inscrevendo} className="bg-blue-600 text-white">
+                 <Button onClick={handleInscrever} disabled={inscrevendo} className="bg-blue-600 text-white w-full sm:w-auto">
                     {inscrevendo ? "Inscrevendo..." : "Inscrever-se"}
                  </Button>
               )}
                {jaInscrito && (
-                 <div className="flex items-center gap-2 px-4 py-2 bg-green-50 border border-green-200 rounded-lg">
+                 <div className="flex items-center justify-center gap-2 px-4 py-2 bg-green-50 border border-green-200 rounded-lg">
                   <UserCheck className="h-5 w-5 text-green-600" />
                   <span className="text-sm font-medium text-green-800">Inscrito</span>
                 </div>

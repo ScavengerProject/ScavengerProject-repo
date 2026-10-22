@@ -42,7 +42,7 @@ const STORAGE_KEY_GINCANA = 'gincanaAtivaId';
  */
 export const EscolaProvider = ({ children }) => {
   const navigate = useNavigate();
-  const { isAuthenticated, aplicarPerfilDaEscola } = useAuth();
+  const { isAuthenticated, loading: sessaoCarregando, aplicarPerfilDaEscola } = useAuth();
   const [minhasEscolas, setMinhasEscolas] = useState([]);
   const [escolaAtivaId, setEscolaAtivaIdState] = useState(
     () => localStorage.getItem(STORAGE_KEY) || null
@@ -121,6 +121,11 @@ export const EscolaProvider = ({ children }) => {
   }, []);
 
   useEffect(() => {
+    // Num recarregamento o AuthProvider começa com isAuthenticated=false até
+    // ler a sessão do localStorage. Tratar isso como logout apagava a escola e
+    // a gincana escolhidas, e quem tem várias escolas voltava para a seleção a
+    // cada F5.
+    if (sessaoCarregando) return;
     if (isAuthenticated) {
       carregarEscolas();
     } else {
@@ -129,7 +134,7 @@ export const EscolaProvider = ({ children }) => {
       setCarregado(false);
       localStorage.removeItem(STORAGE_KEY);
     }
-  }, [isAuthenticated, carregarEscolas]);
+  }, [sessaoCarregando, isAuthenticated, carregarEscolas]);
 
   const escolaAtiva = minhasEscolas.find((e) => e._id === escolaAtivaId) || null;
 

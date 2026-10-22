@@ -34,6 +34,9 @@ import ProvaElegibilidadeForm from "../components/ProvaElegibilidadeForm";
 import ProvaSequenciamentoForm from "../components/ProvaSequenciamentoForm";
 import ProvaParticipantesForm from "../components/ProvaParticipantesForm";
 import LancarResultadoModal from "../components/LancarResultadoModal";
+import { tipoDaPontuacao, descreverPontuacao } from "../lib/pontuacaoProva";
+import { filtrarProvasPorBusca } from "../lib/buscaProvas";
+import BuscaProvas from "../components/BuscaProvas";
 
 // Gera uma chave estável a partir do nome digitado pelo admin (ex: "Ex-alunos" -> "EX_ALUNOS").
 const gerarChaveBonus = (nome) => {
@@ -123,6 +126,7 @@ const AdminProvas = () => {
   const [provaParaResultado, setProvaParaResultado] = useState(null);
   const [mostrarNotasRanking, setMostrarNotasRanking] = useState(false);
   const [salvandoConfiguracao, setSalvandoConfiguracao] = useState(false);
+  const [busca, setBusca] = useState("");
   
   const [formData, setFormData] = useState({
     titulo: "",
@@ -253,6 +257,11 @@ const AdminProvas = () => {
       return;
     }
 
+    if (tipoPontuacao === 'SUBJETIVA' && !(Number(formData.pontuacao.pontuacao_maxima) > 0)) {
+      toast.error("Informe a pontuação máxima da prova subjetiva");
+      return;
+    }
+
     try {
       setSubmitting(true);
 
@@ -331,17 +340,7 @@ const AdminProvas = () => {
       };
     }
 
-    const pontuacaoData = prova.pontuacao || {};
-    let tipoSalvo = 'RANKING'; // Padrão
-
-    // Se tiver a chave 'pontos_por_unidade', é do tipo proporcional; se tiver
-    // 'quantidade_minima', é do tipo limiar (tudo ou nada).
-    if (pontuacaoData.hasOwnProperty('pontos_por_unidade')) {
-      tipoSalvo = 'PROPORCIONAL';
-    } else if (pontuacaoData.hasOwnProperty('quantidade_minima')) {
-      tipoSalvo = 'LIMIAR';
-    }
-    setTipoPontuacao(tipoSalvo);
+    setTipoPontuacao(tipoDaPontuacao(prova.pontuacao));
 
     setFormData({
       titulo: prova.titulo,
@@ -464,35 +463,6 @@ const AdminProvas = () => {
     return `${etapas.length} etapa(s) - ${obrigatorias} obrigatória(s)${exigeOrdem}`;
   };
 
-  //formatar pontuação
-  const formatarPontuacao = (pontuacao) => {
-    if (!pontuacao || Object.keys(pontuacao).length === 0) {
-      return null; // Não mostra nada se não estiver configurado
-    }
-
-    // Tipo Proporcional
-    if (pontuacao.pontos_por_unidade && pontuacao.nome_unidade) {
-      return `${pontuacao.pontos_por_unidade} pts por ${pontuacao.nome_unidade}`;
-    }
-
-    // Tipo Limiar (tudo ou nada)
-    if (pontuacao.hasOwnProperty('quantidade_minima')) {
-      return `${pontuacao.pontuacao_fixa || 0} pts ao atingir ${pontuacao.quantidade_minima} ${pontuacao.nome_unidade || 'unidades'}`;
-    }
-
-    // Tipo Ranking (1º, 2º, 3º)
-    const posicoes = [];
-    if (pontuacao["1"]) posicoes.push(`1º: ${pontuacao["1"]} pts`);
-    if (pontuacao["2"]) posicoes.push(`2º: ${pontuacao["2"]} pts`);
-    if (pontuacao["3"]) posicoes.push(`3º: ${pontuacao["3"]} pts`);
-
-    if (posicoes.length > 0) {
-      return posicoes.join(' | ');
-    }
-
-    return "Pontuação configurada";
-  };
-
   return (
     <MainLayout usuario={usuario} onLogout={logout}>
       <div className="container mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-6 md:py-8">
@@ -527,7 +497,7 @@ const AdminProvas = () => {
                   Criar Nova Prova
                 </Button>
               </DialogTrigger>
-            <DialogContent className="sm:max-w-[600px] bg-white border-gray-300 max-h-[90vh] overflow-y-auto">
+            <DialogContent className="sm:max-w-[600px] bg-white border-gray-300">
               <DialogHeader>
                 <DialogTitle className="text-gray-900">
                   {editingProva ? "Editar Prova" : "Criar Nova Prova"}
@@ -640,7 +610,7 @@ const AdminProvas = () => {
                     <Label className="text-gray-900 font-medium">
                       Status
                     </Label>
-                    <div className="flex items-center justify-between rounded-md border border-gray-300 bg-gray-50 px-3 py-2">
+                    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-md border border-gray-300 bg-gray-50 px-3 py-2">
                       <span className="text-gray-900 font-medium">
                         {traduzirStatus(calcularStatusProva(formData.data_inicio, formData.data_fim))}
                       </span>
@@ -668,6 +638,7 @@ const AdminProvas = () => {
                         <SelectItem value="RANKING">Por Posição (1º, 2º, 3º)</SelectItem>
                         <SelectItem value="PROPORCIONAL">Por Unidade (Ex: por doação)</SelectItem>
                         <SelectItem value="LIMIAR">Tudo ou nada (mínimo obrigatório)</SelectItem>
+                        <SelectItem value="SUBJETIVA">Subjetiva (nota até um máximo)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -743,7 +714,7 @@ const AdminProvas = () => {
                   {/* 2b. Inputs para TIPO PROPORCIONAL */}
                   {tipoPontuacao === 'PROPORCIONAL' && (
                     <div className="grid gap-4 pt-2">
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         {/* Pontos */}
                         <div className="grid gap-1">
                           <Label htmlFor="pontos_unidade" className="text-sm font-normal text-gray-700">Pontos por Unidade</Label>
@@ -769,39 +740,72 @@ const AdminProvas = () => {
                           />
                         </div>
                       </div>
-                      {/* Teto de pontos */}
+                      {/* Teto em unidades (mesma medida do teto das categorias de bônus) */}
                       <div className="grid gap-1">
-                        <Label htmlFor="limite_pontuacao_porcoes" className="text-sm font-normal text-gray-700">
-                          Teto de pontos por porção (opcional)
+                        <Label htmlFor="teto_unidades_pontuacao" className="text-sm font-normal text-gray-700">
+                          Máx. de unidades que contam (opcional)
                         </Label>
                         <Input
-                          id="limite_pontuacao_porcoes" type="number" min="0"
-                          value={formData.pontuacao.limite_pontuacao_porcoes || ""}
+                          id="teto_unidades_pontuacao" type="number" min="0"
+                          value={formData.pontuacao.teto_unidades ?? ""}
                           onChange={(e) => {
                             const val = e.target.value;
-                            setFormData(prev => ({
-                              ...prev,
-                              pontuacao: {
-                                ...prev.pontuacao,
-                                limite_pontuacao_porcoes: val === "" ? undefined : Number(val),
-                              },
-                            }));
+                            setFormData(prev => {
+                              // O teto antigo, em pontos, sai assim que o novo é informado.
+                              const { teto_unidades, limite_pontuacao_porcoes, ...resto } = prev.pontuacao;
+                              return {
+                                ...prev,
+                                pontuacao: val === ""
+                                  ? { ...resto, ...(limite_pontuacao_porcoes != null && { limite_pontuacao_porcoes }) }
+                                  : { ...resto, teto_unidades: Number(val) },
+                              };
+                            });
                           }}
-                          placeholder="Ex: 500 — deixe em branco para sem teto"
+                          placeholder="Ex: 10 (em branco, todas contam)"
                           className="bg-white border-gray-300"
                           disabled={submitting}
                         />
                         <p className="text-xs text-gray-500">
-                          Limite máximo de pontos que uma equipe pode acumular nesta prova. Impede acúmulo desproporcional.
+                          {formData.pontuacao.teto_unidades != null
+                            ? `Contam até ${formData.pontuacao.teto_unidades} unidades por equipe: no máximo ${formData.pontuacao.teto_unidades * (Number(formData.pontuacao.pontos_por_unidade) || 0)} pts nesta prova, sem contar o bônus.`
+                            : "Unidades além deste número não somam pontos. Impede acúmulo desproporcional."}
                         </p>
+                        {formData.pontuacao.teto_unidades == null && Number(formData.pontuacao.limite_pontuacao_porcoes) > 0 && (
+                          <p className="text-xs text-amber-700 font-medium">
+                            Esta prova ainda usa o teto antigo, em pontos (máximo de {formData.pontuacao.limite_pontuacao_porcoes} pts).
+                            Informe o máximo de unidades para substituí-lo.
+                          </p>
+                        )}
                       </div>
+                    </div>
+                  )}
+
+                  {/* 2d. Input para TIPO SUBJETIVA (nota do avaliador até um máximo) */}
+                  {tipoPontuacao === 'SUBJETIVA' && (
+                    <div className="grid gap-1 pt-2">
+                      <Label htmlFor="pontuacao_maxima" className="text-sm font-normal text-gray-700">
+                        Pontuação máxima *
+                      </Label>
+                      <Input
+                        id="pontuacao_maxima" type="number" min="1"
+                        value={formData.pontuacao.pontuacao_maxima ?? ""}
+                        onChange={(e) => setFormData(prev => ({
+                          ...prev,
+                          pontuacao: { pontuacao_maxima: e.target.value === "" ? undefined : Number(e.target.value) },
+                        }))}
+                        placeholder="Ex: 500" className="bg-white border-gray-300" disabled={submitting}
+                      />
+                      <p className="text-xs text-gray-500">
+                        No lançamento do resultado, o avaliador dá a cada equipe uma nota de 0 até este valor.
+                        As categorias de bônus somam por cima da nota.
+                      </p>
                     </div>
                   )}
 
                   {/* 2c. Inputs para TIPO LIMIAR (tudo ou nada) */}
                   {tipoPontuacao === 'LIMIAR' && (
                     <div className="grid gap-4 pt-2">
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="grid gap-1">
                           <Label htmlFor="quantidade_minima_pontuacao" className="text-sm font-normal text-gray-700">
                             Quantidade Mínima
@@ -856,12 +860,12 @@ const AdminProvas = () => {
                     </Label>
                     <p className="text-xs text-gray-500">
                       Pontos extra por unidade informada por equipe no lançamento de resultado
-                      (ex: "Ex-alunos" a 20 pts cada, com teto de 5 unidades = até 100 pts).
+                      (ex: "Ex-alunos" a 20 pts cada, contando no máximo 5 unidades = até 100 pts).
                     </p>
                     <div className="grid gap-3 p-3 border border-gray-300 rounded-md bg-gray-50">
                       {formData.bonus_categorias.map((categoria, index) => (
-                        <div key={index} className="grid grid-cols-[2fr_1fr_1fr_auto] gap-2 items-end p-2 bg-white border border-gray-200 rounded-md">
-                          <div className="grid gap-1">
+                        <div key={index} className="grid grid-cols-2 sm:grid-cols-[2fr_1fr_1fr_auto] gap-2 items-end p-2 bg-white border border-gray-200 rounded-md">
+                          <div className="grid gap-1 col-span-2 sm:col-span-1">
                             <Label className="text-xs font-normal text-gray-700">Nome</Label>
                             <Input
                               type="text"
@@ -884,10 +888,10 @@ const AdminProvas = () => {
                             />
                           </div>
                           <div className="grid gap-1">
-                            <Label className="text-xs font-normal text-gray-700">Teto (opcional)</Label>
+                            <Label className="text-xs font-normal text-gray-700">Máx. de unidades (opcional)</Label>
                             <Input
                               type="number" min="0"
-                              value={categoria.teto_unidades}
+                              value={categoria.teto_unidades ?? ""}
                               onChange={(e) => atualizarCategoriaBonus(index, 'teto_unidades', e.target.value)}
                               placeholder="Ex: 5"
                               className="bg-white border-gray-300 text-sm"
@@ -900,10 +904,15 @@ const AdminProvas = () => {
                             size="icon"
                             onClick={() => removerCategoriaBonus(index)}
                             disabled={submitting}
-                            className="border-gray-300 hover:bg-red-50 hover:text-red-600"
+                            className="border-gray-300 hover:bg-red-50 hover:text-red-600 col-span-2 justify-self-end sm:col-span-1"
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
+                          {categoria.teto_unidades !== "" && categoria.teto_unidades != null && (
+                            <p className="col-span-full text-xs text-gray-500">
+                              Contam até {categoria.teto_unidades} unidade(s): no máximo {Number(categoria.teto_unidades) * (Number(categoria.pontos_por_unidade) || 0)} pts de bônus.
+                            </p>
+                          )}
                         </div>
                       ))}
                       <Button
@@ -1000,6 +1009,11 @@ const AdminProvas = () => {
           </Card>
         )}
 
+        {/* Busca */}
+        {!loading && provas.length > 0 && (
+          <BuscaProvas valor={busca} onChange={setBusca} className="mb-4" />
+        )}
+
         {/* Provas List */}
         {!loading && (
           <div className="grid gap-4">
@@ -1009,8 +1023,14 @@ const AdminProvas = () => {
                   <p className="text-gray-600">Nenhuma prova cadastrada. Crie sua primeira prova!</p>
                 </CardContent>
               </Card>
+            ) : filtrarProvasPorBusca(provas, busca).length === 0 ? (
+              <Card className="bg-white border-gray-200 shadow-md">
+                <CardContent className="flex items-center justify-center py-12">
+                  <p className="text-gray-600">Nenhuma prova encontrada para "{busca}".</p>
+                </CardContent>
+              </Card>
             ) : (
-              provas.map((prova) => (
+              filtrarProvasPorBusca(provas, busca).map((prova) => (
                 <Card key={prova._id} className="bg-white border-gray-200 shadow-md hover:shadow-lg transition-shadow">
                   <CardHeader>
                     <div className="flex flex-col sm:flex-row items-start justify-between gap-3">
@@ -1088,10 +1108,10 @@ const AdminProvas = () => {
                           <p className="text-xs sm:text-sm text-gray-900 break-words">{formatarRequisitos(prova.requisito_usuario)}</p>
                         </div>
                       )}
-                      {formatarPontuacao(prova.pontuacao) && (
+                      {descreverPontuacao(prova.pontuacao) && (
                             <div className="col-span-2">
                               <p className="text-xs text-gray-500 uppercase font-semibold">Pontuação</p>
-                              <p className="text-xs sm:text-sm text-gray-900 break-words">{formatarPontuacao(prova.pontuacao)}</p>
+                              <p className="text-xs sm:text-sm text-gray-900 break-words">{descreverPontuacao(prova.pontuacao)}</p>
                             </div>
                            )}
                     </div>

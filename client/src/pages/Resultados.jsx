@@ -11,7 +11,7 @@ export default function Resultados() {
     <MainLayout usuario={usuario} onLogout={logout}>
       <div className="container mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-6 md:py-8">
         <div className="mb-8">
-          <h2 className="text-3xl font-bold text-gray-900 mb-2">
+          <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">
             Resultados
           </h2>
           <p className="text-gray-600">

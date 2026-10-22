@@ -5,6 +5,7 @@ import MainLayout from "../components/MainLayout";
 import { Button } from "../components/ui/button";
 import { Plus, ArrowLeft } from "lucide-react";
 import ModalCriarPenalidade from "../components/ModalCriarPenalidade";
+import ListaPenalidades from "../components/ListaPenalidades";
 import { penalidadesService } from "../services/api";
 import { toast } from "../components/ui/toast";
 
@@ -51,7 +52,7 @@ export default function Penalidades() {
     <MainLayout usuario={usuario} onLogout={logout}>
       <div className="container mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-6 md:py-8">
         {/* Cabeçalho */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6 sm:mb-8">
           <h1 className="text-2xl font-bold text-gray-900">
             Gerenciar Penalidades
           </h1>
@@ -72,30 +73,7 @@ export default function Penalidades() {
           ) : penalidades.length === 0 ? (
             <p className="text-gray-600">Nenhuma penalidade cadastrada até o momento.</p>
           ) : (
-            <div className="overflow-x-auto -mx-3 sm:mx-0">
-              <table className="w-full text-left border-collapse min-w-[640px]">
-                <thead>
-                  <tr className="border-b border-gray-200">
-                    <th className="p-2 text-xs sm:text-sm">Equipe</th>
-                    <th className="p-2 text-xs sm:text-sm">Participante</th>
-                    <th className="p-2 text-xs sm:text-sm">Pontos</th>
-                    <th className="p-2 text-xs sm:text-sm">Descrição</th>
-                    <th className="p-2 text-xs sm:text-sm">Data</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {penalidades.map((p) => (
-                    <tr key={p.id} className="border-b border-gray-100">
-                      <td className="p-2 text-xs sm:text-sm">{p.equipe?.nome || "Equipe sem nome"}</td>
-                      <td className="p-2 text-xs sm:text-sm">{p.participante?.nome || "-"}</td>
-                      <td className="p-2 text-xs sm:text-sm font-semibold">{p.pontos_removidos}</td>
-                      <td className="p-2 text-xs sm:text-sm">{p.descricao}</td>
-                      <td className="p-2 text-xs sm:text-sm whitespace-nowrap">{new Date(p.criado_em).toLocaleString()}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <ListaPenalidades penalidades={penalidades} />
           )}
         </div>
 

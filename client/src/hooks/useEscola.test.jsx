@@ -12,8 +12,9 @@ vi.mock('../services/api', () => ({
 
 const aplicarPerfilDaEscolaMock = vi.fn();
 let isAuthenticated = true;
+let authCarregando = false;
 vi.mock('./useAuth.jsx', () => ({
-  useAuth: () => ({ isAuthenticated, aplicarPerfilDaEscola: aplicarPerfilDaEscolaMock }),
+  useAuth: () => ({ isAuthenticated, loading: authCarregando, aplicarPerfilDaEscola: aplicarPerfilDaEscolaMock }),
 }));
 
 import { EscolaProvider, useEscola } from './useEscola.jsx';
@@ -25,6 +26,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   localStorage.clear();
   isAuthenticated = true;
+  authCarregando = false;
 });
 
 describe('useEscola', () => {
@@ -56,6 +58,42 @@ describe('useEscola', () => {
     expect(localStorage.getItem('escolaAtivaId')).toBeNull();
     // A gincana guardada também não vale mais (era da escola perdida).
     expect(localStorage.getItem('gincanaAtivaId')).toBeNull();
+  });
+
+  // Regressão: num F5 o AuthProvider começa com isAuthenticated=false até ler
+  // a sessão do localStorage, e o efeito daqui tratava isso como logout,
+  // apagando a escola e a gincana escolhidas. Quem tem várias escolas voltava
+  // para a seleção a cada recarregamento.
+  it('não apaga a escola e a gincana escolhidas enquanto a sessão ainda está sendo restaurada', async () => {
+    localStorage.setItem('escolaAtivaId', 'ESC_2');
+    localStorage.setItem('gincanaAtivaId', 'GINC_1');
+    escolasService.minhas.mockResolvedValueOnce([{ _id: 'ESC_1', nome: 'Escola 1' }, { _id: 'ESC_2', nome: 'Escola 2' }]);
+    isAuthenticated = false;
+    authCarregando = true;
+
+    const { result, rerender } = renderHook(() => useEscola(), { wrapper });
+
+    expect(localStorage.getItem('escolaAtivaId')).toBe('ESC_2');
+    expect(localStorage.getItem('gincanaAtivaId')).toBe('GINC_1');
+    expect(escolasService.minhas).not.toHaveBeenCalled();
+
+    isAuthenticated = true;
+    authCarregando = false;
+    rerender();
+    await waitFor(() => expect(result.current.carregado).toBe(true));
+
+    expect(result.current.escolaAtivaId).toBe('ESC_2');
+    expect(result.current.precisaSelecionarEscola).toBe(false);
+    expect(localStorage.getItem('gincanaAtivaId')).toBe('GINC_1');
+  });
+
+  it('logout de verdade (sessão resolvida, sem autenticação) ainda limpa a escola', async () => {
+    localStorage.setItem('escolaAtivaId', 'ESC_2');
+    isAuthenticated = false;
+
+    renderHook(() => useEscola(), { wrapper });
+
+    await waitFor(() => expect(localStorage.getItem('escolaAtivaId')).toBeNull());
   });
 
   it('com uma única escola, entra direto nela sem exigir seleção', async () => {

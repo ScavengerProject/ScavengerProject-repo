@@ -16,7 +16,7 @@ import { useGincana } from '../hooks/useGincana';
  * Edições encerradas aparecem na lista, desabilitadas: elas existem como
  * histórico, mas não podem virar o escopo ativo (a API recusa).
  */
-export default function GincanaSelector() {
+export default function GincanaSelector({ larguraTrigger = "w-40 lg:w-52" }) {
   const {
     gincanasAcessiveis,
     gincanasEncerradas,
@@ -38,7 +38,7 @@ export default function GincanaSelector() {
         onValueChange={setGincanaAtiva}
         disabled={loading}
       >
-        <SelectTrigger className="h-9 w-40 sm:w-52" title="Gincana ativa">
+        <SelectTrigger className={`h-9 ${larguraTrigger}`} title="Gincana ativa">
           <SelectValue placeholder={loading ? 'Carregando...' : 'Selecionar gincana'} />
         </SelectTrigger>
         <SelectContent>

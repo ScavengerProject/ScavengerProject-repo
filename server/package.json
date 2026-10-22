@@ -11,6 +11,7 @@
     "migrar:gincana": "node src/scripts/migrarDadosParaGincana.js",
     "migrar:quesitos": "node src/scripts/migrarQuesitosParaBonusCategorias.js",
     "migrar:suspenso": "node src/scripts/migrarStatusSuspenso.js",
+    "migrar:teto-unidades": "node src/scripts/migrarTetoUnidades.js",
     "inventario": "node src/scripts/inventarioBanco.js",
     "test": "jest",
     "test:watch": "jest --watch",

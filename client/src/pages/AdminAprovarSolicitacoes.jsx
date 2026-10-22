@@ -118,11 +118,11 @@ export default function AdminAprovarSolicitacoes() {
           </p>
         </div>
         {/* Filtros */}
-        <div className="mb-6 flex gap-4 items-center">
-          <div className="flex items-center gap-2">
-            <Label htmlFor="status" className="text-gray-700 font-medium">Filtrar por:</Label>
+        <div className="mb-6 flex gap-4 items-center flex-wrap">
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <Label htmlFor="status" className="text-gray-700 font-medium shrink-0">Filtrar por:</Label>
             <Select value={filtroStatus} onValueChange={setFiltroStatus}>
-              <SelectTrigger className="w-64">
+              <SelectTrigger className="flex-1 min-w-0 sm:flex-none sm:w-64">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -152,8 +152,8 @@ export default function AdminAprovarSolicitacoes() {
             solicitacoes.map((sol) => (
               <Card key={sol._id} className="bg-white border-gray-200 shadow-md hover:shadow-lg transition-shadow">
                 <CardContent className="py-4">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1 space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                    <div className="flex-1 min-w-0 space-y-3">
                       {/* Coordenador e Equipe */}
                       <div>
                         <p className="font-semibold text-gray-900 text-lg">

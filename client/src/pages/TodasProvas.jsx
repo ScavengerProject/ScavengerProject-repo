@@ -11,6 +11,9 @@ import ProvaDetalhesModal from "../components/ProvaDetalhesModal";
 import MainLayout from "../components/MainLayout";
 import { ehAdmin } from '../lib/perfis';
 import { cotasDaProva, textoDaCota, motivoDaRecusa } from '../lib/cotasProva';
+import { descreverPontuacao } from '../lib/pontuacaoProva';
+import { filtrarProvasPorBusca } from '../lib/buscaProvas';
+import BuscaProvas from '../components/BuscaProvas';
 
 const TodasProvas = () => {
   const navigate = useNavigate();
@@ -20,6 +23,7 @@ const TodasProvas = () => {
   const [provaSelecionada, setProvaSelecionada] = useState(null);
   const [modalAberto, setModalAberto] = useState(false);
   const [filtroStatus, setFiltroStatus] = useState('TODOS');
+  const [busca, setBusca] = useState('');
   const [mostrarNotasRanking, setMostrarNotasRanking] = useState(false);
 
   useEffect(() => {
@@ -92,10 +96,14 @@ const TodasProvas = () => {
     return true;
   });
 
+  // A busca vem antes do status para que as contagens dos botões de status
+  // reflitam o que foi buscado.
+  const provasBuscadas = filtrarProvasPorBusca(provasDisponiveis, busca);
+
   // Aplicar filtro de status
   const provasFiltradas = filtroStatus === 'TODOS' 
-    ? provasDisponiveis 
-    : provasDisponiveis.filter(p => p.status === filtroStatus);
+    ? provasBuscadas 
+    : provasBuscadas.filter(p => p.status === filtroStatus);
 
   // Ordenar por data de início
   const provasOrdenadas = [...provasFiltradas].sort((a, b) => 
@@ -129,68 +137,16 @@ const TodasProvas = () => {
     };
     return formatoMap[formato] || formato;
   };
-  // Traduir pontuação
-  const formatarPontuacao = (pontuacao) => {
-    if (!pontuacao || Object.keys(pontuacao).length === 0) {
-      return null; // Não mostra nada se não estiver configurado
-    }
-
-    const isAdmin = ehAdmin(usuario);
-    const podeMostrarPontos = isAdmin || mostrarNotasRanking;
-
-    // Tipo Proporcional
-    if (pontuacao.pontos_por_unidade && pontuacao.nome_unidade) {
-      if (podeMostrarPontos) {
-        return `${pontuacao.pontos_por_unidade} pts por ${pontuacao.nome_unidade}`;
-      } else {
-        return `Pontos por ${pontuacao.nome_unidade}`;
-      }
-    }
-
-    // Tipo Limiar (tudo ou nada)
-    if (pontuacao.hasOwnProperty('quantidade_minima')) {
-      if (podeMostrarPontos) {
-        return `${pontuacao.pontuacao_fixa || 0} pts ao atingir ${pontuacao.quantidade_minima} ${pontuacao.nome_unidade || 'unidades'}`;
-      }
-      return `Mínimo de ${pontuacao.quantidade_minima} ${pontuacao.nome_unidade || 'unidades'}`;
-    }
-
-    // Tipo Ranking (1º, 2º, 3º)
-    const posicoes = [];
-    if (pontuacao["1"]) {
-      if (podeMostrarPontos) {
-        posicoes.push(`1º: ${pontuacao["1"]} pts`);
-      } else {
-        posicoes.push(`1º lugar`);
-      }
-    }
-    if (pontuacao["2"]) {
-      if (podeMostrarPontos) {
-        posicoes.push(`2º: ${pontuacao["2"]} pts`);
-      } else {
-        posicoes.push(`2º lugar`);
-      }
-    }
-    if (pontuacao["3"]) {
-      if (podeMostrarPontos) {
-        posicoes.push(`3º: ${pontuacao["3"]} pts`);
-      } else {
-        posicoes.push(`3º lugar`);
-      }
-    }
-
-    if (posicoes.length > 0) {
-      return posicoes.join(' | ');
-    }
-
-    return null; // Nenhum formato conhecido
-  };
+  // Resumo da pontuação; os valores só aparecem para admin ou quando o
+  // admin liberou as notas do ranking.
+  const formatarPontuacao = (pontuacao) =>
+    descreverPontuacao(pontuacao, { mostrarPontos: ehAdmin(usuario) || mostrarNotasRanking });
 
   return (
     <MainLayout usuario={usuario} onLogout={logout}>
       <div className="container mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-6 md:py-8">
         <div className="mb-8">
-          <h2 className="text-3xl font-bold text-gray-900 mb-2">Todas as Provas</h2>
+          <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Todas as Provas</h2>
           <p className="text-gray-600">
             {ehAdmin(usuario) 
               ? `Visualizando todas as ${provas.length} provas cadastradas`
@@ -208,6 +164,9 @@ const TodasProvas = () => {
           </div>
         ) : (
           <>
+            {/* Busca */}
+            <BuscaProvas valor={busca} onChange={setBusca} className="mb-4" />
+
             {/* Filtros */}
             <div className="mb-6 flex items-center gap-3 flex-wrap">
               <div className="flex items-center gap-2">
@@ -220,7 +179,7 @@ const TodasProvas = () => {
                 onClick={() => setFiltroStatus('TODOS')}
                 className={filtroStatus === 'TODOS' ? 'bg-blue-600 text-white' : 'border-gray-300'}
               >
-                Todas ({provasDisponiveis.length})
+                Todas ({provasBuscadas.length})
               </Button>
               <Button
                 variant={filtroStatus === 'EM_ANDAMENTO' ? 'default' : 'outline'}
@@ -228,7 +187,7 @@ const TodasProvas = () => {
                 onClick={() => setFiltroStatus('EM_ANDAMENTO')}
                 className={filtroStatus === 'EM_ANDAMENTO' ? 'bg-green-600 text-white' : 'border-gray-300'}
               >
-                Em Andamento ({provasDisponiveis.filter(p => p.status === 'EM_ANDAMENTO').length})
+                Em Andamento ({provasBuscadas.filter(p => p.status === 'EM_ANDAMENTO').length})
               </Button>
               <Button
                 variant={filtroStatus === 'NAO_INICIADA' ? 'default' : 'outline'}
@@ -236,7 +195,7 @@ const TodasProvas = () => {
                 onClick={() => setFiltroStatus('NAO_INICIADA')}
                 className={filtroStatus === 'NAO_INICIADA' ? 'bg-gray-600 text-white' : 'border-gray-300'}
               >
-                Não Iniciadas ({provasDisponiveis.filter(p => p.status === 'NAO_INICIADA').length})
+                Não Iniciadas ({provasBuscadas.filter(p => p.status === 'NAO_INICIADA').length})
               </Button>
               <Button
                 variant={filtroStatus === 'CONCLUIDA' ? 'default' : 'outline'}
@@ -244,7 +203,7 @@ const TodasProvas = () => {
                 onClick={() => setFiltroStatus('CONCLUIDA')}
                 className={filtroStatus === 'CONCLUIDA' ? 'bg-blue-600 text-white' : 'border-gray-300'}
               >
-                Concluídas ({provasDisponiveis.filter(p => p.status === 'CONCLUIDA').length})
+                Concluídas ({provasBuscadas.filter(p => p.status === 'CONCLUIDA').length})
               </Button>
             </div>
 
@@ -253,7 +212,9 @@ const TodasProvas = () => {
               {provasOrdenadas.length === 0 ? (
                 <div className="col-span-full text-center py-12">
                   <Trophy className="h-16 w-16 mx-auto mb-4 text-gray-300" />
-                  <p className="text-gray-600 text-lg">Nenhuma prova encontrada com este filtro</p>
+                  <p className="text-gray-600 text-lg">
+                    {busca ? `Nenhuma prova encontrada para "${busca}"` : 'Nenhuma prova encontrada com este filtro'}
+                  </p>
                 </div>
               ) : (
                 provasOrdenadas.map((prova) => {
@@ -265,7 +226,7 @@ const TodasProvas = () => {
                     <Card
                       key={prova._id}
                       onClick={() => abrirDetalhesProva(prova)}
-                      className="bg-white border-gray-200 shadow-md hover:shadow-xl transition-all cursor-pointer hover:scale-105"
+                      className="bg-white border-gray-200 shadow-md hover:shadow-xl transition-all cursor-pointer sm:hover:scale-105"
                     >
                       <CardHeader>
                         <div className="flex items-start justify-between mb-2">

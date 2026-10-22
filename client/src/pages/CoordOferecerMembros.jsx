@@ -10,6 +10,7 @@ import { useAuth } from '../hooks/useAuth';
 import MainLayout from '../components/MainLayout';
 import { solicitacoesEmprestimoService, ofertasEmprestimoService } from '../services/api';
 import { Users, Clock, Send, Info, Lock } from 'lucide-react';
+import { emailQuebravel } from '../lib/utils';
 
 export default function CoordOferecerMembros() {
   const { usuario, logout } = useAuth();
@@ -169,8 +170,8 @@ export default function CoordOferecerMembros() {
             solicitacoes.map((sol) => (
               <Card key={sol._id} className="bg-white border-gray-200 shadow-md hover:shadow-lg transition-shadow">
                 <CardContent className="py-4">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1 space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                    <div className="flex-1 min-w-0 space-y-3">
                       {/* Equipe Solicitante */}
                       <div>
                         <p className="font-semibold text-gray-900 text-lg">
@@ -245,7 +246,7 @@ export default function CoordOferecerMembros() {
 
       {/* Dialog: Ofertar Membros */}
       <Dialog open={openOfertar} onOpenChange={setOpenOfertar}>
-        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>Ofertar Membros</DialogTitle>
             <DialogDescription>
@@ -328,7 +329,7 @@ export default function CoordOferecerMembros() {
                 <Label className="text-gray-700 font-medium">
                   Podem ser ofertados ({ofertaveis.length})
                 </Label>
-                <div className="space-y-2 max-h-48 overflow-y-auto p-2 border rounded bg-green-50">
+                <div className="space-y-2 max-h-48 overflow-y-auto p-2 border border-green-200 rounded bg-green-50">
                   {ofertaveis.map((membro) => {
                     const selecionado = membrosSelecionados.includes(membro.id);
                     const bloqueadoPeloLimite = !selecionado && limiteAtingido;
@@ -346,7 +347,7 @@ export default function CoordOferecerMembros() {
                         <span className="pointer-events-none">
                           <Checkbox checked={selecionado} onCheckedChange={() => {}} />
                         </span>
-                        <div className="flex-1">
+                        <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-gray-900">
                             {membro.nome || '—'}
                             {membro.is_coordenador && (
@@ -355,8 +356,8 @@ export default function CoordOferecerMembros() {
                               </span>
                             )}
                           </p>
-                          <p className="text-xs text-gray-600">
-                            {membro.turma || 'Sem turma'} • {membro.email}
+                          <p className="text-xs text-gray-600 break-words">
+                            {membro.turma || 'Sem turma'} • {emailQuebravel(membro.email)}
                           </p>
                         </div>
                       </div>
@@ -378,14 +379,14 @@ export default function CoordOferecerMembros() {
                 <Label className="text-gray-700 font-medium">
                   Não podem ser ofertados ({bloqueados.length})
                 </Label>
-                <div className="space-y-2 max-h-48 overflow-y-auto p-2 border rounded bg-gray-50">
+                <div className="space-y-2 max-h-48 overflow-y-auto p-2 border border-gray-200 rounded bg-gray-50">
                   {bloqueados.map((membro) => (
                     <div key={membro.id} className="flex items-start gap-3 p-2 rounded">
                       <Lock className="h-4 w-4 text-gray-400 mt-1 shrink-0" />
-                      <div className="flex-1">
+                      <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-gray-700">{membro.nome || '—'}</p>
-                        <p className="text-xs text-gray-500">
-                          {membro.turma || 'Sem turma'} • {membro.email}
+                        <p className="text-xs text-gray-500 break-words">
+                          {membro.turma || 'Sem turma'} • {emailQuebravel(membro.email)}
                         </p>
                         <p className="text-xs text-gray-600 mt-0.5">{membro.motivo}</p>
                       </div>

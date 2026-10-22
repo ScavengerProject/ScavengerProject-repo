@@ -348,7 +348,7 @@ const AdminUsuarios = () => {
       <div className="container mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-6 md:py-8">
         {/* Estatísticas */}
         {estatisticas && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4 mb-8">
             <Card className="bg-white border-gray-200">
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
@@ -559,7 +559,7 @@ const AdminUsuarios = () => {
                           <span className="hidden sm:inline">Status</span>
                         </Button>
                         {dropdownStatusAberto === usuario._id && (
-                          <div className="absolute right-0 mt-1 w-36 bg-white border border-gray-200 rounded-md shadow-lg z-10">
+                          <div className="absolute left-0 sm:left-auto sm:right-0 mt-1 w-36 bg-white border border-gray-200 rounded-md shadow-lg z-10">
                             {[
                               { value: 'ATIVO', label: 'Ativar', color: 'text-green-700 hover:bg-green-50' },
                               { value: 'INATIVO', label: 'Desativar', color: 'text-gray-700 hover:bg-gray-50' },
@@ -606,7 +606,7 @@ const AdminUsuarios = () => {
 
       {/* Modal de Criar/Editar */}
       <Dialog open={modalAberto} onOpenChange={setModalAberto}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>{modoEdicao ? 'Editar Usuário' : 'Novo Usuário'}</DialogTitle>
             <DialogDescription>
@@ -616,7 +616,7 @@ const AdminUsuarios = () => {
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="nome">Nome *</Label>
                 <Input
@@ -642,7 +642,7 @@ const AdminUsuarios = () => {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="senha">Senha {!modoEdicao && '*'}</Label>
                 <div className="relative">
@@ -680,7 +680,7 @@ const AdminUsuarios = () => {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="tipo">Tipo de Usuário *</Label>
                 <Select
@@ -730,7 +730,7 @@ const AdminUsuarios = () => {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="turma">
                   Turma {(formData.tipo === 'ALUNO' || formData.tipo === 'COORDENADOR') && '*'}

@@ -11,6 +11,7 @@ import { useAuth } from '../hooks/useAuth';
 import MainLayout from '../components/MainLayout';
 import { emprestimosService } from '../services/api';
 import { ArrowLeft, Users, Clock, X, ArrowRight, ArrowLeft as ArrowLeftIcon } from 'lucide-react';
+import { emailQuebravel } from '../lib/utils';
 
 export default function CoordGerenciarEmprestimos() {
   const navigate = useNavigate();
@@ -138,10 +139,10 @@ export default function CoordGerenciarEmprestimos() {
         </div>
         {/* Filtros */}
         <div className="mb-6 flex gap-4 items-center flex-wrap">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 w-full sm:w-auto">
             <Label htmlFor="status" className="text-gray-700 font-medium">Status:</Label>
             <Select value={filtroStatus} onValueChange={setFiltroStatus}>
-              <SelectTrigger className="w-48">
+              <SelectTrigger className="flex-1 min-w-0 sm:flex-none sm:w-48">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -153,10 +154,10 @@ export default function CoordGerenciarEmprestimos() {
             </Select>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 w-full sm:w-auto">
             <Label htmlFor="tipo" className="text-gray-700 font-medium">Tipo:</Label>
             <Select value={filtroTipo} onValueChange={setFiltroTipo}>
-              <SelectTrigger className="w-48">
+              <SelectTrigger className="flex-1 min-w-0 sm:flex-none sm:w-48">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -216,15 +217,15 @@ export default function CoordGerenciarEmprestimos() {
             emprestimosFiltrados.map((emp) => (
               <Card key={emp._id} className="bg-white border-gray-200 shadow-md hover:shadow-lg transition-shadow">
                 <CardContent className="py-4">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1 space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                    <div className="flex-1 min-w-0 space-y-3">
                       {/* Membro */}
                       <div>
                         <p className="font-semibold text-gray-900 text-lg">
                           {emp.usuario_id?.nome || '—'}
                         </p>
-                        <p className="text-sm text-gray-600">
-                          {emp.usuario_id?.email || '—'} • {emp.usuario_id?.turma || 'Sem turma'}
+                        <p className="text-sm text-gray-600 break-words">
+                          {emailQuebravel(emp.usuario_id?.email) || '—'} • {emp.usuario_id?.turma || 'Sem turma'}
                         </p>
                       </div>
 

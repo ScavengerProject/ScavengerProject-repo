@@ -173,8 +173,8 @@ export default function CoordSolicitarEmprestimo() {
   return (
     <MainLayout usuario={usuario} onLogout={logout}>
       <div className="container mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-6 md:py-8">
-        <div className="mb-6 flex items-center justify-between">
-          <div>
+        <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="min-w-0">
             <h1 className="text-2xl font-bold text-gray-900">Solicitar Empréstimo</h1>
             <p className="text-sm text-gray-600">
               Solicite pessoas de outras equipes para ajudar em provas
@@ -189,11 +189,11 @@ export default function CoordSolicitarEmprestimo() {
           </Button>
         </div>
         {/* Filtros */}
-        <div className="mb-6 flex gap-4 items-center">
-          <div className="flex items-center gap-2">
-            <Label htmlFor="status" className="text-gray-700 font-medium">Filtrar por:</Label>
+        <div className="mb-6 flex gap-4 items-center flex-wrap">
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <Label htmlFor="status" className="text-gray-700 font-medium shrink-0">Filtrar por:</Label>
             <Select value={filtroStatus} onValueChange={setFiltroStatus}>
-              <SelectTrigger className="w-64">
+              <SelectTrigger className="flex-1 min-w-0 sm:flex-none sm:w-64">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -222,8 +222,8 @@ export default function CoordSolicitarEmprestimo() {
             solicitacoesFiltradas.map((sol) => (
               <Card key={sol._id} className="bg-white border-gray-200 shadow-md hover:shadow-lg transition-shadow">
                 <CardContent className="py-4">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1 space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                    <div className="flex-1 min-w-0 space-y-3">
                       {/* Prova */}
                       <div>
                         <p className="font-semibold text-gray-900 text-lg">
@@ -235,7 +235,7 @@ export default function CoordSolicitarEmprestimo() {
                       </div>
 
                       {/* Quantidade e Critérios */}
-                      <div className="flex gap-4">
+                      <div className="flex flex-wrap gap-x-4 gap-y-1">
                         <div className="flex items-center gap-2 text-sm text-gray-700">
                           <Users className="h-4 w-4" />
                           <span className="font-medium">{sol.quantidade_solicitada} pessoa(s)</span>
@@ -305,7 +305,7 @@ export default function CoordSolicitarEmprestimo() {
 
         {/* Dialog: Criar Solicitação */}
         <Dialog open={openCriar} onOpenChange={setOpenCriar}>
-          <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="sm:max-w-2xl">
             <DialogHeader>
               <DialogTitle>Nova Solicitação de Empréstimo</DialogTitle>
               <DialogDescription>
@@ -380,7 +380,7 @@ export default function CoordSolicitarEmprestimo() {
               {/* Níveis Escolares */}
               <div className="space-y-2">
                 <Label className="text-gray-700">Níveis Escolares (opcional)</Label>
-                <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto p-2 border rounded">
+                <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto p-2 border border-gray-200 rounded">
                   {niveisEscolares.map((nivel) => (
                     <div key={nivel} className="flex items-center gap-2">
                       <Checkbox

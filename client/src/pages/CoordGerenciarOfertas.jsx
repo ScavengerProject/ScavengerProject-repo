@@ -189,8 +189,8 @@ export default function CoordGerenciarOfertas() {
               ofertasPendentes.map((oferta) => (
                 <Card key={oferta._id} className="bg-white border-gray-200 shadow-md hover:shadow-lg transition-shadow">
                   <CardContent className="py-4">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1 space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                      <div className="flex-1 min-w-0 space-y-3">
                         {/* Equipe Ofertante */}
                         <div>
                           <p className="font-semibold text-gray-900 text-lg">

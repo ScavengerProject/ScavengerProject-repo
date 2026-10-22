@@ -60,9 +60,9 @@ export default function SelecionarEscola() {
   return (
     <div className="min-h-screen bg-linear-to-br from-blue-600 to-purple-600 flex items-center justify-center p-4">
       <div className="w-full max-w-3xl">
-        <div className="flex items-center justify-between mb-6 text-white">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold">Olá, {usuario?.nome}</h1>
+        <div className="flex items-center justify-between gap-3 mb-6 text-white">
+          <div className="min-w-0">
+            <h1 className="text-2xl sm:text-3xl font-bold break-words">Olá, {usuario?.nome}</h1>
             <p className="text-white/80 text-sm sm:text-base">Escolha a escola que deseja acessar.</p>
           </div>
           <Button

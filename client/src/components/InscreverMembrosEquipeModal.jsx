@@ -144,7 +144,7 @@ const InscreverMembrosEquipeModal = ({ prova, isOpen, onClose, onInscricaoSucess
 
   return (
     <Dialog open={isOpen} onOpenChange={(aberto) => { if (!aberto) onClose(); }}>
-      <DialogContent className="sm:max-w-[640px] bg-white border-gray-300 max-h-[85vh] flex flex-col">
+      <DialogContent className="sm:max-w-[640px] bg-white border-gray-300 max-h-[calc(100dvh-2rem)] flex flex-col">
         <DialogHeader>
           <DialogTitle className="text-xl text-gray-900 flex items-center gap-2">
             <Users className="h-5 w-5 text-blue-600" />
@@ -223,7 +223,7 @@ const InscreverMembrosEquipeModal = ({ prova, isOpen, onClose, onInscricaoSucess
                 return (
                   <li
                     key={id}
-                    className={`flex items-center gap-3 rounded-lg border p-3 ${
+                    className={`flex items-start sm:items-center gap-3 rounded-lg border p-3 ${
                       membro.elegivel
                         ? marcado
                           ? 'bg-blue-50 border-blue-300'
@@ -237,6 +237,9 @@ const InscreverMembrosEquipeModal = ({ prova, isOpen, onClose, onInscricaoSucess
                       disabled={!habilitado || enviando}
                       onCheckedChange={() => alternar(membro)}
                     />
+                    {/* No celular o selo desce para baixo do nome: ao lado, ele
+                        truncava o nome em poucas letras. */}
+                    <div className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
                     <label
                       htmlFor={`membro-${id}`}
                       className={`flex-1 min-w-0 ${habilitado && !enviando ? 'cursor-pointer' : 'cursor-default'}`}
@@ -251,19 +254,20 @@ const InscreverMembrosEquipeModal = ({ prova, isOpen, onClose, onInscricaoSucess
 
                     {!membro.elegivel && (
                       <Badge
-                        className={membro.motivo_codigo === 'JA_INSCRITO'
+                        className={`self-start sm:self-auto shrink-0 ${membro.motivo_codigo === 'JA_INSCRITO'
                           ? 'bg-green-100 text-green-800'
-                          : 'bg-gray-200 text-gray-700'}
+                          : 'bg-gray-200 text-gray-700'}`}
                         title={membro.motivo || undefined}
                       >
                         {rotuloDoMotivo(membro.motivo_codigo)}
                       </Badge>
                     )}
                     {bloqueadoPorCota && (
-                      <Badge className="bg-amber-100 text-amber-800">
+                      <Badge className="bg-amber-100 text-amber-800 self-start sm:self-auto shrink-0">
                         Vagas preenchidas pela seleção
                       </Badge>
                     )}
+                    </div>
                   </li>
                 );
               })}
@@ -272,11 +276,11 @@ const InscreverMembrosEquipeModal = ({ prova, isOpen, onClose, onInscricaoSucess
         </div>
 
         <DialogFooter className="mt-4 border-t border-gray-200 pt-4">
-          <div className="flex items-center justify-between w-full gap-3">
-            <div className="flex items-center gap-3">
-              <Button variant="outline" onClick={onClose} disabled={enviando}>Fechar</Button>
+          <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between w-full gap-3">
+            <div className="flex flex-col-reverse sm:flex-row sm:items-center gap-2 sm:gap-3">
+              <Button variant="outline" onClick={onClose} disabled={enviando} className="w-full sm:w-auto">Fechar</Button>
               {totalElegiveis > 0 && (
-                <Button variant="ghost" onClick={selecionarTodosPossiveis} disabled={enviando}>
+                <Button variant="ghost" onClick={selecionarTodosPossiveis} disabled={enviando} className="w-full sm:w-auto">
                   Selecionar possíveis
                 </Button>
               )}
@@ -284,7 +288,7 @@ const InscreverMembrosEquipeModal = ({ prova, isOpen, onClose, onInscricaoSucess
             <Button
               onClick={handleInscrever}
               disabled={selecionados.length === 0 || enviando}
-              className="bg-blue-600 text-white"
+              className="bg-blue-600 text-white w-full sm:w-auto"
             >
               <UserPlus className="h-4 w-4 mr-2" />
               {enviando

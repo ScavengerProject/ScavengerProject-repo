@@ -125,7 +125,40 @@ describe('resultadoController - lancarResultados (cálculo de pontos)', () => {
     expect(resultado.pontuacao_obtida).toBe(60); // 30 * 2
   });
 
-  it('PROPORCIONAL: aplica o teto (limite_pontuacao_porcoes) e registra no detalhe', async () => {
+  it('PROPORCIONAL: só contam as unidades até o teto_unidades', async () => {
+    const prova = await criarProvaConcluida({ pontos_por_unidade: 2, nome_unidade: 'doações', teto_unidades: 25 });
+    const equipe = await criarEquipeComGincana('Tetada em unidades');
+
+    const res = mockRes();
+    await lancarResultados(
+      { query: { provaId: prova._id.toString() }, body: { tipo: 'PROPORCIONAL', resultados: [{ equipe_id: equipe._id.toString(), valor: '40' }] }, usuario: { id: avaliadorId } },
+      res
+    );
+
+    const resultado = await Resultado.findOne({ prova_id: prova._id, equipe_id: equipe._id });
+    expect(resultado.pontuacao_obtida).toBe(50); // min(40, 25) × 2
+    expect(resultado.detalhes_pontuacao).toBe('40 doações (teto atingido: contam 25)');
+    // A quantidade digitada é o que reabre no modal, não a limitada.
+    expect(resultado.valor_informado).toBe('40');
+  });
+
+  it('PROPORCIONAL: abaixo do teto_unidades conta tudo', async () => {
+    const prova = await criarProvaConcluida({ pontos_por_unidade: 2, nome_unidade: 'doações', teto_unidades: 25 });
+    const equipe = await criarEquipeComGincana('Abaixo do teto');
+
+    await lancarResultados(
+      { query: { provaId: prova._id.toString() }, body: { tipo: 'PROPORCIONAL', resultados: [{ equipe_id: equipe._id.toString(), valor: '10' }] }, usuario: { id: avaliadorId } },
+      mockRes()
+    );
+
+    const resultado = await Resultado.findOne({ prova_id: prova._id, equipe_id: equipe._id });
+    expect(resultado.pontuacao_obtida).toBe(20);
+    expect(resultado.detalhes_pontuacao).toBe('10 doações');
+  });
+
+  // Prova ainda não convertida por migrar:teto-unidades: o teto antigo, em
+  // pontos, continua valendo.
+  it('PROPORCIONAL: aplica o teto antigo (limite_pontuacao_porcoes, em pontos) e registra no detalhe', async () => {
     const prova = await criarProvaConcluida({ pontos_por_unidade: 2, nome_unidade: 'doações', limite_pontuacao_porcoes: 50 });
     const equipe = await criarEquipeComGincana('Tetada');
 
@@ -138,6 +171,68 @@ describe('resultadoController - lancarResultados (cálculo de pontos)', () => {
     const resultado = await Resultado.findOne({ prova_id: prova._id, equipe_id: equipe._id });
     expect(resultado.pontuacao_obtida).toBe(50); // 40*2=80, mas teto=50
     expect(resultado.detalhes_pontuacao).toMatch(/teto atingido: 50/i);
+  });
+
+  it('SUBJETIVA: a nota do avaliador é a pontuação base, e o bônus soma por cima', async () => {
+    const prova = await criarProvaConcluida(
+      { pontuacao_maxima: 500 },
+      [{ chave: 'EX_ALUNOS', nome: 'Ex-alunos', pontos_por_unidade: 20, teto_unidades: 5 }]
+    );
+    const equipe = await criarEquipeComGincana('Desfile');
+
+    const res = mockRes();
+    await lancarResultados(
+      { query: { provaId: prova._id.toString() }, body: { tipo: 'SUBJETIVA', resultados: [{ equipe_id: equipe._id.toString(), valor: 420, quesitos: { EX_ALUNOS: '2' } }] }, usuario: { id: avaliadorId } },
+      res
+    );
+
+    expect(res.status).toHaveBeenCalledWith(201);
+    const resultado = await Resultado.findOne({ prova_id: prova._id, equipe_id: equipe._id });
+    expect(resultado.pontuacao_obtida).toBe(460); // 420 + 2 × 20
+    expect(resultado.detalhes_pontuacao).toMatch(/^Nota 420 de 500/);
+    expect(resultado.valor_informado).toBe('420');
+  });
+
+  it.each([501, -1, 'abc'])('SUBJETIVA: recusa (400) a nota %s, fora de 0 até a máxima, sem gravar nada', async (nota) => {
+    const prova = await criarProvaConcluida({ pontuacao_maxima: 500 });
+    const certa = await criarEquipeComGincana('Certa');
+    const errada = await criarEquipeComGincana('Errada');
+
+    const res = mockRes();
+    await lancarResultados(
+      {
+        query: { provaId: prova._id.toString() },
+        body: {
+          tipo: 'SUBJETIVA',
+          resultados: [
+            { equipe_id: certa._id.toString(), valor: 300 },
+            { equipe_id: errada._id.toString(), valor: nota },
+          ],
+        },
+        usuario: { id: avaliadorId },
+      },
+      res
+    );
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining('Errada') }));
+    // A transação inteira volta: nem a equipe com a nota válida foi gravada.
+    expect(await Resultado.countDocuments({ prova_id: prova._id })).toBe(0);
+  });
+
+  it('recusa (400) um tipo de lançamento diferente do da prova', async () => {
+    // Mandar "RANKING" numa prova subjetiva não pode fugir da nota máxima.
+    const prova = await criarProvaConcluida({ pontuacao_maxima: 500 });
+    const equipe = await criarEquipeComGincana('Espertinha');
+
+    const res = mockRes();
+    await lancarResultados(
+      { query: { provaId: prova._id.toString() }, body: { tipo: 'RANKING', resultados: [{ equipe_id: equipe._id.toString(), valor: '1' }] }, usuario: { id: avaliadorId } },
+      res
+    );
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(await Resultado.countDocuments({ prova_id: prova._id })).toBe(0);
   });
 
   it('LIMIAR: concede a pontuação fixa quando atinge o mínimo', async () => {

@@ -2,6 +2,7 @@ import Prova from '../models/Prova.js';
 import Usuario from '../models/Usuario.js';
 import ProvaUsuario from '../models/ProvaUsuario.js';
 import EquipeMembros from '../models/EquipeMembros.js';
+import { validarPontuacao } from './tipoPontuacao.js';
 import {
   estaPublicada,
   agendarOuDispararPublicacao,
@@ -65,6 +66,11 @@ export const criarProva = async (req, res) => {
 
     if (!titulo || !descricao || !formato) {
       return res.status(400).json({ message: 'Campos título, descrição e formato são obrigatórios.' });
+    }
+
+    const erroPontuacao = validarPontuacao(pontuacao);
+    if (erroPontuacao) {
+      return res.status(400).json({ message: erroPontuacao });
     }
 
     const dataInicioProva = data_inicio || new Date();
@@ -257,6 +263,13 @@ export const atualizarProva = async (req, res) => {
 
         // O status nunca é definido manualmente; é sempre derivado das datas.
         delete dadosAtualizados.status;
+
+        if (dadosAtualizados.pontuacao !== undefined) {
+            const erroPontuacao = validarPontuacao(dadosAtualizados.pontuacao);
+            if (erroPontuacao) {
+                return res.status(400).json({ message: erroPontuacao });
+            }
+        }
 
         const prova = await Prova.findByIdAndUpdate(id, dadosAtualizados, {
             new: true,

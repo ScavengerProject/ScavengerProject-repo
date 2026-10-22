@@ -20,6 +20,20 @@ import { Label } from "./ui/label";
 import { Loader, Trash2, Plus, Trophy } from "lucide-react";
 import { equipesService, resultadosService } from "../services/api";
 import { toast } from "./ui/toast";
+import { tipoDaPontuacao, NOME_TIPO_PONTUACAO, pontuarPorUnidade, descreverTetoPorUnidade } from "../lib/pontuacaoProva";
+
+// Nome da equipe em texto escuro com a cor numa bolinha ao lado. Pintar o
+// próprio texto com a cor da equipe deixava equipes claras (ex: branca)
+// praticamente invisíveis no fundo branco.
+const OpcaoEquipe = ({ equipe }) => (
+  <span className="flex items-center gap-2 min-w-0">
+    <span
+      className="h-3 w-3 rounded-full border border-gray-400 shrink-0"
+      style={{ backgroundColor: equipe.cor || '#ccc' }}
+    />
+    <span className="truncate">{equipe.nome}</span>
+  </span>
+);
 
 const LancarResultadoModal = ({ prova, isOpen, onClose }) => {
   const [tipoPontuacao, setTipoPontuacao] = useState('RANKING');
@@ -32,10 +46,7 @@ const LancarResultadoModal = ({ prova, isOpen, onClose }) => {
   useEffect(() => {
     if (isOpen && prova) {
       // 1. Define o tipo de pontuação
-      const regras = prova.pontuacao || {};
-      const tipoDetectado = regras.pontos_por_unidade
-        ? 'PROPORCIONAL'
-        : regras.hasOwnProperty('quantidade_minima') ? 'LIMIAR' : 'RANKING';
+      const tipoDetectado = tipoDaPontuacao(prova.pontuacao);
       setTipoPontuacao(tipoDetectado);
 
       // 2. Reseta o formulário
@@ -154,6 +165,11 @@ const LancarResultadoModal = ({ prova, isOpen, onClose }) => {
         setSubmitting(false);
         return;
       }
+      if (tipoPontuacao === 'SUBJETIVA' && resultadosValidos.some(r => !notaDentroDaFaixa(r.valor))) {
+        toast.error(`As notas devem estar entre 0 e ${pontuacaoMaxima}.`);
+        setSubmitting(false);
+        return;
+      }
       const dadosFormatados = resultadosValidos.map(r => ({
         equipe_id: r.equipe_id,
         valor: (tipoPontuacao === 'RANKING' ? r.valor.toString() : Number(r.valor)),
@@ -174,20 +190,22 @@ const LancarResultadoModal = ({ prova, isOpen, onClose }) => {
   if (!prova) return null;
 
   const idsEquipesSelecionadas = resultados.map(r => r.equipe_id).filter(Boolean);
-  const nomeTipoPontuacao = tipoPontuacao === 'RANKING'
-    ? 'Por Posição'
-    : tipoPontuacao === 'LIMIAR' ? 'Tudo ou Nada' : 'Por Unidade';
+  const nomeTipoPontuacao = NOME_TIPO_PONTUACAO[tipoPontuacao];
 
   const regrasPontuacao = prova.pontuacao || {};
-  const pontosPorUnidade = Number(regrasPontuacao.pontos_por_unidade) || 0;
   const nomeUnidade = regrasPontuacao.nome_unidade || 'unidade';
   const quantidadeMinima = Number(regrasPontuacao.quantidade_minima) || 0;
   const pontuacaoFixa = Number(regrasPontuacao.pontuacao_fixa) || 0;
+  const pontuacaoMaxima = Number(regrasPontuacao.pontuacao_maxima) || 0;
+  const notaDentroDaFaixa = (valor) => {
+    const nota = Number(valor);
+    return String(valor).trim() !== '' && nota >= 0 && nota <= pontuacaoMaxima;
+  };
 
   // Categorias de bônus configuradas na prova (ex-alunos, pais/mães, ...)
   const bonusCategorias = prova.bonus_categorias || [];
 
-  const limitePorcoes = Number(regrasPontuacao.limite_pontuacao_porcoes) || 0;
+  const descricaoTeto = tipoPontuacao === 'PROPORCIONAL' ? descreverTetoPorUnidade(regrasPontuacao) : null;
 
   // Calcula os pontos de bônus de uma linha, já com o teto de cada categoria aplicado.
   const calcularPontosBonus = (resultado) => {
@@ -207,15 +225,13 @@ const LancarResultadoModal = ({ prova, isOpen, onClose }) => {
     if (tipoPontuacao === 'RANKING') {
       const posicao = Number(resultado.valor);
       pontosBase = Number(regrasPontuacao[posicao]) || 0;
+    } else if (tipoPontuacao === 'SUBJETIVA') {
+      pontosBase = Number(resultado.valor) || 0;
     } else if (tipoPontuacao === 'LIMIAR') {
       const quantidade = Number(resultado.valor) || 0;
       pontosBase = quantidade >= quantidadeMinima ? pontuacaoFixa : 0;
     } else {
-      const quantidade = Number(resultado.valor) || 0;
-      pontosBase = quantidade * pontosPorUnidade;
-      if (limitePorcoes > 0 && pontosBase > limitePorcoes) {
-        pontosBase = limitePorcoes;
-      }
+      pontosBase = pontuarPorUnidade(regrasPontuacao, Number(resultado.valor) || 0).pontos;
     }
 
     return pontosBase + calcularPontosBonus(resultado);
@@ -226,7 +242,7 @@ const LancarResultadoModal = ({ prova, isOpen, onClose }) => {
   const renderCategoriasBonus = (index, quesitosDaLinha) => {
     if (bonusCategorias.length === 0) return null;
     return (
-      <div className="grid grid-cols-2 gap-3 p-3 bg-white border border-gray-300 rounded-md">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-white border border-gray-300 rounded-md">
         {bonusCategorias.map((categoria) => (
           <div key={categoria.chave} className="grid gap-1.5">
             <Label htmlFor={`bonus-${categoria.chave}-${index}`} className="text-xs">
@@ -253,7 +269,7 @@ const LancarResultadoModal = ({ prova, isOpen, onClose }) => {
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-3xl bg-white border-gray-300 max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-3xl bg-white border-gray-300">
         <DialogHeader>
           <DialogTitle className="text-gray-900">
             Lançar Resultados: <span className="font-normal">{prova.titulo}</span>
@@ -273,21 +289,21 @@ const LancarResultadoModal = ({ prova, isOpen, onClose }) => {
             
             {/* 1. TIPO DE LANÇAMENTO */}
             <div className="p-3 bg-gray-100 border border-gray-300 rounded-md space-y-1">
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-1 sm:gap-4">
                 <div className="col-span-1">
                   <Label className="text-gray-900 font-medium my-auto">
                     Tipo de Lançamento:
                   </Label>
                 </div>
-                <div className="col-span-2">
+                <div className="sm:col-span-2">
                   <p className="text-gray-900 font-semibold my-auto">
                     {nomeTipoPontuacao}
                   </p>
                 </div>
               </div>
-              {tipoPontuacao === 'PROPORCIONAL' && limitePorcoes > 0 && (
+              {descricaoTeto && (
                 <p className="text-xs text-amber-700 font-medium">
-                  Teto de pontos configurado: máximo de {limitePorcoes} pts por equipe nesta prova.
+                  Teto configurado: {descricaoTeto} por equipe nesta prova.
                 </p>
               )}
             </div>
@@ -310,9 +326,11 @@ const LancarResultadoModal = ({ prova, isOpen, onClose }) => {
                   <div key={index} className="space-y-3 p-3 bg-gray-50 border border-gray-200 rounded-md">
 
                     {/* LINHA PRINCIPAL */}
-                    <div className="flex items-end gap-2">
+                    {/* No celular a equipe desce para uma linha própria: lado a
+                        lado com posição, total e lixeira, o seletor sumia. */}
+                    <div className="flex flex-wrap sm:flex-nowrap items-end gap-2">
                       {/* CAMPO DE POSIÇÃO */}
-                      <div className="w-28 grid gap-1.5">
+                      <div className="w-24 sm:w-28 grid gap-1.5">
                         <Label className="text-sm">Posição</Label>
                         <div className="h-10 px-3 py-2 border border-gray-300 bg-gray-200 rounded-md flex items-center justify-center">
                           <span className="font-bold text-gray-800">{posicao}º Lugar</span>
@@ -320,7 +338,7 @@ const LancarResultadoModal = ({ prova, isOpen, onClose }) => {
                       </div>
 
                       {/* SELETOR DE EQUIPE */}
-                      <div className="flex-1 grid gap-1.5">
+                      <div className="order-last basis-full sm:order-none sm:basis-0 sm:flex-1 min-w-0 grid gap-1.5">
                         <Label htmlFor={`equipe-${index}`} className="text-sm">Equipe</Label>
                         <Select
                           value={res.equipe_id}
@@ -332,8 +350,8 @@ const LancarResultadoModal = ({ prova, isOpen, onClose }) => {
                           </SelectTrigger>
                           <SelectContent className="bg-white border-gray-300">
                             {equipesDisponiveis.map(eq => (
-                              <SelectItem key={eq._id} value={eq._id} style={{ color: eq.cor || 'black' }}>
-                                {eq.nome}
+                              <SelectItem key={eq._id} value={eq._id}>
+                                <OpcaoEquipe equipe={eq} />
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -341,7 +359,7 @@ const LancarResultadoModal = ({ prova, isOpen, onClose }) => {
                       </div>
 
                       {/* TOTAL DE PONTOS */}
-                      <div className="w-32 grid gap-1.5">
+                      <div className="flex-1 sm:flex-none sm:w-32 grid gap-1.5">
                         <Label className="text-sm">Total de Pontos</Label>
                         <div className="h-10 px-3 py-2 border border-gray-300 bg-blue-100 rounded-md flex items-center justify-center">
                           <span className="font-bold text-blue-800">{pontosTotais} pts</span>
@@ -381,10 +399,7 @@ const LancarResultadoModal = ({ prova, isOpen, onClose }) => {
                 );
 
                 // --- CÁLCULO EM TEMPO REAL ---
-                const quantidade = Number(res.valor) || 0;
-                const pontosBaseSemTeto = quantidade * pontosPorUnidade;
-                const tetoAtingido = limitePorcoes > 0 && pontosBaseSemTeto > limitePorcoes;
-                const pontosBase = tetoAtingido ? limitePorcoes : pontosBaseSemTeto;
+                const { pontos: pontosBase, tetoAtingido } = pontuarPorUnidade(regrasPontuacao, Number(res.valor) || 0);
                 const pontosTotais = calcularPontosTotais(res);
                 // -----------------------------
 
@@ -392,7 +407,7 @@ const LancarResultadoModal = ({ prova, isOpen, onClose }) => {
                   <div key={index} className="space-y-3 p-3 bg-gray-50 border border-gray-200 rounded-md">
 
                     {/* LINHA PRINCIPAL */}
-                    <div className="grid grid-cols-3 gap-x-4 gap-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-4 gap-y-3">
 
                       {/* Seletor de Equipe */}
                       <div className="col-span-1 grid gap-1.5">
@@ -407,8 +422,8 @@ const LancarResultadoModal = ({ prova, isOpen, onClose }) => {
                           </SelectTrigger>
                           <SelectContent className="bg-white border-gray-300">
                             {equipesDisponiveis.map(eq => (
-                              <SelectItem key={eq._id} value={eq._id} style={{ color: eq.cor || 'black' }}>
-                                {eq.nome}
+                              <SelectItem key={eq._id} value={eq._id}>
+                                <OpcaoEquipe equipe={eq} />
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -439,7 +454,7 @@ const LancarResultadoModal = ({ prova, isOpen, onClose }) => {
                           <span className={`font-bold text-base ${tetoAtingido ? 'text-amber-700' : 'text-blue-800'}`}>{pontosTotais} pts</span>
                         </div>
                         {tetoAtingido && (
-                          <p className="text-xs text-amber-700">Teto atingido (máx {limitePorcoes} pts)</p>
+                          <p className="text-xs text-amber-700">Teto atingido ({descricaoTeto})</p>
                         )}
                       </div>
                     </div>
@@ -488,21 +503,21 @@ const LancarResultadoModal = ({ prova, isOpen, onClose }) => {
                 )
               })}
 
-              {tipoPontuacao === 'LIMIAR' && resultados.map((res, index) => {
+              {tipoPontuacao === 'SUBJETIVA' && resultados.map((res, index) => {
                 const equipesDisponiveis = equipes.filter(
                   (eq) => eq._id === res.equipe_id || !idsEquipesSelecionadas.includes(eq._id)
                 );
 
-                const quantidade = Number(res.valor) || 0;
-                const atingiuMinimo = quantidade >= quantidadeMinima;
-                const pontosBase = atingiuMinimo ? pontuacaoFixa : 0;
+                const preenchida = String(res.valor).trim() !== '';
+                const foraDaFaixa = preenchida && !notaDentroDaFaixa(res.valor);
+                const pontosBase = Number(res.valor) || 0;
                 const pontosTotais = calcularPontosTotais(res);
 
                 return (
                   <div key={index} className="space-y-3 p-3 bg-gray-50 border border-gray-200 rounded-md">
 
                     {/* LINHA PRINCIPAL */}
-                    <div className="grid grid-cols-3 gap-x-4 gap-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-4 gap-y-3">
 
                       {/* Seletor de Equipe */}
                       <div className="col-span-1 grid gap-1.5">
@@ -517,8 +532,103 @@ const LancarResultadoModal = ({ prova, isOpen, onClose }) => {
                           </SelectTrigger>
                           <SelectContent className="bg-white border-gray-300">
                             {equipesDisponiveis.map(eq => (
-                              <SelectItem key={eq._id} value={eq._id} style={{ color: eq.cor || 'black' }}>
-                                {eq.nome}
+                              <SelectItem key={eq._id} value={eq._id}>
+                                <OpcaoEquipe equipe={eq} />
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Input da Nota */}
+                      <div className="col-span-1 grid gap-1.5">
+                        <Label htmlFor={`valor-${index}`} className="text-sm">
+                          Nota (0 a {pontuacaoMaxima})
+                        </Label>
+                        <Input
+                          id={`valor-${index}`}
+                          type="number"
+                          min="0"
+                          max={pontuacaoMaxima}
+                          value={res.valor}
+                          onChange={(e) => handleResultadoChange(index, 'valor', e.target.value)}
+                          placeholder={`Ex: ${pontuacaoMaxima}`}
+                          className={`bg-white ${foraDaFaixa ? 'border-red-400' : 'border-gray-300'}`}
+                          disabled={submitting}
+                        />
+                        {foraDaFaixa && (
+                          <p className="text-xs text-red-700">A nota deve estar entre 0 e {pontuacaoMaxima}.</p>
+                        )}
+                      </div>
+
+                      {/* Total de Pontos */}
+                      <div className="col-span-1 grid gap-1.5">
+                        <Label className="text-sm">Total de Pontos</Label>
+                        <div className="h-10 px-3 py-2 border border-gray-300 bg-blue-100 rounded-md flex items-center justify-center">
+                          <span className="font-bold text-base text-blue-800">{pontosTotais} pts</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* CATEGORIAS DE BÔNUS - se houver */}
+                    {bonusCategorias.length > 0 && (
+                      <>
+                        <div className="grid grid-cols-2 gap-3 px-1">
+                          <div className="text-xs text-gray-600 font-medium">Nota: {pontosBase} pts</div>
+                          <div className="text-xs text-gray-600 font-medium">Bônus: {(pontosTotais - pontosBase)} pts</div>
+                        </div>
+                        {renderCategoriasBonus(index, res.quesitos)}
+                      </>
+                    )}
+
+                    <div className="flex justify-end">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => removerLinha(index)}
+                        disabled={resultados.length <= 1 || submitting}
+                        className="border-gray-300 hover:bg-red-50 hover:text-red-600"
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Remover
+                      </Button>
+                    </div>
+                  </div>
+                )
+              })}
+
+              {tipoPontuacao === 'LIMIAR' && resultados.map((res, index) => {
+                const equipesDisponiveis = equipes.filter(
+                  (eq) => eq._id === res.equipe_id || !idsEquipesSelecionadas.includes(eq._id)
+                );
+
+                const quantidade = Number(res.valor) || 0;
+                const atingiuMinimo = quantidade >= quantidadeMinima;
+                const pontosBase = atingiuMinimo ? pontuacaoFixa : 0;
+                const pontosTotais = calcularPontosTotais(res);
+
+                return (
+                  <div key={index} className="space-y-3 p-3 bg-gray-50 border border-gray-200 rounded-md">
+
+                    {/* LINHA PRINCIPAL */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-4 gap-y-3">
+
+                      {/* Seletor de Equipe */}
+                      <div className="col-span-1 grid gap-1.5">
+                        <Label htmlFor={`equipe-${index}`} className="text-sm">Equipe</Label>
+                        <Select
+                          value={res.equipe_id}
+                          onValueChange={(valor) => handleResultadoChange(index, 'equipe_id', valor)}
+                          disabled={submitting}
+                        >
+                          <SelectTrigger id={`equipe-${index}`} className="bg-white border-gray-300">
+                            <SelectValue placeholder="Selecione uma equipe" />
+                          </SelectTrigger>
+                          <SelectContent className="bg-white border-gray-300">
+                            {equipesDisponiveis.map(eq => (
+                              <SelectItem key={eq._id} value={eq._id}>
+                                <OpcaoEquipe equipe={eq} />
                               </SelectItem>
                             ))}
                           </SelectContent>

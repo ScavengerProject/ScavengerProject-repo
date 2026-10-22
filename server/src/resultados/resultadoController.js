@@ -4,6 +4,11 @@ import EquipeGincana from '../models/EquipeGincana.js';
 import Equipe from '../models/Equipe.js';
 import mongoose from 'mongoose';
 import { calcularStatusProva } from '../provas/provaController.js';
+import { tipoDaPontuacao, pontuarPorUnidade } from '../provas/tipoPontuacao.js';
+
+// Erro de dado enviado pelo avaliador (não do servidor): o catch de
+// lancarResultados responde 400 em vez de 500.
+const erroDeValidacao = (mensagem) => Object.assign(new Error(mensagem), { status: 400 });
 
 const escaparRegex = (texto) => String(texto).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -97,12 +102,7 @@ export const listarResultadosDaProva = async (req, res) => {
     }
 
     // 2. Determina o tipo de pontuação (para saber como extrair o 'valor')
-    const regras = prova.pontuacao || {};
-    const tipo = regras.pontos_por_unidade
-      ? 'PROPORCIONAL'
-      : Object.prototype.hasOwnProperty.call(regras, 'quantidade_minima')
-        ? 'LIMIAR'
-        : 'RANKING';
+    const tipo = tipoDaPontuacao(prova.pontuacao);
 
     // 3. Formata a resposta, incluindo o 'valor' original
     const resultadosFormatados = resultados.map((r, index) => {
@@ -184,6 +184,12 @@ export const lancarResultados = async (req, res) => {
       throw new Error('A prova precisa estar "CONCLUIDA"');
     }
     const regrasPontuacao = prova.pontuacao || {};
+
+    // O tipo vem das regras da PROVA. O do corpo só é conferido: se valesse,
+    // bastaria mandar "RANKING" numa prova subjetiva para fugir da nota máxima.
+    if (tipo !== tipoDaPontuacao(regrasPontuacao)) {
+      throw erroDeValidacao(`O tipo de lançamento "${tipo}" não corresponde à pontuação da prova.`);
+    }
 
     // Categorias de bônus configuradas na prova (ex-alunos, pais/mães, ...)
     const bonusCategorias = prova.bonus_categorias || [];
@@ -294,15 +300,26 @@ export const lancarResultados = async (req, res) => {
       }
       else if (tipo === 'PROPORCIONAL') {
         const quantidade = Number(res.valor) || 0;
-        const pontosPorUnidade = Number(regrasPontuacao.pontos_por_unidade) || 0;
-        pontuacao_base = quantidade * pontosPorUnidade;
-        detalhes_pontuacao = `${quantidade} ${regrasPontuacao.nome_unidade || 'unidades'}`;
+        const unidade = regrasPontuacao.nome_unidade || 'unidades';
+        const { pontos, tetoAtingido } = pontuarPorUnidade(regrasPontuacao, quantidade);
+        pontuacao_base = pontos;
+        detalhes_pontuacao = `${quantidade} ${unidade}`;
 
-        const limitePorcoes = Number(regrasPontuacao.limite_pontuacao_porcoes) || 0;
-        if (limitePorcoes > 0 && pontuacao_base > limitePorcoes) {
-          pontuacao_base = limitePorcoes;
-          detalhes_pontuacao = `${quantidade} ${regrasPontuacao.nome_unidade || 'unidades'} (teto atingido: ${limitePorcoes} pts)`;
+        if (tetoAtingido) {
+          detalhes_pontuacao += regrasPontuacao.teto_unidades != null
+            ? ` (teto atingido: contam ${regrasPontuacao.teto_unidades})`
+            : ` (teto atingido: ${pontos} pts)`;
         }
+      }
+      else if (tipo === 'SUBJETIVA') {
+        const nota = Number(res.valor);
+        const maxima = Number(regrasPontuacao.pontuacao_maxima) || 0;
+        if (!Number.isFinite(nota) || nota < 0 || nota > maxima) {
+          const nomeEquipe = equipeExiste.nome || res.equipe_id;
+          throw erroDeValidacao(`A nota da equipe ${nomeEquipe} deve estar entre 0 e ${maxima}.`);
+        }
+        pontuacao_base = nota;
+        detalhes_pontuacao = `Nota ${nota} de ${maxima}`;
       }
       else if (tipo === 'LIMIAR') {
         const quantidade = Number(res.valor) || 0;
@@ -374,7 +391,7 @@ export const lancarResultados = async (req, res) => {
     console.error('❌ ERRO ao lançar resultados:', error);
     console.error('❌ Stack trace:', error.stack);
     console.error('❌ Error message:', error.message);
-    res.status(500).json({
+    res.status(error.status || 500).json({
       message: error.message || 'Erro interno ao salvar resultados.',
       details: error.stack
     });

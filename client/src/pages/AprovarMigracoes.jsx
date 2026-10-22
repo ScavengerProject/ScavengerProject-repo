@@ -9,6 +9,7 @@ import { useAuth } from '../hooks/useAuth';
 import MainLayout from '../components/MainLayout';
 import { migracoesService } from '../services/api';
 import { Check, X, Clock, ArrowRight } from 'lucide-react';
+import { emailQuebravel } from '../lib/utils';
 
 export default function AprovarMigracoes() {
   const { usuario, logout } = useAuth();
@@ -103,15 +104,15 @@ export default function AprovarMigracoes() {
             solicitacoes.map((sol) => (
               <Card key={sol._id} className="bg-white border-gray-200 shadow-md hover:shadow-lg transition-shadow">
                 <CardContent className="py-4">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1 space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                    <div className="flex-1 min-w-0 space-y-3">
                       {/* Solicitante */}
                       <div>
                         <p className="font-semibold text-gray-900 text-lg">
                           {sol.usuario_id?.nome || '—'}
                         </p>
                         {sol.usuario_id?.email && (
-                          <p className="text-sm text-gray-600">{sol.usuario_id.email}</p>
+                          <p className="text-sm text-gray-600 break-words">{emailQuebravel(sol.usuario_id.email)}</p>
                         )}
                       </div>
 
