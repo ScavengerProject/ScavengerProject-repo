@@ -165,6 +165,11 @@ const LancarResultadoModal = ({ prova, isOpen, onClose }) => {
         setSubmitting(false);
         return;
       }
+      if (tipoPontuacao === 'SUBJETIVA' && resultadosValidos.some(r => !notaDentroDaFaixa(r.valor))) {
+        toast.error(`As notas devem estar entre 0 e ${pontuacaoMaxima}.`);
+        setSubmitting(false);
+        return;
+      }
       const dadosFormatados = resultadosValidos.map(r => ({
         equipe_id: r.equipe_id,
         valor: (tipoPontuacao === 'RANKING' ? r.valor.toString() : Number(r.valor)),
@@ -191,6 +196,11 @@ const LancarResultadoModal = ({ prova, isOpen, onClose }) => {
   const nomeUnidade = regrasPontuacao.nome_unidade || 'unidade';
   const quantidadeMinima = Number(regrasPontuacao.quantidade_minima) || 0;
   const pontuacaoFixa = Number(regrasPontuacao.pontuacao_fixa) || 0;
+  const pontuacaoMaxima = Number(regrasPontuacao.pontuacao_maxima) || 0;
+  const notaDentroDaFaixa = (valor) => {
+    const nota = Number(valor);
+    return String(valor).trim() !== '' && nota >= 0 && nota <= pontuacaoMaxima;
+  };
 
   // Categorias de bônus configuradas na prova (ex-alunos, pais/mães, ...)
   const bonusCategorias = prova.bonus_categorias || [];
@@ -215,6 +225,8 @@ const LancarResultadoModal = ({ prova, isOpen, onClose }) => {
     if (tipoPontuacao === 'RANKING') {
       const posicao = Number(resultado.valor);
       pontosBase = Number(regrasPontuacao[posicao]) || 0;
+    } else if (tipoPontuacao === 'SUBJETIVA') {
+      pontosBase = Number(resultado.valor) || 0;
     } else if (tipoPontuacao === 'LIMIAR') {
       const quantidade = Number(resultado.valor) || 0;
       pontosBase = quantidade >= quantidadeMinima ? pontuacaoFixa : 0;
@@ -485,6 +497,101 @@ const LancarResultadoModal = ({ prova, isOpen, onClose }) => {
                         </Button>
                       </div>
                     )}
+                  </div>
+                )
+              })}
+
+              {tipoPontuacao === 'SUBJETIVA' && resultados.map((res, index) => {
+                const equipesDisponiveis = equipes.filter(
+                  (eq) => eq._id === res.equipe_id || !idsEquipesSelecionadas.includes(eq._id)
+                );
+
+                const preenchida = String(res.valor).trim() !== '';
+                const foraDaFaixa = preenchida && !notaDentroDaFaixa(res.valor);
+                const pontosBase = Number(res.valor) || 0;
+                const pontosTotais = calcularPontosTotais(res);
+
+                return (
+                  <div key={index} className="space-y-3 p-3 bg-gray-50 border border-gray-200 rounded-md">
+
+                    {/* LINHA PRINCIPAL */}
+                    <div className="grid grid-cols-3 gap-x-4 gap-y-3">
+
+                      {/* Seletor de Equipe */}
+                      <div className="col-span-1 grid gap-1.5">
+                        <Label htmlFor={`equipe-${index}`} className="text-sm">Equipe</Label>
+                        <Select
+                          value={res.equipe_id}
+                          onValueChange={(valor) => handleResultadoChange(index, 'equipe_id', valor)}
+                          disabled={submitting}
+                        >
+                          <SelectTrigger id={`equipe-${index}`} className="bg-white border-gray-300">
+                            <SelectValue placeholder="Selecione uma equipe" />
+                          </SelectTrigger>
+                          <SelectContent className="bg-white border-gray-300">
+                            {equipesDisponiveis.map(eq => (
+                              <SelectItem key={eq._id} value={eq._id}>
+                                <OpcaoEquipe equipe={eq} />
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Input da Nota */}
+                      <div className="col-span-1 grid gap-1.5">
+                        <Label htmlFor={`valor-${index}`} className="text-sm">
+                          Nota (0 a {pontuacaoMaxima})
+                        </Label>
+                        <Input
+                          id={`valor-${index}`}
+                          type="number"
+                          min="0"
+                          max={pontuacaoMaxima}
+                          value={res.valor}
+                          onChange={(e) => handleResultadoChange(index, 'valor', e.target.value)}
+                          placeholder={`Ex: ${pontuacaoMaxima}`}
+                          className={`bg-white ${foraDaFaixa ? 'border-red-400' : 'border-gray-300'}`}
+                          disabled={submitting}
+                        />
+                        {foraDaFaixa && (
+                          <p className="text-xs text-red-700">A nota deve estar entre 0 e {pontuacaoMaxima}.</p>
+                        )}
+                      </div>
+
+                      {/* Total de Pontos */}
+                      <div className="col-span-1 grid gap-1.5">
+                        <Label className="text-sm">Total de Pontos</Label>
+                        <div className="h-10 px-3 py-2 border border-gray-300 bg-blue-100 rounded-md flex items-center justify-center">
+                          <span className="font-bold text-base text-blue-800">{pontosTotais} pts</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* CATEGORIAS DE BÔNUS - se houver */}
+                    {bonusCategorias.length > 0 && (
+                      <>
+                        <div className="grid grid-cols-2 gap-3 px-1">
+                          <div className="text-xs text-gray-600 font-medium">Nota: {pontosBase} pts</div>
+                          <div className="text-xs text-gray-600 font-medium">Bônus: {(pontosTotais - pontosBase)} pts</div>
+                        </div>
+                        {renderCategoriasBonus(index, res.quesitos)}
+                      </>
+                    )}
+
+                    <div className="flex justify-end">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => removerLinha(index)}
+                        disabled={resultados.length <= 1 || submitting}
+                        className="border-gray-300 hover:bg-red-50 hover:text-red-600"
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Remover
+                      </Button>
+                    </div>
                   </div>
                 )
               })}

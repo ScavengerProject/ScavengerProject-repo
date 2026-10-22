@@ -126,6 +126,32 @@ describe('provaController - criarProva', () => {
 
     expect(res.status).toHaveBeenCalledWith(400);
   });
+
+  it.each([0, -5, undefined])('recusa prova subjetiva com pontuação máxima %s', async (maxima) => {
+    const req = {
+      usuario: { id: adminId },
+      body: { titulo: 'Desfile', descricao: 'd', formato: 'PROVA_PRATICA', pontuacao: { pontuacao_maxima: maxima } },
+    };
+    const res = mockRes();
+
+    await criarProva(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(await Prova.countDocuments()).toBe(0);
+  });
+
+  it('cria prova subjetiva com pontuação máxima positiva', async () => {
+    const req = {
+      usuario: { id: adminId },
+      body: { titulo: 'Desfile', descricao: 'd', formato: 'PROVA_PRATICA', pontuacao: { pontuacao_maxima: 500 } },
+    };
+    const res = mockRes();
+
+    await criarProva(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.json.mock.calls[0][0].pontuacao).toEqual({ pontuacao_maxima: 500 });
+  });
 });
 
 describe('provaController - obter/atualizar/deletar', () => {

@@ -10,6 +10,7 @@ const tem = (obj, chave) => Object.prototype.hasOwnProperty.call(obj, chave);
 
 export const tipoDaPontuacao = (pontuacao) => {
   const regras = pontuacao || {};
+  if (tem(regras, 'pontuacao_maxima')) return 'SUBJETIVA';
   if (tem(regras, 'pontos_por_unidade')) return 'PROPORCIONAL';
   if (tem(regras, 'quantidade_minima')) return 'LIMIAR';
   return 'RANKING';
@@ -40,4 +41,19 @@ export const pontuarPorUnidade = (regras, quantidade) => {
     return { pontos: limiteLegado, tetoAtingido: true };
   }
   return { pontos: pontosSemTeto, tetoAtingido: false };
+};
+
+/**
+ * Erro de configuração da pontuação, ou null se ela é válida. Por enquanto só
+ * a SUBJETIVA tem o que validar: sem uma nota máxima positiva não há faixa em
+ * que o avaliador possa lançar.
+ */
+export const validarPontuacao = (pontuacao) => {
+  if (tipoDaPontuacao(pontuacao) === 'SUBJETIVA') {
+    const maxima = Number(pontuacao.pontuacao_maxima);
+    if (!Number.isFinite(maxima) || maxima <= 0) {
+      return 'A pontuação máxima da prova subjetiva deve ser maior que zero.';
+    }
+  }
+  return null;
 };

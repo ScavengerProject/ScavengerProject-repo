@@ -6,6 +6,10 @@ import mongoose from 'mongoose';
 import { calcularStatusProva } from '../provas/provaController.js';
 import { tipoDaPontuacao, pontuarPorUnidade } from '../provas/tipoPontuacao.js';
 
+// Erro de dado enviado pelo avaliador (não do servidor): o catch de
+// lancarResultados responde 400 em vez de 500.
+const erroDeValidacao = (mensagem) => Object.assign(new Error(mensagem), { status: 400 });
+
 const escaparRegex = (texto) => String(texto).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /**
@@ -181,6 +185,12 @@ export const lancarResultados = async (req, res) => {
     }
     const regrasPontuacao = prova.pontuacao || {};
 
+    // O tipo vem das regras da PROVA. O do corpo só é conferido: se valesse,
+    // bastaria mandar "RANKING" numa prova subjetiva para fugir da nota máxima.
+    if (tipo !== tipoDaPontuacao(regrasPontuacao)) {
+      throw erroDeValidacao(`O tipo de lançamento "${tipo}" não corresponde à pontuação da prova.`);
+    }
+
     // Categorias de bônus configuradas na prova (ex-alunos, pais/mães, ...)
     const bonusCategorias = prova.bonus_categorias || [];
 
@@ -301,6 +311,16 @@ export const lancarResultados = async (req, res) => {
             : ` (teto atingido: ${pontos} pts)`;
         }
       }
+      else if (tipo === 'SUBJETIVA') {
+        const nota = Number(res.valor);
+        const maxima = Number(regrasPontuacao.pontuacao_maxima) || 0;
+        if (!Number.isFinite(nota) || nota < 0 || nota > maxima) {
+          const nomeEquipe = equipeExiste.nome || res.equipe_id;
+          throw erroDeValidacao(`A nota da equipe ${nomeEquipe} deve estar entre 0 e ${maxima}.`);
+        }
+        pontuacao_base = nota;
+        detalhes_pontuacao = `Nota ${nota} de ${maxima}`;
+      }
       else if (tipo === 'LIMIAR') {
         const quantidade = Number(res.valor) || 0;
         const minimo = Number(regrasPontuacao.quantidade_minima) || 0;
@@ -371,7 +391,7 @@ export const lancarResultados = async (req, res) => {
     console.error('❌ ERRO ao lançar resultados:', error);
     console.error('❌ Stack trace:', error.stack);
     console.error('❌ Error message:', error.message);
-    res.status(500).json({
+    res.status(error.status || 500).json({
       message: error.message || 'Erro interno ao salvar resultados.',
       details: error.stack
     });

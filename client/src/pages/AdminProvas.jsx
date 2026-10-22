@@ -254,6 +254,11 @@ const AdminProvas = () => {
       return;
     }
 
+    if (tipoPontuacao === 'SUBJETIVA' && !(Number(formData.pontuacao.pontuacao_maxima) > 0)) {
+      toast.error("Informe a pontuação máxima da prova subjetiva");
+      return;
+    }
+
     try {
       setSubmitting(true);
 
@@ -630,6 +635,7 @@ const AdminProvas = () => {
                         <SelectItem value="RANKING">Por Posição (1º, 2º, 3º)</SelectItem>
                         <SelectItem value="PROPORCIONAL">Por Unidade (Ex: por doação)</SelectItem>
                         <SelectItem value="LIMIAR">Tudo ou nada (mínimo obrigatório)</SelectItem>
+                        <SelectItem value="SUBJETIVA">Subjetiva (nota até um máximo)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -768,6 +774,28 @@ const AdminProvas = () => {
                           </p>
                         )}
                       </div>
+                    </div>
+                  )}
+
+                  {/* 2d. Input para TIPO SUBJETIVA (nota do avaliador até um máximo) */}
+                  {tipoPontuacao === 'SUBJETIVA' && (
+                    <div className="grid gap-1 pt-2">
+                      <Label htmlFor="pontuacao_maxima" className="text-sm font-normal text-gray-700">
+                        Pontuação máxima *
+                      </Label>
+                      <Input
+                        id="pontuacao_maxima" type="number" min="1"
+                        value={formData.pontuacao.pontuacao_maxima ?? ""}
+                        onChange={(e) => setFormData(prev => ({
+                          ...prev,
+                          pontuacao: { pontuacao_maxima: e.target.value === "" ? undefined : Number(e.target.value) },
+                        }))}
+                        placeholder="Ex: 500" className="bg-white border-gray-300" disabled={submitting}
+                      />
+                      <p className="text-xs text-gray-500">
+                        No lançamento do resultado, o avaliador dá a cada equipe uma nota de 0 até este valor.
+                        As categorias de bônus somam por cima da nota.
+                      </p>
                     </div>
                   )}
 

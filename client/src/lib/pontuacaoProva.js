@@ -10,6 +10,7 @@ const tem = (obj, chave) => Object.prototype.hasOwnProperty.call(obj, chave);
 
 export const tipoDaPontuacao = (pontuacao) => {
   const regras = pontuacao || {};
+  if (tem(regras, 'pontuacao_maxima')) return 'SUBJETIVA';
   if (tem(regras, 'pontos_por_unidade')) return 'PROPORCIONAL';
   if (tem(regras, 'quantidade_minima')) return 'LIMIAR';
   return 'RANKING';
@@ -56,6 +57,7 @@ export const NOME_TIPO_PONTUACAO = {
   RANKING: 'Por Posição',
   PROPORCIONAL: 'Por Unidade',
   LIMIAR: 'Tudo ou Nada',
+  SUBJETIVA: 'Nota Subjetiva',
 };
 
 /**
@@ -75,6 +77,10 @@ export const descreverPontuacao = (pontuacao, { mostrarPontos = true } = {}) => 
       const teto = descreverTetoPorUnidade(pontuacao, { mostrarPontos });
       return teto ? `${base}, ${teto}` : base;
     }
+    case 'SUBJETIVA':
+      return mostrarPontos
+        ? `Nota do avaliador, de 0 a ${pontuacao.pontuacao_maxima} pts`
+        : 'Nota do avaliador';
     case 'LIMIAR':
       return mostrarPontos
         ? `${pontuacao.pontuacao_fixa || 0} pts ao atingir ${pontuacao.quantidade_minima} ${unidade}`

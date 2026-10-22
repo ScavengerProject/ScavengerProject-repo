@@ -6,6 +6,7 @@ describe('tipoDaPontuacao', () => {
     expect(tipoDaPontuacao({ 1: 300, 2: 200 })).toBe('RANKING');
     expect(tipoDaPontuacao({ pontos_por_unidade: 50, nome_unidade: 'doação' })).toBe('PROPORCIONAL');
     expect(tipoDaPontuacao({ quantidade_minima: 30, pontuacao_fixa: 300 })).toBe('LIMIAR');
+    expect(tipoDaPontuacao({ pontuacao_maxima: 500 })).toBe('SUBJETIVA');
   });
 
   it('cai em RANKING sem pontuação configurada', () => {
@@ -28,6 +29,8 @@ describe('descreverPontuacao', () => {
     expect(descreverPontuacao({ 1: 300, 2: 200 }, { mostrarPontos: false })).toBe('1º lugar | 2º lugar');
     expect(descreverPontuacao({ pontos_por_unidade: 50, nome_unidade: 'doação' }, { mostrarPontos: false }))
       .toBe('Pontos por doação');
+    expect(descreverPontuacao({ pontuacao_maxima: 500 })).toBe('Nota do avaliador, de 0 a 500 pts');
+    expect(descreverPontuacao({ pontuacao_maxima: 500 }, { mostrarPontos: false })).toBe('Nota do avaliador');
   });
 });
 
