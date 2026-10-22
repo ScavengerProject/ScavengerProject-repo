@@ -14,3 +14,30 @@ export const tipoDaPontuacao = (pontuacao) => {
   if (tem(regras, 'quantidade_minima')) return 'LIMIAR';
   return 'RANKING';
 };
+
+/**
+ * Pontuação base de uma prova por unidade (PROPORCIONAL), com o teto aplicado.
+ *
+ * O teto é `teto_unidades`: quantas unidades contam, a mesma medida do teto das
+ * categorias de bônus (ter um em pontos e o outro em unidades confundia quem
+ * cria a prova). `limite_pontuacao_porcoes` é o teto antigo, em PONTOS: só vale
+ * para prova que ainda não foi convertida por `npm run migrar:teto-unidades`
+ * nem editada depois disso.
+ *
+ * @returns {{ pontos: number, tetoAtingido: boolean }}
+ */
+export const pontuarPorUnidade = (regras, quantidade) => {
+  const pontosPorUnidade = Number(regras?.pontos_por_unidade) || 0;
+
+  if (regras?.teto_unidades != null) {
+    const teto = Number(regras.teto_unidades);
+    return { pontos: Math.min(quantidade, teto) * pontosPorUnidade, tetoAtingido: quantidade > teto };
+  }
+
+  const pontosSemTeto = quantidade * pontosPorUnidade;
+  const limiteLegado = Number(regras?.limite_pontuacao_porcoes) || 0;
+  if (limiteLegado > 0 && pontosSemTeto > limiteLegado) {
+    return { pontos: limiteLegado, tetoAtingido: true };
+  }
+  return { pontos: pontosSemTeto, tetoAtingido: false };
+};

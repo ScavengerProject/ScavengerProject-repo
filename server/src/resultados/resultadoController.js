@@ -4,7 +4,7 @@ import EquipeGincana from '../models/EquipeGincana.js';
 import Equipe from '../models/Equipe.js';
 import mongoose from 'mongoose';
 import { calcularStatusProva } from '../provas/provaController.js';
-import { tipoDaPontuacao } from '../provas/tipoPontuacao.js';
+import { tipoDaPontuacao, pontuarPorUnidade } from '../provas/tipoPontuacao.js';
 
 const escaparRegex = (texto) => String(texto).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -290,14 +290,15 @@ export const lancarResultados = async (req, res) => {
       }
       else if (tipo === 'PROPORCIONAL') {
         const quantidade = Number(res.valor) || 0;
-        const pontosPorUnidade = Number(regrasPontuacao.pontos_por_unidade) || 0;
-        pontuacao_base = quantidade * pontosPorUnidade;
-        detalhes_pontuacao = `${quantidade} ${regrasPontuacao.nome_unidade || 'unidades'}`;
+        const unidade = regrasPontuacao.nome_unidade || 'unidades';
+        const { pontos, tetoAtingido } = pontuarPorUnidade(regrasPontuacao, quantidade);
+        pontuacao_base = pontos;
+        detalhes_pontuacao = `${quantidade} ${unidade}`;
 
-        const limitePorcoes = Number(regrasPontuacao.limite_pontuacao_porcoes) || 0;
-        if (limitePorcoes > 0 && pontuacao_base > limitePorcoes) {
-          pontuacao_base = limitePorcoes;
-          detalhes_pontuacao = `${quantidade} ${regrasPontuacao.nome_unidade || 'unidades'} (teto atingido: ${limitePorcoes} pts)`;
+        if (tetoAtingido) {
+          detalhes_pontuacao += regrasPontuacao.teto_unidades != null
+            ? ` (teto atingido: contam ${regrasPontuacao.teto_unidades})`
+            : ` (teto atingido: ${pontos} pts)`;
         }
       }
       else if (tipo === 'LIMIAR') {

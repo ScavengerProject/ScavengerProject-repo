@@ -731,31 +731,42 @@ const AdminProvas = () => {
                           />
                         </div>
                       </div>
-                      {/* Teto de pontos */}
+                      {/* Teto em unidades (mesma medida do teto das categorias de bônus) */}
                       <div className="grid gap-1">
-                        <Label htmlFor="limite_pontuacao_porcoes" className="text-sm font-normal text-gray-700">
-                          Teto de pontos por porção (opcional)
+                        <Label htmlFor="teto_unidades_pontuacao" className="text-sm font-normal text-gray-700">
+                          Máx. de unidades que contam (opcional)
                         </Label>
                         <Input
-                          id="limite_pontuacao_porcoes" type="number" min="0"
-                          value={formData.pontuacao.limite_pontuacao_porcoes || ""}
+                          id="teto_unidades_pontuacao" type="number" min="0"
+                          value={formData.pontuacao.teto_unidades ?? ""}
                           onChange={(e) => {
                             const val = e.target.value;
-                            setFormData(prev => ({
-                              ...prev,
-                              pontuacao: {
-                                ...prev.pontuacao,
-                                limite_pontuacao_porcoes: val === "" ? undefined : Number(val),
-                              },
-                            }));
+                            setFormData(prev => {
+                              // O teto antigo, em pontos, sai assim que o novo é informado.
+                              const { teto_unidades, limite_pontuacao_porcoes, ...resto } = prev.pontuacao;
+                              return {
+                                ...prev,
+                                pontuacao: val === ""
+                                  ? { ...resto, ...(limite_pontuacao_porcoes != null && { limite_pontuacao_porcoes }) }
+                                  : { ...resto, teto_unidades: Number(val) },
+                              };
+                            });
                           }}
-                          placeholder="Ex: 500 — deixe em branco para sem teto"
+                          placeholder="Ex: 10 (em branco, todas contam)"
                           className="bg-white border-gray-300"
                           disabled={submitting}
                         />
                         <p className="text-xs text-gray-500">
-                          Limite máximo de pontos que uma equipe pode acumular nesta prova. Impede acúmulo desproporcional.
+                          {formData.pontuacao.teto_unidades != null
+                            ? `Contam até ${formData.pontuacao.teto_unidades} unidades por equipe: no máximo ${formData.pontuacao.teto_unidades * (Number(formData.pontuacao.pontos_por_unidade) || 0)} pts nesta prova, sem contar o bônus.`
+                            : "Unidades além deste número não somam pontos. Impede acúmulo desproporcional."}
                         </p>
+                        {formData.pontuacao.teto_unidades == null && Number(formData.pontuacao.limite_pontuacao_porcoes) > 0 && (
+                          <p className="text-xs text-amber-700 font-medium">
+                            Esta prova ainda usa o teto antigo, em pontos (máximo de {formData.pontuacao.limite_pontuacao_porcoes} pts).
+                            Informe o máximo de unidades para substituí-lo.
+                          </p>
+                        )}
                       </div>
                     </div>
                   )}
@@ -818,7 +829,7 @@ const AdminProvas = () => {
                     </Label>
                     <p className="text-xs text-gray-500">
                       Pontos extra por unidade informada por equipe no lançamento de resultado
-                      (ex: "Ex-alunos" a 20 pts cada, com teto de 5 unidades = até 100 pts).
+                      (ex: "Ex-alunos" a 20 pts cada, contando no máximo 5 unidades = até 100 pts).
                     </p>
                     <div className="grid gap-3 p-3 border border-gray-300 rounded-md bg-gray-50">
                       {formData.bonus_categorias.map((categoria, index) => (
@@ -846,10 +857,10 @@ const AdminProvas = () => {
                             />
                           </div>
                           <div className="grid gap-1">
-                            <Label className="text-xs font-normal text-gray-700">Teto (opcional)</Label>
+                            <Label className="text-xs font-normal text-gray-700">Máx. de unidades (opcional)</Label>
                             <Input
                               type="number" min="0"
-                              value={categoria.teto_unidades}
+                              value={categoria.teto_unidades ?? ""}
                               onChange={(e) => atualizarCategoriaBonus(index, 'teto_unidades', e.target.value)}
                               placeholder="Ex: 5"
                               className="bg-white border-gray-300 text-sm"
@@ -866,6 +877,11 @@ const AdminProvas = () => {
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
+                          {categoria.teto_unidades !== "" && categoria.teto_unidades != null && (
+                            <p className="col-span-full text-xs text-gray-500">
+                              Contam até {categoria.teto_unidades} unidade(s): no máximo {Number(categoria.teto_unidades) * (Number(categoria.pontos_por_unidade) || 0)} pts de bônus.
+                            </p>
+                          )}
                         </div>
                       ))}
                       <Button

@@ -125,7 +125,40 @@ describe('resultadoController - lancarResultados (cálculo de pontos)', () => {
     expect(resultado.pontuacao_obtida).toBe(60); // 30 * 2
   });
 
-  it('PROPORCIONAL: aplica o teto (limite_pontuacao_porcoes) e registra no detalhe', async () => {
+  it('PROPORCIONAL: só contam as unidades até o teto_unidades', async () => {
+    const prova = await criarProvaConcluida({ pontos_por_unidade: 2, nome_unidade: 'doações', teto_unidades: 25 });
+    const equipe = await criarEquipeComGincana('Tetada em unidades');
+
+    const res = mockRes();
+    await lancarResultados(
+      { query: { provaId: prova._id.toString() }, body: { tipo: 'PROPORCIONAL', resultados: [{ equipe_id: equipe._id.toString(), valor: '40' }] }, usuario: { id: avaliadorId } },
+      res
+    );
+
+    const resultado = await Resultado.findOne({ prova_id: prova._id, equipe_id: equipe._id });
+    expect(resultado.pontuacao_obtida).toBe(50); // min(40, 25) × 2
+    expect(resultado.detalhes_pontuacao).toBe('40 doações (teto atingido: contam 25)');
+    // A quantidade digitada é o que reabre no modal, não a limitada.
+    expect(resultado.valor_informado).toBe('40');
+  });
+
+  it('PROPORCIONAL: abaixo do teto_unidades conta tudo', async () => {
+    const prova = await criarProvaConcluida({ pontos_por_unidade: 2, nome_unidade: 'doações', teto_unidades: 25 });
+    const equipe = await criarEquipeComGincana('Abaixo do teto');
+
+    await lancarResultados(
+      { query: { provaId: prova._id.toString() }, body: { tipo: 'PROPORCIONAL', resultados: [{ equipe_id: equipe._id.toString(), valor: '10' }] }, usuario: { id: avaliadorId } },
+      mockRes()
+    );
+
+    const resultado = await Resultado.findOne({ prova_id: prova._id, equipe_id: equipe._id });
+    expect(resultado.pontuacao_obtida).toBe(20);
+    expect(resultado.detalhes_pontuacao).toBe('10 doações');
+  });
+
+  // Prova ainda não convertida por migrar:teto-unidades: o teto antigo, em
+  // pontos, continua valendo.
+  it('PROPORCIONAL: aplica o teto antigo (limite_pontuacao_porcoes, em pontos) e registra no detalhe', async () => {
     const prova = await criarProvaConcluida({ pontos_por_unidade: 2, nome_unidade: 'doações', limite_pontuacao_porcoes: 50 });
     const equipe = await criarEquipeComGincana('Tetada');
 

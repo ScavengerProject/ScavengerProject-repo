@@ -20,7 +20,7 @@ import { Label } from "./ui/label";
 import { Loader, Trash2, Plus, Trophy } from "lucide-react";
 import { equipesService, resultadosService } from "../services/api";
 import { toast } from "./ui/toast";
-import { tipoDaPontuacao, NOME_TIPO_PONTUACAO } from "../lib/pontuacaoProva";
+import { tipoDaPontuacao, NOME_TIPO_PONTUACAO, pontuarPorUnidade, descreverTetoPorUnidade } from "../lib/pontuacaoProva";
 
 // Nome da equipe em texto escuro com a cor numa bolinha ao lado. Pintar o
 // próprio texto com a cor da equipe deixava equipes claras (ex: branca)
@@ -188,7 +188,6 @@ const LancarResultadoModal = ({ prova, isOpen, onClose }) => {
   const nomeTipoPontuacao = NOME_TIPO_PONTUACAO[tipoPontuacao];
 
   const regrasPontuacao = prova.pontuacao || {};
-  const pontosPorUnidade = Number(regrasPontuacao.pontos_por_unidade) || 0;
   const nomeUnidade = regrasPontuacao.nome_unidade || 'unidade';
   const quantidadeMinima = Number(regrasPontuacao.quantidade_minima) || 0;
   const pontuacaoFixa = Number(regrasPontuacao.pontuacao_fixa) || 0;
@@ -196,7 +195,7 @@ const LancarResultadoModal = ({ prova, isOpen, onClose }) => {
   // Categorias de bônus configuradas na prova (ex-alunos, pais/mães, ...)
   const bonusCategorias = prova.bonus_categorias || [];
 
-  const limitePorcoes = Number(regrasPontuacao.limite_pontuacao_porcoes) || 0;
+  const descricaoTeto = tipoPontuacao === 'PROPORCIONAL' ? descreverTetoPorUnidade(regrasPontuacao) : null;
 
   // Calcula os pontos de bônus de uma linha, já com o teto de cada categoria aplicado.
   const calcularPontosBonus = (resultado) => {
@@ -220,11 +219,7 @@ const LancarResultadoModal = ({ prova, isOpen, onClose }) => {
       const quantidade = Number(resultado.valor) || 0;
       pontosBase = quantidade >= quantidadeMinima ? pontuacaoFixa : 0;
     } else {
-      const quantidade = Number(resultado.valor) || 0;
-      pontosBase = quantidade * pontosPorUnidade;
-      if (limitePorcoes > 0 && pontosBase > limitePorcoes) {
-        pontosBase = limitePorcoes;
-      }
+      pontosBase = pontuarPorUnidade(regrasPontuacao, Number(resultado.valor) || 0).pontos;
     }
 
     return pontosBase + calcularPontosBonus(resultado);
@@ -294,9 +289,9 @@ const LancarResultadoModal = ({ prova, isOpen, onClose }) => {
                   </p>
                 </div>
               </div>
-              {tipoPontuacao === 'PROPORCIONAL' && limitePorcoes > 0 && (
+              {descricaoTeto && (
                 <p className="text-xs text-amber-700 font-medium">
-                  Teto de pontos configurado: máximo de {limitePorcoes} pts por equipe nesta prova.
+                  Teto configurado: {descricaoTeto} por equipe nesta prova.
                 </p>
               )}
             </div>
@@ -390,10 +385,7 @@ const LancarResultadoModal = ({ prova, isOpen, onClose }) => {
                 );
 
                 // --- CÁLCULO EM TEMPO REAL ---
-                const quantidade = Number(res.valor) || 0;
-                const pontosBaseSemTeto = quantidade * pontosPorUnidade;
-                const tetoAtingido = limitePorcoes > 0 && pontosBaseSemTeto > limitePorcoes;
-                const pontosBase = tetoAtingido ? limitePorcoes : pontosBaseSemTeto;
+                const { pontos: pontosBase, tetoAtingido } = pontuarPorUnidade(regrasPontuacao, Number(res.valor) || 0);
                 const pontosTotais = calcularPontosTotais(res);
                 // -----------------------------
 
@@ -448,7 +440,7 @@ const LancarResultadoModal = ({ prova, isOpen, onClose }) => {
                           <span className={`font-bold text-base ${tetoAtingido ? 'text-amber-700' : 'text-blue-800'}`}>{pontosTotais} pts</span>
                         </div>
                         {tetoAtingido && (
-                          <p className="text-xs text-amber-700">Teto atingido (máx {limitePorcoes} pts)</p>
+                          <p className="text-xs text-amber-700">Teto atingido ({descricaoTeto})</p>
                         )}
                       </div>
                     </div>

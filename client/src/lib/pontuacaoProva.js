@@ -15,6 +15,43 @@ export const tipoDaPontuacao = (pontuacao) => {
   return 'RANKING';
 };
 
+/**
+ * Pontuação base de uma prova por unidade (PROPORCIONAL), com o teto aplicado.
+ * O teto é `teto_unidades` (quantas unidades contam), na mesma medida do teto
+ * das categorias de bônus. `limite_pontuacao_porcoes` é o teto antigo, em
+ * PONTOS, de prova ainda não convertida. Espelha `pontuarPorUnidade` do backend.
+ */
+export const pontuarPorUnidade = (regras, quantidade) => {
+  const pontosPorUnidade = Number(regras?.pontos_por_unidade) || 0;
+
+  if (regras?.teto_unidades != null) {
+    const teto = Number(regras.teto_unidades);
+    return { pontos: Math.min(quantidade, teto) * pontosPorUnidade, tetoAtingido: quantidade > teto };
+  }
+
+  const pontosSemTeto = quantidade * pontosPorUnidade;
+  const limiteLegado = Number(regras?.limite_pontuacao_porcoes) || 0;
+  if (limiteLegado > 0 && pontosSemTeto > limiteLegado) {
+    return { pontos: limiteLegado, tetoAtingido: true };
+  }
+  return { pontos: pontosSemTeto, tetoAtingido: false };
+};
+
+/**
+ * Texto do teto de uma prova por unidade, ou null se ela não tem teto.
+ * Ex.: "contam até 10 unidades (500 pts)". Não usa `nome_unidade`: o
+ * formulário pede esse nome no singular ("doação").
+ */
+export const descreverTetoPorUnidade = (regras, { mostrarPontos = true } = {}) => {
+  if (regras?.teto_unidades != null) {
+    const pontos = Number(regras.teto_unidades) * (Number(regras.pontos_por_unidade) || 0);
+    return `contam até ${regras.teto_unidades} unidades${mostrarPontos ? ` (${pontos} pts)` : ''}`;
+  }
+  const limiteLegado = Number(regras?.limite_pontuacao_porcoes) || 0;
+  if (limiteLegado > 0) return mostrarPontos ? `máximo de ${limiteLegado} pts` : 'com teto';
+  return null;
+};
+
 export const NOME_TIPO_PONTUACAO = {
   RANKING: 'Por Posição',
   PROPORCIONAL: 'Por Unidade',
@@ -31,10 +68,13 @@ export const descreverPontuacao = (pontuacao, { mostrarPontos = true } = {}) => 
   const unidade = pontuacao.nome_unidade || 'unidades';
 
   switch (tipoDaPontuacao(pontuacao)) {
-    case 'PROPORCIONAL':
-      return mostrarPontos
+    case 'PROPORCIONAL': {
+      const base = mostrarPontos
         ? `${pontuacao.pontos_por_unidade} pts por ${unidade}`
         : `Pontos por ${unidade}`;
+      const teto = descreverTetoPorUnidade(pontuacao, { mostrarPontos });
+      return teto ? `${base}, ${teto}` : base;
+    }
     case 'LIMIAR':
       return mostrarPontos
         ? `${pontuacao.pontuacao_fixa || 0} pts ao atingir ${pontuacao.quantidade_minima} ${unidade}`

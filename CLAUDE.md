@@ -22,6 +22,11 @@ run each separately.
 - Migration/seed scripts (see "Migrating an existing DB" below):
   `node src/scripts/seedAdmin.js`, `node src/scripts/seedGincanaPrincipal.js`,
   `npm run migrar:gincana`, `npm run seed:escola`, `npm run migrar:papeis`
+- `npm run migrar:teto-unidades` (`-- --check` to only verify) — converts the
+  per-unit prova cap from points (`pontuacao.limite_pontuacao_porcoes`) to units
+  (`pontuacao.teto_unidades`, same measure as the bonus categories' cap). Only
+  exact divisions are converted; the rest are listed for an admin to edit, and
+  `pontuarPorUnidade` keeps applying the old cap until then.
 - `npm run inventario -- prod|dev|<db>` — read-only inventory of a database
   (doc counts + indexes per collection, deterministic output so two runs can be
   `diff`ed). Use it to capture a "before", to verify a restored backup, and to

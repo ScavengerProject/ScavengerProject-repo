@@ -105,6 +105,19 @@ describe('LancarResultadoModal', () => {
     expect(nome.previousElementSibling).toHaveStyle({ backgroundColor: 'rgb(255, 255, 255)' });
   });
 
+  it('aplica o teto em unidades no total da linha', async () => {
+    listarResultadosMock.mockResolvedValue([
+      { equipe_id: 'eq1', equipe_nome: 'Equipe Azul', valor: '30', quesitos: {}, pontos_obtidos: 40 },
+    ]);
+
+    abrir({ ...PROVA, pontuacao: { pontos_por_unidade: 2, nome_unidade: 'agasalhos', teto_unidades: 20 } });
+
+    // 30 agasalhos, mas só 20 contam: 20 × 2
+    expect(await screen.findByText(/Teto configurado: contam até 20 unidades \(40 pts\)/)).toBeInTheDocument();
+    expect(screen.getByText(/^40 pts$/)).toBeInTheDocument();
+    expect(screen.getByText(/Teto atingido/)).toBeInTheDocument();
+  });
+
   it('abre vazio quando a prova ainda não tem lançamento', async () => {
     listarResultadosMock.mockResolvedValue([]);
 
