@@ -1,5 +1,6 @@
 import { montarConteudo } from './conteudo';
 import v1_0_0 from './versoes/1.0.0';
+import v1_1_0 from './versoes/1.1.0';
 
 // Versões da central de ajuda, uma por versão do Arena. O sistema no ar é um
 // só, então a ajuda padrão (/ajuda) é sempre a da versão ATUAL; as anteriores
@@ -37,4 +38,4 @@ export function criarRegistro(versoes) {
 
 export const {
   VERSOES, VERSAO_ATUAL, temVariasVersoes, buscarVersao, caminhoAjuda,
-} = criarRegistro([v1_0_0].map(montarConteudo));
+} = criarRegistro([v1_1_0, v1_0_0].map(montarConteudo));
