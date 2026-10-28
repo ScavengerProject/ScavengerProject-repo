@@ -44,6 +44,10 @@ import CoordGerenciarOfertas from './pages/CoordGerenciarOfertas.jsx';
 import CoordGerenciarEmprestimos from './pages/CoordGerenciarEmprestimos.jsx';
 import CoordDefinirParticipacaoProva from './pages/CoordDefinirParticipacaoProva.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
+import LandingPage from './pages/LandingPage.jsx';
+import CentralAjuda from './pages/ajuda/CentralAjuda.jsx';
+import ArtigoAjuda from './pages/ajuda/ArtigoAjuda.jsx';
+import { GuardaVersao } from './pages/ajuda/versaoAjuda.jsx';
 import { ehAdmin, ehSuperAdmin } from './lib/perfis';
 
 // Rotas que funcionam sem uma gincana escolhida: as próprias telas de seleção
@@ -80,6 +84,12 @@ const ROTAS_SEM_GINCANA = [
 // recarregando a página em laço. Quem está sem equipe usa /selecionar-equipe, que
 // oferece a mesma inscrição sem o layout.
 const ROTAS_SEM_EQUIPE = [...ROTAS_SEM_GINCANA, '/selecionar-equipe'];
+
+// Central de ajuda: pública, não faz nenhuma requisição e é justamente o que
+// procura quem está parado numa etapa do escopo. Por isso não passa por nenhuma
+// das travas abaixo — senão quem ainda não escolheu escola/gincana/equipe seria
+// mandado de volta à tela de seleção ao tentar ler como escolher.
+const ehRotaAjuda = (pathname) => pathname === '/ajuda' || pathname.startsWith('/ajuda/');
 
 // Tela de espera usada tanto na inicialização da sessão quanto enquanto o
 // escopo (escola/gincana) ainda está sendo resolvido.
@@ -125,6 +135,18 @@ function App() {
 
   if (loading) {
     return <TelaCarregando />;
+  }
+
+  if (ehRotaAjuda(location.pathname)) {
+    return (
+      <Routes>
+        <Route path="/ajuda" element={<CentralAjuda />} />
+        <Route path="/ajuda/:slug" element={<ArtigoAjuda />} />
+        {/* Versões anteriores do sistema; a atual mora em /ajuda (ver ajuda/versoes.js). */}
+        <Route path="/ajuda/v/:versao" element={<GuardaVersao><CentralAjuda /></GuardaVersao>} />
+        <Route path="/ajuda/v/:versao/:slug" element={<GuardaVersao><ArtigoAjuda /></GuardaVersao>} />
+      </Routes>
+    );
   }
 
   // Nenhuma tela pode montar antes de o escopo estar resolvido: as páginas
@@ -194,13 +216,13 @@ function App() {
           element={isAuthenticated ? <Navigate to="/" replace /> : <Login />}
         />
 
-        {/* Dashboard como página inicial */}
+        {/* Dashboard como página inicial; visitante vê a landing page */}
         <Route
           path="/"
           element={isAuthenticated ? (
             <Dashboard usuario={usuario} onLogout={handleLogout} />
           ) : (
-            <Navigate to="/login" replace />
+            <LandingPage />
           )}
         />
 

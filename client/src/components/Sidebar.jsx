@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import {
   BookOpen, Users, UserCheck, Handshake, MessageSquare,
   History, Gavel, AlertCircle, User, Trophy, School,
-  ChevronRight, Menu, X, ChevronDown, Ticket, UserPlus, KeyRound
+  ChevronRight, Menu, X, ChevronDown, Ticket, UserPlus, KeyRound, LifeBuoy
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { ehAdmin, ehSuperAdmin } from '../lib/perfis';
@@ -257,6 +257,15 @@ export default function Sidebar({ usuario, isOpen, onToggle, isMobile }) {
       path: '/meus-feedbacks',
       color: 'indigo',
       show: ['COORDENADOR'].includes(usuario?.tipo)
+    },
+    {
+      id: 'ajuda',
+      icon: LifeBuoy,
+      title: 'Central de Ajuda',
+      description: 'Passo a passo das funções',
+      path: '/ajuda',
+      color: 'blue',
+      show: true
     }
   ];
 
