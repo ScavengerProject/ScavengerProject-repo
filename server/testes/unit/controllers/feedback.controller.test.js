@@ -4,12 +4,22 @@ import { MongoMemoryServer } from 'mongodb-memory-server';
 import Feedback from '../../../src/models/Feedback.js';
 import Usuario from '../../../src/models/Usuario.js';
 import Notificacao from '../../../src/models/Notificacao.js';
+import { enviarEmailNovoFeedback, enviarEmailFeedbackRespondido } from '../../../src/utils/emailService.js';
 import {
   enviarFeedback,
   listarFeedbacks,
   responderFeedback,
   listarMeusFeedbacks,
 } from '../../../src/feedbacks/feedbackController.js';
+
+// O controller envia o email direto (sem fila). Sem este mock, quem roda os
+// testes com SMTP configurado no server/.env mandava emails de verdade para os
+// endereços das fixtures a cada execução.
+jest.mock('../../../src/utils/emailService.js', () => ({
+  ...jest.requireActual('../../../src/utils/emailService.js'),
+  enviarEmailNovoFeedback: jest.fn().mockResolvedValue({ sucesso: true }),
+  enviarEmailFeedbackRespondido: jest.fn().mockResolvedValue({ sucesso: true }),
+}));
 
 const mockRes = () => {
   const res = {};
@@ -45,6 +55,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  jest.clearAllMocks();
   await Promise.all([Feedback.deleteMany({}), Usuario.deleteMany({}), Notificacao.deleteMany({})]);
 });
 
@@ -63,6 +74,7 @@ describe('feedbackController - enviarFeedback', () => {
     await new Promise((r) => setTimeout(r, 50));
     const notifAdmin = await Notificacao.findOne({ usuario_id: admin._id });
     expect(notifAdmin).not.toBeNull();
+    expect(enviarEmailNovoFeedback).toHaveBeenCalledWith('admin@x.com', 'Admin', expect.anything(), expect.anything());
   });
 
   it('não notifica ADMINs de outras escolas', async () => {
@@ -112,6 +124,7 @@ describe('feedbackController - responderFeedback', () => {
     expect(atualizado.status).toBe('ANALISADO');
     expect(atualizado.resposta_admin).toBe('Já corrigimos, obrigado!');
     expect(atualizado.avaliado_por_usuario_id.toString()).toBe(admin._id.toString());
+    expect(enviarEmailFeedbackRespondido).toHaveBeenCalledWith('autor@x.com', 'Autor', expect.anything(), expect.anything());
   });
 
   it('retorna 400 quando a resposta está vazia', async () => {
