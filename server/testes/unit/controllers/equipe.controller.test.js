@@ -5,6 +5,7 @@ import Equipe from '../../../src/models/Equipe.js';
 import EquipeGincana from '../../../src/models/EquipeGincana.js';
 import EquipeMembros from '../../../src/models/EquipeMembros.js';
 import Usuario from '../../../src/models/Usuario.js';
+import ConfiguracaoGincana from '../../../src/models/ConfiguracaoGincana.js';
 import {
   adicionarMembro,
   removerMembroEquipe,
@@ -21,6 +22,7 @@ import {
   listarCoordenadoresDisponiveis,
   listarUsuariosSemEquipe,
   listarUsuariosElegiveisCoordenador,
+  visualizarRankingEquipes,
 } from '../../../src/equipes/equipeController.js';
 
 const mockRes = () => {
@@ -639,5 +641,46 @@ describe('equipeController - o payload de uma equipe nunca é parcial', () => {
     expect(payload.coordenadores).toEqual([]);
     expect(payload.max_coordenadores).toBe(1);
     expect(payload.total_membros).toBe(0);
+  });
+});
+
+describe('equipeController - visualizarRankingEquipes', () => {
+  const criarNoRanking = async (nome, pontos) => {
+    const equipe = await Equipe.create({ nome, cor: '#111', gincana_id: 'G_RANK' });
+    await EquipeGincana.create({ equipe_id: equipe._id, gincana_id: 'G_RANK', pontos_acumulados: pontos });
+  };
+
+  afterEach(() => ConfiguracaoGincana.deleteMany({}));
+
+  it('esconde os pontos de quem não é admin quando a config não permite', async () => {
+    await criarNoRanking('A', 30);
+    await criarNoRanking('B', 30);
+    await criarNoRanking('C', 10);
+    const res = mockRes();
+
+    await visualizarRankingEquipes({ gincanaId: 'G_RANK', usuario: { tipo: 'ALUNO' } }, res);
+
+    const { ranking } = res.json.mock.calls[0][0];
+    expect(ranking.map((r) => r.posicao)).toEqual([1, 1, 3]);
+    expect(ranking.every((r) => r.pontos === undefined)).toBe(true);
+  });
+
+  it('mostra os pontos ao admin mesmo com a config desligada', async () => {
+    await criarNoRanking('A', 30);
+    const res = mockRes();
+
+    await visualizarRankingEquipes({ gincanaId: 'G_RANK', usuario: { tipo: 'ADMIN' } }, res);
+
+    expect(res.json.mock.calls[0][0].ranking[0].pontos).toBe(30);
+  });
+
+  it('mostra os pontos a todos quando a config permite', async () => {
+    await criarNoRanking('A', 30);
+    await ConfiguracaoGincana.create({ gincana_id: 'G_RANK', mostrar_notas_ranking: true });
+    const res = mockRes();
+
+    await visualizarRankingEquipes({ gincanaId: 'G_RANK', usuario: { tipo: 'ALUNO' } }, res);
+
+    expect(res.json.mock.calls[0][0].ranking[0].pontos).toBe(30);
   });
 });

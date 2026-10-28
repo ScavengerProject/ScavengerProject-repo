@@ -62,6 +62,25 @@ const GincanaSchema = new mongoose.Schema({
         type: Date,
         default: Date.now,
     },
+
+    // Classificação congelada no encerramento (POST /gincanas/:id/encerrar).
+    // A cerimônia e os emails leem DAQUI, não do ranking ao vivo: um resultado
+    // corrigido depois não pode contradizer o que já foi anunciado. null até a
+    // gincana ser encerrada por esse fluxo.
+    resultado_final: {
+        type: new mongoose.Schema({
+            encerrada_em: { type: Date, required: true },
+            encerrada_por: { type: mongoose.Schema.Types.ObjectId, ref: 'Usuario', required: true },
+            classificacao: [new mongoose.Schema({
+                posicao: { type: Number, required: true },
+                equipe_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Equipe', required: true },
+                nome: { type: String, required: true },
+                cor: { type: String, default: null },
+                pontos: { type: Number, required: true },
+            }, { _id: false })],
+        }, { _id: false }),
+        default: null,
+    },
 }, { _id: false }); // _id é gerenciado manualmente (String)
 
 // Evita duplicar a mesma edição DENTRO de uma escola (ex.: "Gincana" 2025 duas

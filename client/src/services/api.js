@@ -807,6 +807,14 @@ export const gincanasService = {
     method: 'PATCH',
     body: JSON.stringify({ status }),
   }),
+  // Classificação congelada no encerramento (cerimônia). 404
+  // RESULTADO_NAO_DISPONIVEL enquanto a gincana não foi encerrada.
+  resultadoFinal: (id) => request(`/gincanas/${id}/resultado-final`, { method: 'GET' }),
+  // O que seria congelado se a gincana fosse encerrada agora (ADMIN).
+  previaEncerramento: (id) => request(`/gincanas/${id}/previa-encerramento`, { method: 'GET' }),
+  // Congela a classificação e avisa os coordenadores por email. Idempotente:
+  // repetir devolve `ja_encerrada: true` sem reenviar nada.
+  encerrar: (id) => request(`/gincanas/${id}/encerrar`, { method: 'POST' }),
 };
 
 /**

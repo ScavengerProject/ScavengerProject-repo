@@ -8,6 +8,7 @@ import Prova from '../models/Prova.js';
 import Notificacao from '../models/Notificacao.js';
 import { enviarEmailNovaProva, enviarEmail } from '../utils/emailService.js';
 import { dispatchNotificacoesNovaProva } from '../provas/provaPublicacao.js';
+import { enviarEmailDoResultadoFinal } from '../gincanas/notificarResultadoFinal.js';
 
 /**
  * Cria e inicia o Worker que consome a fila 'emailQueue' e envia os emails
@@ -90,6 +91,11 @@ export const iniciarEmailWorker = () => {
               titulo,
               `<p>Olá ${usuario.nome},</p><p>${mensagem}</p>`
             );
+            break;
+          }
+
+          case 'RESULTADO_FINAL': {
+            resultado = await enviarEmailDoResultadoFinal(usuario, notificacao);
             break;
           }
 

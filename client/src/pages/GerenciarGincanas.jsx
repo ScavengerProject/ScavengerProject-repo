@@ -1,16 +1,18 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useGincana } from '../hooks/useGincana';
 import MainLayout from '../components/MainLayout';
 import { gincanasService } from '../services/api';
 import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '../components/ui/dialog';
 import { Label } from '../components/ui/label';
 import { Input } from '../components/ui/input';
 import { Textarea } from '../components/ui/textarea';
-import { Trophy, Plus, Archive, CheckCircle, Power, Pencil, CalendarRange } from 'lucide-react';
+import { Trophy, Plus, Archive, CheckCircle, Power, Pencil, CalendarRange, Medal } from 'lucide-react';
 import { toast } from '../components/ui/toast';
+import EncerrarGincanaDialog from '../components/EncerrarGincanaDialog';
 
 const statusColor = (status) => {
   switch (status) {
@@ -55,6 +57,7 @@ const periodoLegivel = ({ data_inicio, data_fim }) => {
 const GerenciarGincanas = () => {
   const { usuario, logout } = useAuth();
   const { recarregarGincanas } = useGincana();
+  const navigate = useNavigate();
 
   const [gincanas, setGincanas] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -63,6 +66,10 @@ const GerenciarGincanas = () => {
   // Gincana sendo editada; null significa que o modal está em modo de criação.
   const [editando, setEditando] = useState(null);
   const [form, setForm] = useState(formVazio);
+  // Gincana cujo encerramento está sendo confirmado (diálogo aberto).
+  const [encerrando, setEncerrando] = useState(null);
+  // Gincana com resultado congelado aguardando a confirmação do Reativar.
+  const [reativando, setReativando] = useState(null);
 
   const fetchGincanas = async () => {
     try {
@@ -154,6 +161,14 @@ const GerenciarGincanas = () => {
     }
   };
 
+  // Depois de encerrar, a gincana pode ser justamente a ativa: recarregar o
+  // escopo agora a tira de lá antes que o MainLayout (notificações a cada 30s)
+  // faça uma requisição com ela e leve GINCANA_ENCERRADA. Esta rota dispensa
+  // gincana (ROTAS_SEM_GINCANA), então o admin continua aqui.
+  const aoEncerrar = async () => {
+    await Promise.all([fetchGincanas(), recarregarGincanas()]);
+  };
+
   if (isLoading) {
     return <div className="p-8 text-center text-gray-500">Carregando gincanas...</div>;
   }
@@ -201,13 +216,33 @@ const GerenciarGincanas = () => {
                         <Pencil size={16} /> Editar
                       </Button>
                       {g.status !== 'ATIVA' && (
-                        <Button variant="outline" size="sm" onClick={() => alterarStatus(g, 'ATIVA')} className="flex items-center gap-1">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          // Só pede confirmação quando há o que perder: reativar
+                          // tira o resultado anunciado do ar.
+                          onClick={() => (g.tem_resultado_final ? setReativando(g) : alterarStatus(g, 'ATIVA'))}
+                          className="flex items-center gap-1"
+                        >
                           <CheckCircle size={16} /> Reativar
                         </Button>
                       )}
-                      {g.status === 'ATIVA' && (
-                        <Button variant="outline" size="sm" onClick={() => alterarStatus(g, 'ENCERRADA')} className="flex items-center gap-1">
-                          <Power size={16} /> Encerrar
+                      {g.tem_resultado_final && (
+                        <Button
+                          size="sm"
+                          onClick={() => navigate(`/cerimonia/${g._id}`)}
+                          className="flex items-center gap-1 bg-amber-500 hover:bg-amber-600 text-gray-900"
+                        >
+                          <Medal size={16} /> Cerimônia
+                        </Button>
+                      )}
+                      {/* O encerramento passa pela prévia: é ele que congela o
+                          resultado e avisa os coordenadores. Uma gincana
+                          encerrada pelo caminho antigo (sem resultado) também
+                          pode gerá-lo por aqui. */}
+                      {(g.status === 'ATIVA' || (g.status === 'ENCERRADA' && !g.tem_resultado_final)) && (
+                        <Button variant="outline" size="sm" onClick={() => setEncerrando(g)} className="flex items-center gap-1">
+                          <Power size={16} /> {g.status === 'ATIVA' ? 'Encerrar' : 'Gerar resultado final'}
                         </Button>
                       )}
                       {g.status !== 'ARQUIVADA' && (
@@ -223,6 +258,45 @@ const GerenciarGincanas = () => {
           </div>
         )}
       </div>
+
+      <EncerrarGincanaDialog
+        gincana={encerrando}
+        onOpenChange={(aberto) => { if (!aberto) setEncerrando(null); }}
+        onEncerrada={aoEncerrar}
+        onIniciarCerimonia={(id) => navigate(`/cerimonia/${id}`)}
+      />
+
+      <Dialog open={Boolean(reativando)} onOpenChange={(aberto) => { if (!aberto) setReativando(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reativar {reativando?.nome}?</DialogTitle>
+            <DialogDescription>
+              A gincana volta a abrir para os participantes, e o resultado final sai do ar: a cerimônia deixa de
+              funcionar até a gincana ser encerrada de novo.
+            </DialogDescription>
+          </DialogHeader>
+          <ul className="list-disc space-y-1 pl-5 text-sm text-gray-700">
+            <li>Os emails de resultado que já foram enviados não voltam.</li>
+            <li>Ao encerrar de novo, a classificação é recalculada e os coordenadores recebem um novo email.</li>
+          </ul>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setReativando(null)}>
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+              onClick={async () => {
+                const gincana = reativando;
+                setReativando(null);
+                await alterarStatus(gincana, 'ATIVA');
+              }}
+            >
+              Reativar mesmo assim
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Modal de criação e edição — o mesmo formulário nos dois modos. */}
       <Dialog open={isModalOpen} onOpenChange={fecharModal}>

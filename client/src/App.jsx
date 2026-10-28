@@ -33,6 +33,7 @@ import MeusFeedbacks from './pages/MeusFeedbacks.jsx';
 import Notificacoes from './pages/Notificacoes.jsx';
 import Resultados from './pages/Resultados.jsx';
 import Configuracoes from './pages/Configuracoes.jsx';
+import Cerimonia from './pages/Cerimonia.jsx';
 import { useToast } from './components/ui/toast';
 import { ToastContainer } from './components/ui/ToastContainer';
 import AdminPenalidades from './pages/AdminPenalidades.jsx';
@@ -90,6 +91,16 @@ const ROTAS_SEM_EQUIPE = [...ROTAS_SEM_GINCANA, '/selecionar-equipe'];
 // das travas abaixo — senão quem ainda não escolheu escola/gincana/equipe seria
 // mandado de volta à tela de seleção ao tentar ler como escolher.
 const ehRotaAjuda = (pathname) => pathname === '/ajuda' || pathname.startsWith('/ajuda/');
+
+// Cerimônia de encerramento: o alvo é uma gincana JÁ ENCERRADA, que por isso
+// nunca é (nem pode virar) a gincana ativa. Exige escola — a API filtra pelo
+// X-Escola-Id —, mas não gincana nem equipe: sem esta exceção, quem abre o
+// resultado de uma edição passada seria mandado escolher uma edição em
+// andamento, e o ADMIN que acabou de encerrar a única gincana da escola, para
+// /selecionar-gincana.
+const ehRotaCerimonia = (pathname) => pathname.startsWith('/cerimonia/');
+const dispensaGincana = (pathname) => ROTAS_SEM_GINCANA.includes(pathname) || ehRotaCerimonia(pathname);
+const dispensaEquipe = (pathname) => ROTAS_SEM_EQUIPE.includes(pathname) || ehRotaCerimonia(pathname);
 
 // Tela de espera usada tanto na inicialização da sessão quanto enquanto o
 // escopo (escola/gincana) ainda está sendo resolvido.
@@ -188,7 +199,7 @@ function App() {
     isAuthenticated
     && !precisaSelecionarEscola
     && precisaSelecionarGincana
-    && !ROTAS_SEM_GINCANA.includes(location.pathname)
+    && !dispensaGincana(location.pathname)
   ) {
     return <Navigate to="/selecionar-gincana" replace />;
   }
@@ -202,7 +213,7 @@ function App() {
     && !precisaSelecionarEscola
     && !precisaSelecionarGincana
     && precisaSelecionarEquipe
-    && !ROTAS_SEM_EQUIPE.includes(location.pathname)
+    && !dispensaEquipe(location.pathname)
   ) {
     return <Navigate to="/selecionar-equipe" replace />;
   }
@@ -549,6 +560,13 @@ function App() {
         <Route
           path="/resultados"
           element={isAuthenticated ? <Resultados /> : <Navigate to="/login" replace />}
+        />
+
+        {/* Cerimônia de encerramento (telão) - qualquer perfil com vínculo na
+            escola; a API só responde depois que a gincana foi encerrada. */}
+        <Route
+          path="/cerimonia/:gincanaId"
+          element={isAuthenticated ? <Cerimonia /> : <Navigate to="/login" replace />}
         />
 
         {/* Configurações - Todos os usuários */}

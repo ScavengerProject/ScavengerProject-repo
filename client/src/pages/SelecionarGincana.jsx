@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Trophy, Lock, ChevronRight, ArrowLeft, Plus, CalendarDays, LogOut } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Trophy, Lock, ChevronRight, ArrowLeft, Plus, CalendarDays, LogOut, Medal } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useEscola } from '../hooks/useEscola';
 import { useGincana } from '../hooks/useGincana';
@@ -288,8 +289,12 @@ export default function SelecionarGincana() {
                 {gincanasEncerradas.map((gincana) => (
                   <li
                     key={gincana._id}
-                    className="border border-gray-200 rounded-xl p-3 bg-gray-50 flex items-center gap-3 cursor-not-allowed"
-                    title="Esta edição está encerrada e não pode ser acessada."
+                    className={`border border-gray-200 rounded-xl p-3 bg-gray-50 flex items-center gap-3 ${
+                      gincana.tem_resultado_final ? '' : 'cursor-not-allowed'
+                    }`}
+                    title={gincana.tem_resultado_final
+                      ? 'Esta edição está encerrada, mas o resultado continua disponível.'
+                      : 'Esta edição está encerrada e não pode ser acessada.'}
                   >
                     <Lock size={16} className="text-gray-400 shrink-0" />
                     <span className="min-w-0 flex-1">
@@ -298,9 +303,22 @@ export default function SelecionarGincana() {
                       </span>
                       <span className="block text-xs text-gray-500">{gincana.ano}</span>
                     </span>
-                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-200 text-gray-700 shrink-0">
-                      Encerrada
-                    </span>
+                    {/* A edição não pode ser aberta, mas o resultado dela sim:
+                        a cerimônia não depende da gincana ativa. Só aparece
+                        para quem foi encerrada com a classificação congelada. */}
+                    {gincana.tem_resultado_final ? (
+                      <Link
+                        to={`/cerimonia/${gincana._id}`}
+                        className="text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-100 text-amber-900 hover:bg-amber-200 inline-flex items-center gap-1 shrink-0"
+                      >
+                        <Medal size={14} />
+                        Ver resultado
+                      </Link>
+                    ) : (
+                      <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-200 text-gray-700 shrink-0">
+                        Encerrada
+                      </span>
+                    )}
                   </li>
                 ))}
               </ul>
