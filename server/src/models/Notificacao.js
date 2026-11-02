@@ -6,7 +6,9 @@ const NotificacaoSchema = new mongoose.Schema({
 
   tipo: {
     type: String,
-    enum: ['NOVA_PROVA', 'RESULTADO', 'COMUNICADO', 'PENALIDADE', 'MIGRACAO'],
+    // RESULTADO_FINAL: resultado da gincana para o coordenador, criado no
+    // encerramento (ver gincanas/notificarResultadoFinal.js).
+    enum: ['NOVA_PROVA', 'RESULTADO', 'COMUNICADO', 'PENALIDADE', 'MIGRACAO', 'RESULTADO_FINAL'],
     required: true
   },
   

@@ -88,6 +88,12 @@ return (
                 Cadastre-se
               </a>
             </p>
+            <p className="mt-1 text-sm text-gray-600">
+              Precisa de ajuda?{" "}
+              <a href="/ajuda" className="text-sm text-blue-600 hover:text-blue-700 transition-colors">
+                Central de ajuda
+              </a>
+            </p>
           </div>
         </form>
       </CardContent>

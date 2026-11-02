@@ -6,6 +6,9 @@ import {
     criarGincana,
     atualizarGincana,
     alterarStatusGincana,
+    encerrarGincana,
+    obterResultadoFinal,
+    previaEncerramento,
 } from './gincanaController.js';
 import { proteger, autorizar, resolverEscola } from '../auth/authPermissions.js';
 
@@ -25,5 +28,15 @@ router.get('/', proteger, resolverEscola, autorizar('ADMIN'), listarGincanas);
 router.post('/', proteger, resolverEscola, autorizar('ADMIN'), criarGincana);
 router.put('/:id', proteger, resolverEscola, autorizar('ADMIN'), atualizarGincana);
 router.patch('/:id/status', proteger, resolverEscola, autorizar('ADMIN'), alterarStatusGincana);
+
+// Encerramento "oficial": congela a classificação em `resultado_final`, que a
+// cerimônia e os emails de resultado leem. Sem resolverGincana de propósito —
+// o alvo é o :id, não o escopo ativo (que pode ser outra edição).
+router.get('/:id/previa-encerramento', proteger, resolverEscola, autorizar('ADMIN'), previaEncerramento);
+router.post('/:id/encerrar', proteger, resolverEscola, autorizar('ADMIN'), encerrarGincana);
+
+// Resultado congelado, para a cerimônia. Qualquer perfil com vínculo na escola;
+// também sem resolverGincana, porque a gincana alvo está encerrada.
+router.get('/:id/resultado-final', proteger, resolverEscola, obterResultadoFinal);
 
 export default router;

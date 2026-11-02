@@ -58,3 +58,16 @@ export function gincanaEncerrada(gincana) {
     if (gincana.status === 'ENCERRADA' || gincana.status === 'ARQUIVADA') return true;
     return Number(gincana.ano) < new Date().getFullYear();
 }
+
+/**
+ * O resultado congelado em `resultado_final` só vale como resultado FINAL
+ * enquanto a gincana não for reaberta: uma edição de volta a ATIVA guarda o
+ * snapshot antigo (até ser encerrada de novo), mas ele não pode ser servido
+ * como definitivo. Arquivar depois de encerrar não esconde o resultado.
+ *
+ * @param {{status?: string, resultado_final?: object|null}} gincana
+ * @returns {boolean}
+ */
+export function resultadoFinalDisponivel(gincana) {
+    return Boolean(gincana?.resultado_final) && gincana.status !== 'ATIVA';
+}

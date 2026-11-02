@@ -300,3 +300,135 @@ export const enviarEmailFeedbackRespondido = async (destinatario, nomeDestinatar
   return await enviarEmail(destinatario, assunto, corpoHTML);
 };
 
+// Nomes de equipe e de pessoa são digitados por usuários: escapados antes de
+// entrar no HTML do email.
+export const escaparHtml = (texto) => String(texto ?? '')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#39;');
+
+const MEDALHA_EMOJI = { 1: '🥇', 2: '🥈', 3: '🥉' };
+
+/**
+ * Assunto e HTML do email de resultado final da gincana, para o coordenador
+ * de uma equipe. Função pura (testável); quem envia é enviarEmailResultadoFinal.
+ *
+ * Layout em tabelas e estilos inline: é o que Gmail e Outlook renderizam de
+ * forma confiável (sem <style>, flexbox ou gradiente).
+ *
+ * @param {Object} dados
+ * @param {string} dados.nomeDestinatario
+ * @param {string} dados.nomeEquipe
+ * @param {string|null} dados.corEquipe
+ * @param {number} dados.posicao
+ * @param {number} dados.totalEquipes
+ * @param {number|null} dados.pontos null quando a gincana não mostra notas
+ * @param {string[]} dados.empatadaCom nomes das outras equipes na mesma posição
+ * @param {{posicao: number, nome: string}[]} dados.podio
+ * @param {string} dados.gincanaNome
+ * @param {number} dados.gincanaAno
+ * @param {string|null} dados.escolaNome
+ * @param {{emoji: string, cor: string, corTexto: string, corNoBranco: string, titulo: string, frase: string}} dados.mensagem
+ * @param {string} dados.linkCerimonia
+ * @returns {{assunto: string, html: string}}
+ */
+export const montarEmailResultadoFinal = (dados) => {
+  const {
+    nomeDestinatario, nomeEquipe, corEquipe, posicao, totalEquipes, pontos,
+    empatadaCom = [], podio = [], gincanaNome, gincanaAno, escolaNome, mensagem, linkCerimonia,
+  } = dados;
+  const e = escaparHtml;
+
+  const assunto = posicao === 1
+    ? `${mensagem.emoji} ${nomeEquipe} é a equipe campeã — ${gincanaNome}`
+    : `${mensagem.emoji} ${nomeEquipe} ficou em ${posicao}º lugar — ${gincanaNome}`;
+
+  const empate = empatadaCom.length > 0
+    ? `<p style="margin:8px 0 0;font-size:14px;color:#6b7280;">Empatada com ${e(empatadaCom.join(', '))}</p>`
+    : '';
+  const linhaPontos = pontos !== null && pontos !== undefined
+    ? `<p style="margin:8px 0 0;font-size:16px;color:#374151;"><strong>${e(Number(pontos).toLocaleString('pt-BR'))}</strong> pontos</p>`
+    : '';
+
+  const linhasPodio = podio.map((item) => `
+              <tr>
+                <td style="padding:6px 0;font-size:15px;color:#111827;">
+                  ${MEDALHA_EMOJI[item.posicao] || ''}&nbsp; <strong>${item.posicao}º</strong>&nbsp; ${e(item.nome)}
+                </td>
+              </tr>`).join('');
+
+  const contexto = [e(gincanaNome), e(gincanaAno), escolaNome ? e(escolaNome) : null].filter(Boolean).join(' · ');
+
+  const html = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${e(assunto)}</title></head>
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:Arial,Helvetica,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f3f4f6;">
+    <tr><td align="center" style="padding:24px 12px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:#ffffff;border-radius:12px;overflow:hidden;">
+        <tr>
+          <td align="center" bgcolor="${mensagem.cor}" style="background:${mensagem.cor};padding:36px 24px;color:${mensagem.corTexto};">
+            <div style="font-size:56px;line-height:1;">${mensagem.emoji}</div>
+            <h1 style="margin:16px 0 4px;font-size:28px;line-height:1.2;color:${mensagem.corTexto};">${e(mensagem.titulo)}</h1>
+            <p style="margin:0;font-size:14px;color:${mensagem.corTexto};">${contexto}</p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:32px 28px 8px;color:#374151;font-size:16px;line-height:1.6;">
+            <p style="margin:0 0 16px;">Olá, <strong>${e(nomeDestinatario)}</strong>!</p>
+            <p style="margin:0;">A gincana chegou ao fim e o resultado da sua equipe já está definido:</p>
+          </td>
+        </tr>
+        <tr>
+          <td align="center" style="padding:16px 28px;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:2px solid ${mensagem.cor};border-radius:12px;">
+              <tr><td align="center" style="padding:24px;">
+                <p style="margin:0;font-size:15px;color:#6b7280;">
+                  <span style="display:inline-block;width:12px;height:12px;border-radius:6px;background:${e(corEquipe || '#9ca3af')};"></span>
+                  &nbsp;${e(nomeEquipe)}
+                </p>
+                <p style="margin:8px 0 0;font-size:48px;line-height:1;font-weight:bold;color:${mensagem.corNoBranco};">${posicao}º lugar</p>
+                <p style="margin:8px 0 0;font-size:14px;color:#6b7280;">entre ${totalEquipes} equipes</p>
+                ${empate}
+                ${linhaPontos}
+              </td></tr>
+            </table>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:8px 28px;color:#374151;font-size:16px;line-height:1.6;">
+            <p style="margin:0;font-style:italic;">“${e(mensagem.frase)}”</p>
+          </td>
+        </tr>
+        ${podio.length > 0 ? `<tr>
+          <td style="padding:16px 28px;">
+            <p style="margin:0 0 8px;font-size:13px;font-weight:bold;letter-spacing:1px;text-transform:uppercase;color:#9ca3af;">Pódio</p>
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0">${linhasPodio}
+            </table>
+          </td>
+        </tr>` : ''}
+        <tr>
+          <td align="center" style="padding:16px 28px 32px;">
+            <a href="${e(linkCerimonia)}" style="display:inline-block;background:#111827;color:#ffffff;text-decoration:none;font-weight:bold;padding:14px 28px;border-radius:8px;">Ver a cerimônia de encerramento</a>
+          </td>
+        </tr>
+      </table>
+      <p style="margin:16px 0 0;font-size:12px;color:#9ca3af;">Esta é uma mensagem automática do Sistema de Gincana. Por favor, não responda este email.</p>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+
+  return { assunto, html };
+};
+
+/**
+ * Envia o email de resultado final (ver montarEmailResultadoFinal).
+ * @returns {Promise<Object>} - Resultado do envio
+ */
+export const enviarEmailResultadoFinal = async (destinatario, dados) => {
+  const { assunto, html } = montarEmailResultadoFinal(dados);
+  return await enviarEmail(destinatario, assunto, html);
+};

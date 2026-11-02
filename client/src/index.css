@@ -1,5 +1,24 @@
 @import "tailwindcss";
 
+/* Animações da cerimônia de encerramento (pages/Cerimonia.jsx). Viram as
+   classes animate-cerimonia-*; com movimento reduzido, a tela usa
+   motion-reduce:animate-none. `both` mantém o elemento invisível durante o
+   animation-delay, que é o que escalona a entrada das listas. */
+@theme {
+  --animate-cerimonia-surgir: cerimonia-surgir 0.8s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-cerimonia-pulsar: cerimonia-pulsar 1.6s ease-in-out infinite;
+
+  @keyframes cerimonia-surgir {
+    from { opacity: 0; transform: translateY(24px) scale(0.97); }
+    to { opacity: 1; transform: none; }
+  }
+
+  @keyframes cerimonia-pulsar {
+    0%, 100% { opacity: 0.6; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.06); }
+  }
+}
+
 html, body {
   margin: 0;
   padding: 0;

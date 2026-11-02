@@ -33,6 +33,7 @@ import MeusFeedbacks from './pages/MeusFeedbacks.jsx';
 import Notificacoes from './pages/Notificacoes.jsx';
 import Resultados from './pages/Resultados.jsx';
 import Configuracoes from './pages/Configuracoes.jsx';
+import Cerimonia from './pages/Cerimonia.jsx';
 import { useToast } from './components/ui/toast';
 import { ToastContainer } from './components/ui/ToastContainer';
 import AdminPenalidades from './pages/AdminPenalidades.jsx';
@@ -44,6 +45,10 @@ import CoordGerenciarOfertas from './pages/CoordGerenciarOfertas.jsx';
 import CoordGerenciarEmprestimos from './pages/CoordGerenciarEmprestimos.jsx';
 import CoordDefinirParticipacaoProva from './pages/CoordDefinirParticipacaoProva.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
+import LandingPage from './pages/LandingPage.jsx';
+import CentralAjuda from './pages/ajuda/CentralAjuda.jsx';
+import ArtigoAjuda from './pages/ajuda/ArtigoAjuda.jsx';
+import { GuardaVersao } from './pages/ajuda/versaoAjuda.jsx';
 import { ehAdmin, ehSuperAdmin } from './lib/perfis';
 
 // Rotas que funcionam sem uma gincana escolhida: as próprias telas de seleção
@@ -80,6 +85,22 @@ const ROTAS_SEM_GINCANA = [
 // recarregando a página em laço. Quem está sem equipe usa /selecionar-equipe, que
 // oferece a mesma inscrição sem o layout.
 const ROTAS_SEM_EQUIPE = [...ROTAS_SEM_GINCANA, '/selecionar-equipe'];
+
+// Central de ajuda: pública, não faz nenhuma requisição e é justamente o que
+// procura quem está parado numa etapa do escopo. Por isso não passa por nenhuma
+// das travas abaixo — senão quem ainda não escolheu escola/gincana/equipe seria
+// mandado de volta à tela de seleção ao tentar ler como escolher.
+const ehRotaAjuda = (pathname) => pathname === '/ajuda' || pathname.startsWith('/ajuda/');
+
+// Cerimônia de encerramento: o alvo é uma gincana JÁ ENCERRADA, que por isso
+// nunca é (nem pode virar) a gincana ativa. Exige escola — a API filtra pelo
+// X-Escola-Id —, mas não gincana nem equipe: sem esta exceção, quem abre o
+// resultado de uma edição passada seria mandado escolher uma edição em
+// andamento, e o ADMIN que acabou de encerrar a única gincana da escola, para
+// /selecionar-gincana.
+const ehRotaCerimonia = (pathname) => pathname.startsWith('/cerimonia/');
+const dispensaGincana = (pathname) => ROTAS_SEM_GINCANA.includes(pathname) || ehRotaCerimonia(pathname);
+const dispensaEquipe = (pathname) => ROTAS_SEM_EQUIPE.includes(pathname) || ehRotaCerimonia(pathname);
 
 // Tela de espera usada tanto na inicialização da sessão quanto enquanto o
 // escopo (escola/gincana) ainda está sendo resolvido.
@@ -127,6 +148,18 @@ function App() {
     return <TelaCarregando />;
   }
 
+  if (ehRotaAjuda(location.pathname)) {
+    return (
+      <Routes>
+        <Route path="/ajuda" element={<CentralAjuda />} />
+        <Route path="/ajuda/:slug" element={<ArtigoAjuda />} />
+        {/* Versões anteriores do sistema; a atual mora em /ajuda (ver ajuda/versoes.js). */}
+        <Route path="/ajuda/v/:versao" element={<GuardaVersao><CentralAjuda /></GuardaVersao>} />
+        <Route path="/ajuda/v/:versao/:slug" element={<GuardaVersao><ArtigoAjuda /></GuardaVersao>} />
+      </Routes>
+    );
+  }
+
   // Nenhuma tela pode montar antes de o escopo estar resolvido: as páginas
   // disparam requisições no mount, e sem os headers X-Escola-Id/X-Gincana-Id
   // corretos elas levariam 400/404 e jogariam o usuário para fora da rota.
@@ -166,7 +199,7 @@ function App() {
     isAuthenticated
     && !precisaSelecionarEscola
     && precisaSelecionarGincana
-    && !ROTAS_SEM_GINCANA.includes(location.pathname)
+    && !dispensaGincana(location.pathname)
   ) {
     return <Navigate to="/selecionar-gincana" replace />;
   }
@@ -180,7 +213,7 @@ function App() {
     && !precisaSelecionarEscola
     && !precisaSelecionarGincana
     && precisaSelecionarEquipe
-    && !ROTAS_SEM_EQUIPE.includes(location.pathname)
+    && !dispensaEquipe(location.pathname)
   ) {
     return <Navigate to="/selecionar-equipe" replace />;
   }
@@ -194,13 +227,13 @@ function App() {
           element={isAuthenticated ? <Navigate to="/" replace /> : <Login />}
         />
 
-        {/* Dashboard como página inicial */}
+        {/* Dashboard como página inicial; visitante vê a landing page */}
         <Route
           path="/"
           element={isAuthenticated ? (
             <Dashboard usuario={usuario} onLogout={handleLogout} />
           ) : (
-            <Navigate to="/login" replace />
+            <LandingPage />
           )}
         />
 
@@ -527,6 +560,13 @@ function App() {
         <Route
           path="/resultados"
           element={isAuthenticated ? <Resultados /> : <Navigate to="/login" replace />}
+        />
+
+        {/* Cerimônia de encerramento (telão) - qualquer perfil com vínculo na
+            escola; a API só responde depois que a gincana foi encerrada. */}
+        <Route
+          path="/cerimonia/:gincanaId"
+          element={isAuthenticated ? <Cerimonia /> : <Navigate to="/login" replace />}
         />
 
         {/* Configurações - Todos os usuários */}

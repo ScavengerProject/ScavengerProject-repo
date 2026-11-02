@@ -26,3 +26,16 @@ jest.mock('bullmq', () => ({
     close: jest.fn().mockResolvedValue(undefined),
   })),
 }));
+
+// 3) Rede de segurança contra email de verdade. Localmente o setupTests.js
+//    carrega o server/.env, e com o SMTP configurado qualquer teste que chegue
+//    ao enviarEmail sem mock mandava uma mensagem real (já aconteceu com os de
+//    feedback). Aqui o transporte nunca toca a rede; quem quer verificar o que
+//    seria enviado deve mockar as funções de emailService.js, como os testes
+//    de feedback e de resultado final.
+jest.mock('nodemailer', () => {
+  const createTransport = jest.fn(() => ({
+    sendMail: jest.fn().mockResolvedValue({ messageId: 'mock-message-id' }),
+  }));
+  return { __esModule: true, default: { createTransport }, createTransport };
+});

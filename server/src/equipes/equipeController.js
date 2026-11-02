@@ -5,6 +5,7 @@ import Usuario from '../models/Usuario.js';
 import ConfiguracaoGincana from '../models/ConfiguracaoGincana.js';
 import { getEquipeGincanaDoCoordenador } from './coordenadorEquipe.js';
 import { usuarioParticipaDaGincana } from '../gincanas/gincanaHelpers.js';
+import { calcularRanking } from '../gincanas/rankingGincana.js';
 import {
     filtroEscola,
     filtroEscolaComPerfil,
@@ -1010,60 +1011,21 @@ export const visualizarRankingEquipes = async (req, res) => {
         const isAdmin = ['ADMIN', 'SUPER_ADMIN'].includes(req.usuario?.tipo);
         const deveMostrarNotas = mostrarNotas || isAdmin;
 
-        const rankingRecords = await EquipeGincana.find({ gincana_id: escopoGincana(req) })
-            .sort({ pontos_acumulados: -1 })
-            .select('equipe_id pontos_acumulados');
+        const classificacao = await calcularRanking(escopoGincana(req));
 
-        const equipeIds = rankingRecords.map(rec => rec.equipe_id);
-
-        const equipesMaster = await Equipe.find({ _id: { $in: equipeIds } }).select('nome');
-
-        const equipeNameMap = equipesMaster.reduce((map, equipe) => {
-            map[equipe._id.toString()] = equipe.nome;
-            return map;
-        }, {});
-
-        // Calcular posições considerando empates
-        // Equipes com a mesma pontuação devem ter a mesma posição
-        let posicaoAtual = 1;
-
-        const ranking = rankingRecords.map((rec, index) => {
-            const equipeIdString = rec.equipe_id.toString();
-            const nomeEquipe = equipeNameMap[equipeIdString];
-
-            // Filtra entradas sem nome (caso a equipe tenha sido deletada)
-            if (!nomeEquipe) return null;
-
-            // Calcular posição considerando empates
-            // Se é a primeira equipe, sempre é posição 1
-            if (index === 0) {
-                posicaoAtual = 1;
-            } else {
-                // Se a pontuação é diferente da anterior, atualiza a posição
-                const pontuacaoAnterior = rankingRecords[index - 1].pontos_acumulados;
-                if (rec.pontos_acumulados !== pontuacaoAnterior) {
-                    // Posição é baseada no número de equipes acima (index + 1)
-                    posicaoAtual = index + 1;
-                }
-                // Se a pontuação é igual à anterior, mantém a mesma posição (empate)
-            }
-
-            const item = {
-                posicao: posicaoAtual, // Posição no ranking (considera empates - equipes com mesma pontuação têm mesma posição)
-                nome: nomeEquipe,
-                equipe_id: rec.equipe_id,
-            };
+        const ranking = classificacao.map(({ posicao, nome, equipe_id, pontos }) => {
+            const item = { posicao, nome, equipe_id };
 
             // Incluir pontos se a configuração permitir OU se for admin
             if (deveMostrarNotas) {
-                item.pontos = rec.pontos_acumulados;
+                item.pontos = pontos;
             }
 
             return item;
         });
 
         res.status(200).json({
-            ranking: ranking.filter(r => r !== null),
+            ranking,
             mostrar_notas: mostrarNotas,
             is_admin: isAdmin
         });

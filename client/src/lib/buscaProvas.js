@@ -2,7 +2,7 @@
 // acentos ("revezamento" acha "Revezamento", "agua" acha "Água"). Feita no
 // client porque as telas de provas já recebem a lista inteira da gincana.
 
-const normalizar = (texto) =>
+export const normalizar = (texto) =>
   String(texto || '')
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '')
